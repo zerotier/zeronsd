@@ -1,0 +1,14 @@
+[package]
+name = "zeronsd"
+version = "0.1.0"
+authors = ["Erik Hollensbe <linux@hollensbe.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = ">= 0"
+clap = ">= 0"
+trust-dns-server = "0.20.1"
+tokio = { version = "1", features = ["full"] }
+openapi = { path = "gen" }
