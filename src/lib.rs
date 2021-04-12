@@ -67,6 +67,7 @@ pub fn configure_authority(
 
     for member in members {
         let member_name = format!("zt-{}", member.node_id.unwrap());
+
         let fqdn = Name::from_str(&member_name)?.append_name(&domain_name.clone());
         for ip in member.config.unwrap().ip_assignments.unwrap() {
             match IpAddr::from_str(&ip).unwrap() {
@@ -79,6 +80,16 @@ pub fn configure_authority(
                     address.set_rdata(RData::A(ip));
                     serial += 1;
                     authority.upsert(address, serial);
+                    if let Some(name) = member.name.clone() {
+                        let mut address = Record::with(
+                            Name::from_str(&name)?.append_name(&domain_name.clone()),
+                            trust_dns_server::client::rr::RecordType::A,
+                            60,
+                        );
+                        address.set_rdata(RData::A(ip));
+                        serial += 1;
+                        authority.upsert(address, serial);
+                    }
                 }
                 IpAddr::V6(ip) => {
                     let mut address = Record::with(

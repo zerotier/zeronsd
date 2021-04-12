@@ -74,8 +74,28 @@ async fn dump(app: clap::App<'static, 'static>, args: &clap::ArgMatches<'static>
                 println!(
                     "{} {}",
                     member.node_id.unwrap(),
-                    member.config.unwrap().ip_assignments.unwrap().join(" "),
+                    member
+                        .config
+                        .clone()
+                        .unwrap()
+                        .ip_assignments
+                        .unwrap()
+                        .join(" "),
                 );
+
+                if let Some(name) = member.name {
+                    println!(
+                        "{} {}",
+                        name,
+                        member
+                            .config
+                            .clone()
+                            .unwrap()
+                            .ip_assignments
+                            .unwrap()
+                            .join(" "),
+                    );
+                }
             }
         }
         Err(e) => {
