@@ -1,4 +1,5 @@
 use authority::ZTAuthority;
+use openapi::apis::configuration::Configuration;
 use std::str::FromStr;
 use std::time::Duration;
 use trust_dns_server::client::rr::Name;
@@ -29,17 +30,28 @@ async fn start(
     };
 
     if let Some(network) = network {
-        let authority = ZTAuthority::new(domain_name.clone(), 1, String::from(network))?;
-        let owned = authority.to_owned();
-        tokio::spawn(owned.find_members());
+        if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
+            let network = String::from(network);
+            let mut config = Configuration::default();
+            config.bearer_access_token = Some(token.clone());
 
-        if let Some(ip) = listen {
-            let server = crate::server::Server::new(authority.clone().catalog());
-            server
-                .listen(&format!("{}:53", ip), Duration::new(0, 1000))
-                .await
+            let authority =
+                ZTAuthority::new(domain_name.clone(), 1, network.clone(), config.clone())?;
+
+            let owned = authority.to_owned();
+            tokio::spawn(owned.find_members());
+
+            if let Some(ip) = listen {
+                let server =
+                    crate::server::Server::new(authority.clone().catalog(), config, network);
+                server
+                    .listen(&format!("{}:53", ip), Duration::new(0, 1000))
+                    .await
+            } else {
+                return Err(anyhow!("no listen IP"));
+            }
         } else {
-            return Err(anyhow!("no listen IP"));
+            Err(anyhow!("missing zerotier central token"))
         }
     } else {
         return Err(anyhow!("no network ID"));

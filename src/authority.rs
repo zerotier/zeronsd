@@ -20,6 +20,7 @@ pub struct ZTAuthority {
     domain_name: Name,
     serial: Arc<Mutex<u32>>,
     network: String,
+    config: Configuration,
 }
 
 impl ZTAuthority {
@@ -27,11 +28,13 @@ impl ZTAuthority {
         domain_name: Name,
         initial_serial: u32,
         network: String,
+        config: Configuration,
     ) -> Result<Arc<Self>, anyhow::Error> {
         Ok(Arc::new(Self {
             serial: Arc::new(Mutex::new(initial_serial)),
             domain_name: domain_name.clone(),
             network,
+            config,
             authority: Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
                 domain_name.clone(),
                 trust_dns_server::authority::ZoneType::Primary,
@@ -41,16 +44,10 @@ impl ZTAuthority {
     }
 
     async fn get_members(self: Arc<Self>) -> Result<Vec<Member>, anyhow::Error> {
-        let mut config = Configuration::default();
-        if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
-            config.bearer_access_token = Some(token);
-            let list =
-                openapi::apis::network_member_api::get_network_member_list(&config, &self.network)
-                    .await?;
-            Ok(list)
-        } else {
-            Err(anyhow!("missing zerotier central token"))
-        }
+        let list =
+            openapi::apis::network_member_api::get_network_member_list(&self.config, &self.network)
+                .await?;
+        Ok(list)
     }
 
     pub async fn find_members(self: Arc<Self>) {
