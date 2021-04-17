@@ -12,17 +12,19 @@ pub const DOMAIN_NAME: &str = "domain.";
 pub struct ZeroAuthority {
     authority: InMemoryAuthority,
     domain_name: Name,
+    serial: u32,
 }
 
 impl Default for ZeroAuthority {
     fn default() -> Self {
-        Self::new(Name::from_str(DOMAIN_NAME).unwrap()).unwrap()
+        Self::new(Name::from_str(DOMAIN_NAME).unwrap(), 1).unwrap()
     }
 }
 
 impl ZeroAuthority {
-    pub fn new(domain_name: Name) -> Result<Self, anyhow::Error> {
+    pub fn new(domain_name: Name, initial_serial: u32) -> Result<Self, anyhow::Error> {
         Ok(Self {
+            serial: initial_serial,
             domain_name: domain_name.clone(),
             authority: InMemoryAuthority::empty(
                 domain_name.clone(),
@@ -32,13 +34,7 @@ impl ZeroAuthority {
         })
     }
 
-    pub fn configure(
-        &mut self,
-        initial_serial: u32,
-        members: Vec<Member>,
-    ) -> Result<u32, anyhow::Error> {
-        let mut serial = initial_serial;
-
+    pub fn configure(&mut self, members: Vec<Member>) -> Result<(), anyhow::Error> {
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
 
@@ -53,8 +49,8 @@ impl ZeroAuthority {
                             60,
                         );
                         address.set_rdata(RData::A(ip));
-                        serial += 1;
-                        self.authority.upsert(address, serial);
+                        self.serial += 1;
+                        self.authority.upsert(address, self.serial);
                         if let Some(name) = member.name.clone() {
                             let mut address = Record::with(
                                 Name::from_str(&name)?.append_name(&self.domain_name.clone()),
@@ -62,8 +58,8 @@ impl ZeroAuthority {
                                 60,
                             );
                             address.set_rdata(RData::A(ip));
-                            serial += 1;
-                            self.authority.upsert(address, serial);
+                            self.serial += 1;
+                            self.authority.upsert(address, self.serial);
                         }
                     }
                     IpAddr::V6(ip) => {
@@ -73,14 +69,13 @@ impl ZeroAuthority {
                             60,
                         );
                         address.set_rdata(RData::AAAA(ip));
-                        serial += 1;
-                        self.authority.upsert(address, serial);
+                        self.serial += 1;
+                        self.authority.upsert(address, self.serial);
                     }
                 }
             }
         }
-
-        Ok(serial)
+        Ok(())
     }
 
     pub fn catalog(self) -> Catalog {

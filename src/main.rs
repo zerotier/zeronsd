@@ -27,11 +27,11 @@ async fn start(
         Name::from_str(crate::authority::DOMAIN_NAME)?
     };
 
-    let mut authority = crate::authority::ZeroAuthority::new(domain_name.clone())?;
+    let mut authority = crate::authority::ZeroAuthority::new(domain_name.clone(), 1)?;
 
     match get_members(args).await {
         Ok(members) => {
-            authority.configure(1, members)?;
+            authority.configure(members)?;
 
             if let Some(ip) = args.value_of("LISTEN_IP") {
                 let server = crate::server::Server::new(authority);
