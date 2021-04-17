@@ -16,7 +16,7 @@ pub async fn listen(
     catalog: Catalog,
     listen_addr: &str,
     tcp_timeout: Duration,
-) -> Result<(), std::io::Error> {
+) -> Result<(), anyhow::Error> {
     let tcp = TcpListener::bind(listen_addr).await?;
     let udp = UdpSocket::bind(listen_addr).await?;
     let mut sf = ServerFuture::new(catalog);
@@ -69,6 +69,7 @@ pub fn configure_authority(
         let member_name = format!("zt-{}", member.node_id.unwrap());
 
         let fqdn = Name::from_str(&member_name)?.append_name(&domain_name.clone());
+
         for ip in member.config.unwrap().ip_assignments.unwrap() {
             match IpAddr::from_str(&ip).unwrap() {
                 IpAddr::V4(ip) => {

@@ -4,23 +4,24 @@ use std::{str::FromStr, time::Duration};
 use trust_dns_server::{authority::Catalog, client::rr::Name};
 
 extern crate clap;
-use anyhow::anyhow;
 use clap::clap_app;
+
+use anyhow::anyhow;
 
 mod lib;
 
 const DOMAIN_NAME: &str = "domain.";
 
-fn write_help(app: clap::App) {
+fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     let stderr = std::io::stderr();
     let mut lock = stderr.lock();
-    app.clone().write_long_help(&mut lock).unwrap();
+    return Ok(app.clone().write_long_help(&mut lock)?);
 }
 
 async fn start(
     app: clap::App<'static, 'static>,
     args: &clap::ArgMatches<'static>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), anyhow::Error> {
     let domain_name = if let Some(tld) = args.value_of("domain") {
         Name::from_str(&format!("{}.", tld))?
     } else {
@@ -42,14 +43,12 @@ async fn start(
             if let Some(ip) = args.value_of("LISTEN_IP") {
                 crate::lib::listen(catalog, &format!("{}:53", ip), Duration::new(0, 1000)).await
             } else {
-                write_help(app);
-                Ok(())
+                write_help(app)
             }
         }
         Err(e) => {
             eprintln!("{}", e);
-            write_help(app);
-            Ok(())
+            write_help(app)
         }
     }
 }
@@ -100,13 +99,13 @@ async fn dump(app: clap::App<'static, 'static>, args: &clap::ArgMatches<'static>
         }
         Err(e) => {
             eprintln!("{}", e);
-            write_help(app);
+            write_help(app).unwrap();
         }
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
+async fn main() -> Result<(), anyhow::Error> {
     let app = clap::clap_app!(hostsns =>
         (author: "Erik Hollensbe <github@hollensbe.org>")
         (about: "zerotier central nameserver")
@@ -128,10 +127,7 @@ async fn main() -> Result<(), std::io::Error> {
     let (cmd, args) = matches.subcommand();
     let args = match args {
         Some(args) => args,
-        None => {
-            write_help(app);
-            return Ok(());
-        }
+        None => return write_help(app),
     };
 
     match cmd {
