@@ -9,6 +9,7 @@ use clap::clap_app;
 use anyhow::anyhow;
 
 mod lib;
+mod server;
 
 const DOMAIN_NAME: &str = "domain.";
 
@@ -41,7 +42,10 @@ async fn start(
             );
 
             if let Some(ip) = args.value_of("LISTEN_IP") {
-                crate::lib::listen(catalog, &format!("{}:53", ip), Duration::new(0, 1000)).await
+                let server = crate::server::Server::new(catalog);
+                server
+                    .listen(&format!("{}:53", ip), Duration::new(0, 1000))
+                    .await
             } else {
                 write_help(app)
             }

@@ -7,27 +7,6 @@ use trust_dns_server::{
     store::in_memory::InMemoryAuthority,
 };
 
-use std::time::Duration;
-
-use tokio::net::{TcpListener, UdpSocket};
-use trust_dns_server::{authority::Catalog, server::ServerFuture};
-
-pub async fn listen(
-    catalog: Catalog,
-    listen_addr: &str,
-    tcp_timeout: Duration,
-) -> Result<(), anyhow::Error> {
-    let tcp = TcpListener::bind(listen_addr).await?;
-    let udp = UdpSocket::bind(listen_addr).await?;
-    let mut sf = ServerFuture::new(catalog);
-
-    sf.register_socket(udp);
-    sf.register_listener(tcp, tcp_timeout);
-
-    sf.block_until_done().await?;
-    Ok(())
-}
-
 pub fn new_authority(domain_name: &str) -> Result<InMemoryAuthority, ProtoError> {
     let domain_name = Name::from_str(domain_name)?;
 
