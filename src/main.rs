@@ -1,17 +1,15 @@
-use lib::configure_authority;
 use openapi::{apis::configuration::Configuration, models::Member};
-use std::{str::FromStr, time::Duration};
-use trust_dns_server::{authority::Catalog, client::rr::Name};
+use std::str::FromStr;
+use std::time::Duration;
+use trust_dns_server::client::rr::Name;
 
 extern crate clap;
 use clap::clap_app;
 
 use anyhow::anyhow;
 
-mod lib;
+mod authority;
 mod server;
-
-const DOMAIN_NAME: &str = "domain.";
 
 fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     let stderr = std::io::stderr();
@@ -26,23 +24,17 @@ async fn start(
     let domain_name = if let Some(tld) = args.value_of("domain") {
         Name::from_str(&format!("{}.", tld))?
     } else {
-        Name::from_str(DOMAIN_NAME)?
+        Name::from_str(crate::authority::DOMAIN_NAME)?
     };
 
-    let mut authority = crate::lib::new_authority(&domain_name.to_string())?;
+    let mut authority = crate::authority::ZeroAuthority::new(domain_name.clone())?;
 
     match get_members(args).await {
         Ok(members) => {
-            configure_authority(&mut authority, domain_name.clone(), 1, members)?;
-
-            let mut catalog = Catalog::default();
-            catalog.upsert(
-                domain_name.clone().into(),
-                Box::new(std::sync::Arc::new(std::sync::RwLock::new(authority))),
-            );
+            authority.configure(1, members)?;
 
             if let Some(ip) = args.value_of("LISTEN_IP") {
-                let server = crate::server::Server::new(catalog);
+                let server = crate::server::Server::new(authority);
                 server
                     .listen(&format!("{}:53", ip), Duration::new(0, 1000))
                     .await
