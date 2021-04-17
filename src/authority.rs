@@ -1,8 +1,14 @@
-use std::{net::IpAddr, str::FromStr};
+use std::{
+    net::IpAddr,
+    str::FromStr,
+    sync::{Arc, Mutex, RwLock},
+};
 
-use openapi::models::Member;
+use anyhow::anyhow;
+
+use openapi::{apis::configuration::Configuration, models::Member};
 use trust_dns_server::{
-    authority::Catalog,
+    authority::{AuthorityObject, Catalog},
     client::rr::{Name, RData, Record},
     store::in_memory::InMemoryAuthority,
 };
@@ -10,35 +16,72 @@ use trust_dns_server::{
 pub const DOMAIN_NAME: &str = "domain.";
 
 pub struct ZTAuthority {
-    authority: InMemoryAuthority,
+    authority: Box<Arc<RwLock<InMemoryAuthority>>>,
     domain_name: Name,
-    serial: u32,
-}
-
-impl Default for ZTAuthority {
-    fn default() -> Self {
-        Self::new(Name::from_str(DOMAIN_NAME).unwrap(), 1).unwrap()
-    }
+    serial: Arc<Mutex<u32>>,
+    network: String,
 }
 
 impl ZTAuthority {
-    pub fn new(domain_name: Name, initial_serial: u32) -> Result<Self, anyhow::Error> {
-        Ok(Self {
-            serial: initial_serial,
+    pub fn new(
+        domain_name: Name,
+        initial_serial: u32,
+        network: String,
+    ) -> Result<Arc<Self>, anyhow::Error> {
+        Ok(Arc::new(Self {
+            serial: Arc::new(Mutex::new(initial_serial)),
             domain_name: domain_name.clone(),
-            authority: InMemoryAuthority::empty(
+            network,
+            authority: Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
                 domain_name.clone(),
                 trust_dns_server::authority::ZoneType::Primary,
                 false,
-            ),
-        })
+            )))),
+        }))
     }
 
-    pub fn configure(&mut self, members: Vec<Member>) -> Result<(), anyhow::Error> {
+    async fn get_members(self: Arc<Self>) -> Result<Vec<Member>, anyhow::Error> {
+        let mut config = Configuration::default();
+        if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
+            config.bearer_access_token = Some(token);
+            let list =
+                openapi::apis::network_member_api::get_network_member_list(&config, &self.network)
+                    .await?;
+            Ok(list)
+        } else {
+            Err(anyhow!("missing zerotier central token"))
+        }
+    }
+
+    pub async fn find_members(self: Arc<Self>) {
+        loop {
+            eprintln!("finding members");
+            match self.clone().get_members().await {
+                Ok(members) => match self.clone().configure(members) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("error configuring authority: {}", e)
+                    }
+                },
+                Err(e) => {
+                    eprintln!("error syncing members: {}", e)
+                }
+            }
+
+            std::thread::sleep(std::time::Duration::new(30, 0));
+        }
+    }
+
+    pub fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
+        let mut authority = match self.authority.write() {
+            Ok(auth) => auth,
+            Err(_) => return Err(anyhow!("could not acquire lock")),
+        };
+
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
-
             let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
+            let mut serial = *(self.serial.lock().unwrap());
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
                 match IpAddr::from_str(&ip).unwrap() {
@@ -49,8 +92,9 @@ impl ZTAuthority {
                             60,
                         );
                         address.set_rdata(RData::A(ip));
-                        self.serial += 1;
-                        self.authority.upsert(address, self.serial);
+                        serial += 1;
+
+                        authority.upsert(address, serial);
                         if let Some(name) = member.name.clone() {
                             let mut address = Record::with(
                                 Name::from_str(&name)?.append_name(&self.domain_name.clone()),
@@ -58,8 +102,8 @@ impl ZTAuthority {
                                 60,
                             );
                             address.set_rdata(RData::A(ip));
-                            self.serial += 1;
-                            self.authority.upsert(address, self.serial);
+                            serial += 1;
+                            authority.upsert(address, serial);
                         }
                     }
                     IpAddr::V6(ip) => {
@@ -69,8 +113,8 @@ impl ZTAuthority {
                             60,
                         );
                         address.set_rdata(RData::AAAA(ip));
-                        self.serial += 1;
-                        self.authority.upsert(address, self.serial);
+                        serial += 1;
+                        authority.upsert(address, serial);
                     }
                 }
             }
@@ -78,12 +122,9 @@ impl ZTAuthority {
         Ok(())
     }
 
-    pub fn catalog(self) -> Catalog {
+    pub fn catalog(&self) -> Catalog {
         let mut catalog = Catalog::default();
-        catalog.upsert(
-            self.domain_name.clone().into(),
-            Box::new(std::sync::Arc::new(std::sync::RwLock::new(self.authority))),
-        );
+        catalog.upsert(self.domain_name.clone().into(), self.authority.box_clone());
         catalog
     }
 }

@@ -1,4 +1,4 @@
-use openapi::{apis::configuration::Configuration, models::Member};
+use authority::ZTAuthority;
 use std::str::FromStr;
 use std::time::Duration;
 use trust_dns_server::client::rr::Name;
@@ -18,85 +18,31 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
 }
 
 async fn start(
-    app: clap::App<'static, 'static>,
-    args: &clap::ArgMatches<'static>,
+    domain: Option<&str>,
+    network: Option<&str>,
+    listen: Option<&str>,
 ) -> Result<(), anyhow::Error> {
-    let domain_name = if let Some(tld) = args.value_of("domain") {
+    let domain_name = if let Some(tld) = domain {
         Name::from_str(&format!("{}.", tld))?
     } else {
         Name::from_str(crate::authority::DOMAIN_NAME)?
     };
 
-    let mut authority = crate::authority::ZTAuthority::new(domain_name.clone(), 1)?;
+    if let Some(network) = network {
+        let authority = ZTAuthority::new(domain_name.clone(), 1, String::from(network))?;
+        let owned = authority.to_owned();
+        tokio::spawn(owned.find_members());
 
-    match get_members(args).await {
-        Ok(members) => {
-            authority.configure(members)?;
-
-            if let Some(ip) = args.value_of("LISTEN_IP") {
-                let server = crate::server::Server::new(authority);
-                server
-                    .listen(&format!("{}:53", ip), Duration::new(0, 1000))
-                    .await
-            } else {
-                write_help(app)
-            }
+        if let Some(ip) = listen {
+            let server = crate::server::Server::new(authority.clone().catalog());
+            server
+                .listen(&format!("{}:53", ip), Duration::new(0, 1000))
+                .await
+        } else {
+            return Err(anyhow!("no listen IP"));
         }
-        Err(e) => {
-            eprintln!("{}", e);
-            write_help(app)
-        }
-    }
-}
-
-async fn get_members(args: &clap::ArgMatches<'static>) -> Result<Vec<Member>, anyhow::Error> {
-    let network = args.value_of("NETWORK_ID").unwrap();
-    let mut config = Configuration::default();
-    if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
-        config.bearer_access_token = Some(token);
-        let list =
-            openapi::apis::network_member_api::get_network_member_list(&config, network).await?;
-        Ok(list)
     } else {
-        Err(anyhow!("missing zerotier central token"))
-    }
-}
-
-async fn dump(app: clap::App<'static, 'static>, args: &clap::ArgMatches<'static>) {
-    match get_members(args).await {
-        Ok(members) => {
-            for member in members {
-                println!(
-                    "{} {}",
-                    member.node_id.unwrap(),
-                    member
-                        .config
-                        .clone()
-                        .unwrap()
-                        .ip_assignments
-                        .unwrap()
-                        .join(" "),
-                );
-
-                if let Some(name) = member.name {
-                    println!(
-                        "{} {}",
-                        name,
-                        member
-                            .config
-                            .clone()
-                            .unwrap()
-                            .ip_assignments
-                            .unwrap()
-                            .join(" "),
-                    );
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            write_help(app).unwrap();
-        }
+        return Err(anyhow!("no network ID"));
     }
 }
 
@@ -112,10 +58,6 @@ async fn main() -> Result<(), anyhow::Error> {
             (@arg NETWORK_ID: +required "Network ID to query")
             (@arg LISTEN_IP: +required "IP address to listen on")
         )
-        (@subcommand dump =>
-            (about: "Dump a hosts file of the network")
-            (@arg NETWORK_ID: +required "Network ID to query")
-        )
     );
 
     let matches = app.clone().get_matches();
@@ -127,8 +69,14 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     match cmd {
-        "start" => start(app, args).await?,
-        "dump" => dump(app, args).await,
+        "start" => {
+            start(
+                args.value_of("domain"),
+                args.value_of("NETWORK_ID"),
+                args.value_of("LISTEN_IP"),
+            )
+            .await?
+        }
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();
