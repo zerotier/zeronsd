@@ -3,14 +3,14 @@ use tokio::net::{TcpListener, UdpSocket};
 
 use trust_dns_server::server::ServerFuture;
 
-use crate::authority::ZeroAuthority;
+use crate::authority::ZTAuthority;
 
 pub struct Server {
-    authority: ZeroAuthority,
+    authority: ZTAuthority,
 }
 
 impl Server {
-    pub fn new(authority: ZeroAuthority) -> Self {
+    pub fn new(authority: ZTAuthority) -> Self {
         return Self { authority };
     }
 

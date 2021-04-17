@@ -27,7 +27,7 @@ async fn start(
         Name::from_str(crate::authority::DOMAIN_NAME)?
     };
 
-    let mut authority = crate::authority::ZeroAuthority::new(domain_name.clone(), 1)?;
+    let mut authority = crate::authority::ZTAuthority::new(domain_name.clone(), 1)?;
 
     match get_members(args).await {
         Ok(members) => {

@@ -9,19 +9,19 @@ use trust_dns_server::{
 
 pub const DOMAIN_NAME: &str = "domain.";
 
-pub struct ZeroAuthority {
+pub struct ZTAuthority {
     authority: InMemoryAuthority,
     domain_name: Name,
     serial: u32,
 }
 
-impl Default for ZeroAuthority {
+impl Default for ZTAuthority {
     fn default() -> Self {
         Self::new(Name::from_str(DOMAIN_NAME).unwrap(), 1).unwrap()
     }
 }
 
-impl ZeroAuthority {
+impl ZTAuthority {
     pub fn new(domain_name: Name, initial_serial: u32) -> Result<Self, anyhow::Error> {
         Ok(Self {
             serial: initial_serial,
