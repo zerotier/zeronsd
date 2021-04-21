@@ -42,6 +42,25 @@ async fn start(
             tokio::spawn(owned.find_members());
 
             if let Some(ip) = listen {
+                let mut zt_network =
+                    openapi::apis::network_api::get_network_by_id(&config, &network).await?;
+
+                let mut domain_name = domain_name.clone();
+                domain_name.set_fqdn(false);
+
+                let dns = Some(Box::new(openapi::models::NetworkConfigDns {
+                    domain: Some(domain_name.to_string()),
+                    servers: Some(Vec::from([String::from(ip)])),
+                }));
+
+                if let Some(mut zt_network_config) = zt_network.config.to_owned() {
+                    zt_network_config.dns = dns;
+                    zt_network.config = Some(zt_network_config);
+                    println!("{:?}", zt_network);
+                    openapi::apis::network_api::update_network(&config, &network, zt_network)
+                        .await?;
+                }
+
                 let server =
                     crate::server::Server::new(authority.clone().catalog(), config, network);
                 server
