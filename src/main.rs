@@ -18,7 +18,7 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     return Ok(app.clone().write_long_help(&mut lock)?);
 }
 
-async fn start(
+fn start(
     domain: Option<&str>,
     network: Option<&str>,
     listen: Option<&str>,
@@ -28,6 +28,13 @@ async fn start(
     } else {
         Name::from_str(crate::authority::DOMAIN_NAME)?
     };
+
+    let mut runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(2)
+        .thread_name("zeronsd")
+        .build()
+        .expect("failed to initialize tokio");
 
     if let Some(network) = network {
         if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
@@ -39,11 +46,12 @@ async fn start(
                 ZTAuthority::new(domain_name.clone(), 1, network.clone(), config.clone())?;
 
             let owned = authority.to_owned();
-            tokio::spawn(owned.find_members());
+            runtime.spawn(owned.find_members());
 
             if let Some(ip) = listen {
-                let mut zt_network =
-                    openapi::apis::network_api::get_network_by_id(&config, &network).await?;
+                let mut zt_network = runtime.block_on(
+                    openapi::apis::network_api::get_network_by_id(&config, &network),
+                )?;
 
                 let mut domain_name = domain_name.clone();
                 domain_name.set_fqdn(false);
@@ -56,16 +64,18 @@ async fn start(
                 if let Some(mut zt_network_config) = zt_network.config.to_owned() {
                     zt_network_config.dns = dns;
                     zt_network.config = Some(zt_network_config);
-                    println!("{:?}", zt_network);
-                    openapi::apis::network_api::update_network(&config, &network, zt_network)
-                        .await?;
+                    runtime.block_on(openapi::apis::network_api::update_network(
+                        &config, &network, zt_network,
+                    ))?;
                 }
 
-                let server =
-                    crate::server::Server::new(authority.clone().catalog(), config, network);
-                server
-                    .listen(&format!("{}:53", ip), Duration::new(0, 1000))
-                    .await
+                let server = crate::server::Server::new(
+                    authority.clone().catalog(&mut runtime)?,
+                    config,
+                    network,
+                );
+
+                runtime.block_on(server.listen(&format!("{}:53", ip), Duration::new(0, 1000)))
             } else {
                 return Err(anyhow!("no listen IP"));
             }
@@ -77,8 +87,7 @@ async fn start(
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), anyhow::Error> {
     let app = clap::clap_app!(hostsns =>
         (author: "Erik Hollensbe <github@hollensbe.org>")
         (about: "zerotier central nameserver")
@@ -100,14 +109,11 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     match cmd {
-        "start" => {
-            start(
-                args.value_of("domain"),
-                args.value_of("NETWORK_ID"),
-                args.value_of("LISTEN_IP"),
-            )
-            .await?
-        }
+        "start" => start(
+            args.value_of("domain"),
+            args.value_of("NETWORK_ID"),
+            args.value_of("LISTEN_IP"),
+        )?,
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();

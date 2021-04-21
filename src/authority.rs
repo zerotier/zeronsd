@@ -7,10 +7,15 @@ use std::{
 use anyhow::anyhow;
 
 use openapi::{apis::configuration::Configuration, models::Member};
+use tokio::runtime::Runtime;
+use trust_dns_resolver::config::{NameServerConfigGroup, ResolverOpts};
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
     client::rr::{Name, RData, Record},
-    store::in_memory::InMemoryAuthority,
+    config::ZoneConfig,
+    resolver::config::ResolverConfig,
+    store::forwarder::ForwardAuthority,
+    store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
 
 pub const DOMAIN_NAME: &str = "domain.";
@@ -119,9 +124,35 @@ impl ZTAuthority {
         Ok(())
     }
 
-    pub fn catalog(&self) -> Catalog {
+    pub fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
         let mut catalog = Catalog::default();
         catalog.upsert(self.domain_name.clone().into(), self.authority.box_clone());
-        catalog
+        let resolvconf = trust_dns_resolver::config::ResolverConfig::default();
+        let mut nsconfig = NameServerConfigGroup::new();
+
+        for server in resolvconf.name_servers() {
+            nsconfig.push(server.clone());
+        }
+
+        let options = Some(ResolverOpts::default());
+        let config = &ForwardConfig {
+            name_servers: nsconfig.clone(),
+            options,
+        };
+
+        let forwarder = ForwardAuthority::try_from_config(
+            Name::root(),
+            trust_dns_server::authority::ZoneType::Primary,
+            config,
+        );
+
+        let forwarder = runtime.block_on(forwarder).unwrap();
+
+        catalog.upsert(
+            Name::root().into(),
+            Box::new(Arc::new(RwLock::new(forwarder))),
+        );
+
+        Ok(catalog)
     }
 }
