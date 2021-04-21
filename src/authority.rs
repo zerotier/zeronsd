@@ -12,8 +12,6 @@ use trust_dns_resolver::config::{NameServerConfigGroup, ResolverOpts};
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
     client::rr::{Name, RData, Record},
-    config::ZoneConfig,
-    resolver::config::ResolverConfig,
     store::forwarder::ForwardAuthority,
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
@@ -57,7 +55,6 @@ impl ZTAuthority {
 
     pub async fn find_members(self: Arc<Self>) {
         loop {
-            eprintln!("finding members");
             match self.clone().get_members().await {
                 Ok(members) => match self.clone().configure(members) {
                     Ok(_) => {}
