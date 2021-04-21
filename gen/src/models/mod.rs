@@ -18,6 +18,8 @@ pub mod network;
 pub use self::network::Network;
 pub mod network_config;
 pub use self::network_config::NetworkConfig;
+pub mod network_config_dns;
+pub use self::network_config_dns::NetworkConfigDns;
 pub mod organization;
 pub use self::organization::Organization;
 pub mod organization_invitation;

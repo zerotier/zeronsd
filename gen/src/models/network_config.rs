@@ -16,9 +16,11 @@ pub struct NetworkConfig {
     /// Network ID
     #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    #[serde(rename = "dns", skip_serializing_if = "Option::is_none")]
+    pub dns: Option<Box<crate::models::NetworkConfigDns>>,
     /// Time the network was created
     #[serde(rename = "creationTime", skip_serializing_if = "Option::is_none")]
-    pub creation_time: Option<i32>,
+    pub creation_time: Option<i64>,
     /// Array of network capabilities
     #[serde(rename = "capabilities", skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<Vec<serde_json::Value>>,
@@ -30,7 +32,7 @@ pub struct NetworkConfig {
     pub ip_assignment_pools: Option<Vec<crate::models::IpRange>>,
     /// Time the network was last modified
     #[serde(rename = "lastModified", skip_serializing_if = "Option::is_none")]
-    pub last_modified: Option<i32>,
+    pub last_modified: Option<i64>,
     /// MTU to set on the client virtual network adapter
     #[serde(rename = "mtu", skip_serializing_if = "Option::is_none")]
     pub mtu: Option<i32>,
@@ -58,6 +60,7 @@ impl NetworkConfig {
     pub fn new() -> NetworkConfig {
         NetworkConfig {
             id: None,
+            dns: None,
             creation_time: None,
             capabilities: None,
             enable_broadcast: None,

@@ -97,12 +97,15 @@ This endpoint does not need any parameter.
 
 ## new_network
 
-> crate::models::Network new_network()
+> crate::models::Network new_network(body)
 Create a new network.
 
 ### Parameters
 
-This endpoint does not need any parameter.
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**body** | **serde_json::Value** | empty JSON object | [required] |
 
 ### Return type
 
@@ -114,7 +117,7 @@ This endpoint does not need any parameter.
 
 ### HTTP request headers
 
-- **Content-Type**: Not defined
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

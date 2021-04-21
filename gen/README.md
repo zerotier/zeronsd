@@ -62,6 +62,7 @@ Class | Method | HTTP request | Description
  - [MemberConfig](docs/MemberConfig.md)
  - [Network](docs/Network.md)
  - [NetworkConfig](docs/NetworkConfig.md)
+ - [NetworkConfigDns](docs/NetworkConfigDns.md)
  - [Organization](docs/Organization.md)
  - [OrganizationInvitation](docs/OrganizationInvitation.md)
  - [OrganizationMember](docs/OrganizationMember.md)

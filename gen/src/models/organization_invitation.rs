@@ -30,7 +30,7 @@ pub struct OrganizationInvitation {
     pub status: Option<Box<crate::models::InviteStatus>>,
     /// Last updated time of the invitation
     #[serde(rename = "update_time", skip_serializing_if = "Option::is_none")]
-    pub update_time: Option<i32>,
+    pub update_time: Option<i64>,
     /// Organization owner email address
     #[serde(rename = "ownerEmail", skip_serializing_if = "Option::is_none")]
     pub owner_email: Option<String>,

@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **id** | Option<**String**> |  | [optional]
-**clock** | Option<**i32**> |  | [optional][readonly]
+**clock** | Option<**i64**> |  | [optional][readonly]
 **config** | Option<[**crate::models::NetworkConfig**](NetworkConfig.md)> |  | [optional]
 **description** | Option<**String**> |  | [optional]
 **rules_source** | Option<**String**> |  | [optional]

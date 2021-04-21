@@ -1,12 +1,11 @@
-# RandomToken
+# NetworkConfigDns
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**clock** | Option<**i64**> | Current time on server | [optional][readonly]
-**hex** | Option<**String**> | hex encoded random bytes of the token | [optional][readonly]
-**token** | Option<**String**> | Random 32 character token | [optional][readonly]
+**domain** | Option<**String**> | Search domain to use for DNS records | [optional]
+**servers** | Option<**Vec<String>**> | IP address of unicast DNS service | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

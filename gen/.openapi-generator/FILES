@@ -14,6 +14,7 @@ docs/MemberConfig.md
 docs/Network.md
 docs/NetworkApi.md
 docs/NetworkConfig.md
+docs/NetworkConfigDns.md
 docs/NetworkMemberApi.md
 docs/Organization.md
 docs/OrganizationInvitation.md
@@ -45,6 +46,7 @@ src/models/member_config.rs
 src/models/mod.rs
 src/models/network.rs
 src/models/network_config.rs
+src/models/network_config_dns.rs
 src/models/organization.rs
 src/models/organization_invitation.rs
 src/models/organization_member.rs

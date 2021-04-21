@@ -150,7 +150,7 @@ pub async fn get_network_list(configuration: &configuration::Configuration, ) ->
     }
 }
 
-pub async fn new_network(configuration: &configuration::Configuration, ) -> Result<crate::models::Network, Error<NewNetworkError>> {
+pub async fn new_network(configuration: &configuration::Configuration, body: serde_json::Value) -> Result<crate::models::Network, Error<NewNetworkError>> {
 
     let local_var_client = &configuration.client;
 
@@ -163,6 +163,7 @@ pub async fn new_network(configuration: &configuration::Configuration, ) -> Resu
     if let Some(ref local_var_token) = configuration.bearer_access_token {
         local_var_req_builder = local_var_req_builder.bearer_auth(local_var_token.to_owned());
     };
+    local_var_req_builder = local_var_req_builder.json(&body);
 
     let local_var_req = local_var_req_builder.build()?;
     let local_var_resp = local_var_client.execute(local_var_req).await?;

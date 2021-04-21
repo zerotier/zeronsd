@@ -17,7 +17,7 @@ pub struct Network {
     #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[serde(rename = "clock", skip_serializing_if = "Option::is_none")]
-    pub clock: Option<i32>,
+    pub clock: Option<i64>,
     #[serde(rename = "config", skip_serializing_if = "Option::is_none")]
     pub config: Option<Box<crate::models::NetworkConfig>>,
     #[serde(rename = "description", skip_serializing_if = "Option::is_none")]
