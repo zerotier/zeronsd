@@ -1,5 +1,5 @@
 [package]
-name = "openapi"
+name = "central"
 version = "1.0.0"
 authors = ["OpenAPI Generator team and contributors"]
 edition = "2018"

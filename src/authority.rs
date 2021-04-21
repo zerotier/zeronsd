@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::anyhow;
 
-use openapi::{apis::configuration::Configuration, models::Member};
+use central::{apis::configuration::Configuration, models::Member};
 use tokio::runtime::Runtime;
 use trust_dns_resolver::config::{NameServerConfigGroup, ResolverOpts};
 use trust_dns_server::{
@@ -48,7 +48,7 @@ impl ZTAuthority {
 
     async fn get_members(self: Arc<Self>) -> Result<Vec<Member>, anyhow::Error> {
         let list =
-            openapi::apis::network_member_api::get_network_member_list(&self.config, &self.network)
+            central::apis::network_member_api::get_network_member_list(&self.config, &self.network)
                 .await?;
         Ok(list)
     }

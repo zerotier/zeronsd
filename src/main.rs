@@ -1,5 +1,5 @@
 use authority::ZTAuthority;
-use openapi::apis::configuration::Configuration;
+use central::apis::configuration::Configuration;
 use std::str::FromStr;
 use std::time::Duration;
 use trust_dns_server::client::rr::Name;
@@ -50,13 +50,13 @@ fn start(
 
             if let Some(ip) = listen {
                 let mut zt_network = runtime.block_on(
-                    openapi::apis::network_api::get_network_by_id(&config, &network),
+                    central::apis::network_api::get_network_by_id(&config, &network),
                 )?;
 
                 let mut domain_name = domain_name.clone();
                 domain_name.set_fqdn(false);
 
-                let dns = Some(Box::new(openapi::models::NetworkConfigDns {
+                let dns = Some(Box::new(central::models::NetworkConfigDns {
                     domain: Some(domain_name.to_string()),
                     servers: Some(Vec::from([String::from(ip)])),
                 }));
@@ -64,7 +64,7 @@ fn start(
                 if let Some(mut zt_network_config) = zt_network.config.to_owned() {
                     zt_network_config.dns = dns;
                     zt_network.config = Some(zt_network_config);
-                    runtime.block_on(openapi::apis::network_api::update_network(
+                    runtime.block_on(central::apis::network_api::update_network(
                         &config, &network, zt_network,
                     ))?;
                 }
