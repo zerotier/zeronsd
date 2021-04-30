@@ -16,14 +16,14 @@ pub struct NetworkConfig {
     /// Network ID
     #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    #[serde(rename = "dns", skip_serializing_if = "Option::is_none")]
-    pub dns: Option<Box<crate::models::NetworkConfigDns>>,
     /// Time the network was created
     #[serde(rename = "creationTime", skip_serializing_if = "Option::is_none")]
     pub creation_time: Option<i64>,
     /// Array of network capabilities
     #[serde(rename = "capabilities", skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<Vec<serde_json::Value>>,
+    #[serde(rename = "dns", skip_serializing_if = "Option::is_none")]
+    pub dns: Option<Box<crate::models::NetworkConfigDns>>,
     /// Enable broadcast packets on the network
     #[serde(rename = "enableBroadcast", skip_serializing_if = "Option::is_none")]
     pub enable_broadcast: Option<bool>,
@@ -60,9 +60,9 @@ impl NetworkConfig {
     pub fn new() -> NetworkConfig {
         NetworkConfig {
             id: None,
-            dns: None,
             creation_time: None,
             capabilities: None,
+            dns: None,
             enable_broadcast: None,
             ip_assignment_pools: None,
             last_modified: None,

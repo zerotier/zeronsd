@@ -1,9 +1,9 @@
-generate: central #zerotier
+generate: central service
 
 central:
 	bash generate.sh central
 
-zerotier:
-	bash generate.sh zerotier
+service:
+	bash generate.sh service
 
-.PHONY: generate central zerotier
+.PHONY: generate central service

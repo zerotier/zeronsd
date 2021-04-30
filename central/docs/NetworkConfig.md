@@ -5,9 +5,9 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **id** | Option<**String**> | Network ID | [optional]
-**dns** | Option<[**crate::models::NetworkConfigDns**](NetworkConfig_dns.md)> |  | [optional]
 **creation_time** | Option<**i64**> | Time the network was created | [optional]
 **capabilities** | Option<[**Vec<serde_json::Value>**](serde_json::Value.md)> | Array of network capabilities | [optional]
+**dns** | Option<[**crate::models::NetworkConfigDns**](NetworkConfig_dns.md)> |  | [optional]
 **enable_broadcast** | Option<**bool**> | Enable broadcast packets on the network | [optional]
 **ip_assignment_pools** | Option<[**Vec<crate::models::IpRange>**](IPRange.md)> | Range of IP addresses for the auto assign pool | [optional]
 **last_modified** | Option<**i64**> | Time the network was last modified | [optional][readonly]

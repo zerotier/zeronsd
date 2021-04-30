@@ -13,3 +13,4 @@ trust-dns-resolver = "*"
 trust-dns-server = { version = "0.20.1", features = ["trust-dns-resolver"] } 
 tokio = { version = "1", features = ["full"] }
 central = { path = "central" }
+service = { path = "service" }

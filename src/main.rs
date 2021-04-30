@@ -21,11 +21,29 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     return Ok(());
 }
 
-fn start(
-    domain: Option<&str>,
-    network: Option<&str>,
-    listen: Option<&str>,
-) -> Result<(), anyhow::Error> {
+async fn get_listen_ip(network_id: &str) -> Result<String, anyhow::Error> {
+    // FIXME make this portable
+    let authtoken = std::fs::read_to_string("/var/lib/zerotier-one/authtoken.secret")?;
+
+    let mut configuration = service::apis::configuration::Configuration::default();
+    let api_key = service::apis::configuration::ApiKey {
+        prefix: None,
+        key: authtoken,
+    };
+    configuration.api_key = Some(api_key);
+
+    let listen = service::apis::network_api::get_network(&configuration, network_id).await?;
+    if let Some(assigned) = listen.assigned_addresses {
+        if let Some(ip) = assigned.first() {
+            // for now, we'll use the first addr returned. Soon, we will want to listen on all IPs.
+            return Ok(ip.clone());
+        }
+    }
+
+    Err(anyhow!("No listen IPs available on this network"))
+}
+
+fn start(domain: Option<&str>, network: Option<&str>) -> Result<(), anyhow::Error> {
     let domain_name = if let Some(tld) = domain {
         Name::from_str(&format!("{}.", tld))?
     } else {
@@ -34,12 +52,17 @@ fn start(
 
     let mut runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(2)
+        .worker_threads(4)
         .thread_name("zeronsd")
         .build()
         .expect("failed to initialize tokio");
 
     if let Some(network) = network {
+        let ip_with_cidr = runtime.block_on(get_listen_ip(network))?;
+        let ip = ip_with_cidr.splitn(2, "/").next().unwrap();
+
+        println!("Welcome to ZeroNS!");
+        println!("Your IP for this network: {}", ip);
         if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
             let network = String::from(network);
             let mut config = Configuration::default();
@@ -51,37 +74,33 @@ fn start(
             let owned = authority.to_owned();
             runtime.spawn(owned.find_members());
 
-            if let Some(ip) = listen {
-                let mut zt_network = runtime.block_on(
-                    central::apis::network_api::get_network_by_id(&config, &network),
-                )?;
+            let mut zt_network = runtime.block_on(
+                central::apis::network_api::get_network_by_id(&config, &network),
+            )?;
 
-                let mut domain_name = domain_name.clone();
-                domain_name.set_fqdn(false);
+            let mut domain_name = domain_name.clone();
+            domain_name.set_fqdn(false);
 
-                let dns = Some(Box::new(central::models::NetworkConfigDns {
-                    domain: Some(domain_name.to_string()),
-                    servers: Some(Vec::from([String::from(ip)])),
-                }));
+            let dns = Some(Box::new(central::models::NetworkConfigDns {
+                domain: Some(domain_name.to_string()),
+                servers: Some(Vec::from([String::from(ip.clone())])),
+            }));
 
-                if let Some(mut zt_network_config) = zt_network.config.to_owned() {
-                    zt_network_config.dns = dns;
-                    zt_network.config = Some(zt_network_config);
-                    runtime.block_on(central::apis::network_api::update_network(
-                        &config, &network, zt_network,
-                    ))?;
-                }
-
-                let server = crate::server::Server::new(
-                    authority.clone().catalog(&mut runtime)?,
-                    config,
-                    network,
-                );
-
-                runtime.block_on(server.listen(&format!("{}:53", ip), Duration::new(0, 1000)))
-            } else {
-                return Err(anyhow!("no listen IP"));
+            if let Some(mut zt_network_config) = zt_network.config.to_owned() {
+                zt_network_config.dns = dns;
+                zt_network.config = Some(zt_network_config);
+                runtime.block_on(central::apis::network_api::update_network(
+                    &config, &network, zt_network,
+                ))?;
             }
+
+            let server = crate::server::Server::new(
+                authority.clone().catalog(&mut runtime)?,
+                config,
+                network,
+            );
+
+            runtime.block_on(server.listen(&format!("{}:53", ip.clone()), Duration::new(0, 1000)))
         } else {
             Err(anyhow!("missing zerotier central token"))
         }
@@ -99,7 +118,6 @@ fn main() -> Result<(), anyhow::Error> {
             (about: "Start the nameserver")
             (@arg domain: -d --domain +takes_value "TLD to use for hostnames")
             (@arg NETWORK_ID: +required "Network ID to query")
-            (@arg LISTEN_IP: +required "IP address to listen on")
         )
     );
 
@@ -112,11 +130,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     match cmd {
-        "start" => start(
-            args.value_of("domain"),
-            args.value_of("NETWORK_ID"),
-            args.value_of("LISTEN_IP"),
-        )?,
+        "start" => start(args.value_of("domain"), args.value_of("NETWORK_ID"))?,
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();
