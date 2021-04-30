@@ -35,10 +35,10 @@ It should print some diagnostics after it has talked to your `zerotier-one` inst
 
 Records currently have a TTL of 60s, and Central's records are refreshed every 30s through the API. I felt this was a safer bet than letting timeouts happen.
 
-# Acknowledgements
+## Acknowledgements
 
 ZeroNS demands a lot out of the [trust-dns](https://github.com/bluejekyll/trust-dns) toolkit and I personally am grateful such a library suite exists. It made my job very easy.
 
-# Author
+## Author
 
 Erik Hollensbe <github@hollensbe.org>
