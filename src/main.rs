@@ -63,6 +63,7 @@ fn start(domain: Option<&str>, network: Option<&str>) -> Result<(), anyhow::Erro
 
         println!("Welcome to ZeroNS!");
         println!("Your IP for this network: {}", ip);
+
         if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
             let network = String::from(network);
             let mut config = Configuration::default();
