@@ -1,5 +1,6 @@
 use authority::ZTAuthority;
 use central::apis::configuration::Configuration;
+use std::io::Write;
 use std::str::FromStr;
 use std::time::Duration;
 use trust_dns_server::client::rr::Name;
@@ -15,7 +16,9 @@ mod server;
 fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     let stderr = std::io::stderr();
     let mut lock = stderr.lock();
-    return Ok(app.clone().write_long_help(&mut lock)?);
+    app.clone().write_long_help(&mut lock)?;
+    writeln!(lock)?;
+    return Ok(());
 }
 
 fn start(
@@ -88,7 +91,7 @@ fn start(
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    let app = clap::clap_app!(hostsns =>
+    let app = clap::clap_app!(zeronsd =>
         (author: "Erik Hollensbe <github@hollensbe.org>")
         (about: "zerotier central nameserver")
         (version: "0.1.0")
@@ -118,6 +121,7 @@ fn main() -> Result<(), anyhow::Error> {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();
             app.clone().write_long_help(&mut lock).unwrap();
+            writeln!(lock)?;
             return Ok(());
         }
     }
