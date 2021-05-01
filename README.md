@@ -3,6 +3,7 @@
 ZeroNS provides names that are a part of Central's configured _networks_; once provided a network it:
 
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
+- Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
 - Tells Central to point all clients that have the "Manage DNS" settings turned **on** to resolve to it.
 - Finally, sets a provided TLD (`.domain` is the default), as well as configuring `A` (IPv4) and `AAAA` (IPv6) records for:
   - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4/v6 addresses for them.
@@ -30,6 +31,11 @@ zeronsd start <network id>
 You must have already joined a network and obviously, `zerotier-one` should be running!
 
 It should print some diagnostics after it has talked to your `zerotier-one` instance to figure out what IP to listen on. After that it should communicate with the central API and set everything else up automatically.
+
+### Flags
+
+- `-d <tld>` will set a TLD for your records; the default is `domain`.
+- `-f <hosts file` will parse a file in `/etc/hosts` format and append it to your records.
 
 ### TTLs
 
