@@ -43,7 +43,11 @@ async fn get_listen_ip(network_id: &str) -> Result<String, anyhow::Error> {
     Err(anyhow!("No listen IPs available on this network"))
 }
 
-fn start(domain: Option<&str>, network: Option<&str>) -> Result<(), anyhow::Error> {
+fn start(
+    domain: Option<&str>,
+    network: Option<&str>,
+    hosts_file: Option<&str>,
+) -> Result<(), anyhow::Error> {
     let domain_name = if let Some(tld) = domain {
         Name::from_str(&format!("{}.", tld))?
     } else {
@@ -69,8 +73,14 @@ fn start(domain: Option<&str>, network: Option<&str>) -> Result<(), anyhow::Erro
             let mut config = Configuration::default();
             config.bearer_access_token = Some(token.clone());
 
+            let hf = if let Some(hf) = hosts_file {
+                Some(hf.to_string())
+            } else {
+                None
+            };
+
             let authority =
-                ZTAuthority::new(domain_name.clone(), 1, network.clone(), config.clone())?;
+                ZTAuthority::new(domain_name.clone(), 1, network.clone(), config.clone(), hf)?;
 
             let owned = authority.to_owned();
             runtime.spawn(owned.find_members());
@@ -118,6 +128,7 @@ fn main() -> Result<(), anyhow::Error> {
         (@subcommand start =>
             (about: "Start the nameserver")
             (@arg domain: -d --domain +takes_value "TLD to use for hostnames")
+            (@arg file: -f --file +takes_value "An additional lists of hosts in /etc/hosts format")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
     );
@@ -131,7 +142,11 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     match cmd {
-        "start" => start(args.value_of("domain"), args.value_of("NETWORK_ID"))?,
+        "start" => start(
+            args.value_of("domain"),
+            args.value_of("NETWORK_ID"),
+            args.value_of("file"),
+        )?,
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();

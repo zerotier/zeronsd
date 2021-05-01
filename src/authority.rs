@@ -1,10 +1,10 @@
 use std::{
+    collections::HashMap,
+    io::Write,
     net::IpAddr,
     str::FromStr,
     sync::{Arc, Mutex, RwLock},
 };
-
-use anyhow::anyhow;
 
 use central::{apis::configuration::Configuration, models::Member};
 use tokio::runtime::Runtime;
@@ -18,13 +18,19 @@ use trust_dns_server::{
 
 pub const DOMAIN_NAME: &str = "domain.";
 
+const WHITESPACE_SPLIT: &str = r"\s+";
+const COMMENT_MATCH: &str = r"^\s*#";
+
 pub struct ZTAuthority {
     authority: Box<Arc<RwLock<InMemoryAuthority>>>,
     domain_name: Name,
     serial: Arc<Mutex<u32>>,
     network: String,
     config: Configuration,
+    hosts_file: Option<String>,
 }
+
+type HostsFile = HashMap<IpAddr, Vec<String>>;
 
 impl ZTAuthority {
     pub fn new(
@@ -32,12 +38,14 @@ impl ZTAuthority {
         initial_serial: u32,
         network: String,
         config: Configuration,
+        hosts_file: Option<String>,
     ) -> Result<Arc<Self>, anyhow::Error> {
         Ok(Arc::new(Self {
             serial: Arc::new(Mutex::new(initial_serial)),
             domain_name: domain_name.clone(),
             network,
             config,
+            hosts_file,
             authority: Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
                 domain_name.clone(),
                 trust_dns_server::authority::ZoneType::Primary,
@@ -67,16 +75,20 @@ impl ZTAuthority {
                 }
             }
 
-            std::thread::sleep(std::time::Duration::new(30, 0));
+            tokio::time::sleep(std::time::Duration::new(30, 0)).await;
         }
     }
 
     pub fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
-        let mut authority = match self.authority.write() {
-            Ok(auth) => auth,
-            Err(_) => return Err(anyhow!("could not acquire lock")),
-        };
+        self.configure_hosts(self.authority.write().unwrap())?;
+        self.configure_members(self.authority.write().unwrap(), members)
+    }
 
+    fn configure_members(
+        &self,
+        mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
+        members: Vec<Member>,
+    ) -> Result<(), anyhow::Error> {
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
             let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
@@ -118,7 +130,88 @@ impl ZTAuthority {
                 }
             }
         }
+
         Ok(())
+    }
+
+    fn configure_hosts(
+        &self,
+        mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    ) -> Result<(), anyhow::Error> {
+        for (ip, hostnames) in self.parse_hosts()? {
+            for hostname in hostnames {
+                let fqdn = Name::from_str(&hostname)?.append_name(&self.domain_name.clone());
+                let mut serial = *(self.serial.lock().unwrap());
+                match ip {
+                    IpAddr::V4(ip) => {
+                        let mut address = Record::with(
+                            fqdn.clone(),
+                            trust_dns_server::client::rr::RecordType::A,
+                            60,
+                        );
+                        address.set_rdata(RData::A(ip));
+                        serial += 1;
+
+                        authority.upsert(address, serial);
+                    }
+                    IpAddr::V6(ip) => {
+                        let mut address = Record::with(
+                            fqdn.clone(),
+                            trust_dns_server::client::rr::RecordType::AAAA,
+                            60,
+                        );
+                        address.set_rdata(RData::AAAA(ip));
+                        serial += 1;
+                        authority.upsert(address, serial);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn parse_hosts(&self) -> Result<HostsFile, std::io::Error> {
+        let mut input: HostsFile = HashMap::new();
+
+        if let None = self.hosts_file {
+            return Ok(input);
+        }
+
+        let whitespace = regex::Regex::new(WHITESPACE_SPLIT).unwrap();
+        let comment = regex::Regex::new(COMMENT_MATCH).unwrap();
+        let content = std::fs::read_to_string(self.hosts_file.clone().unwrap())?;
+
+        for line in content.lines() {
+            let mut ary = whitespace.split(line);
+
+            // the first item will be the host
+            match ary.next() {
+                Some(ip) => {
+                    if comment.is_match(ip) {
+                        continue;
+                    }
+
+                    match IpAddr::from_str(ip) {
+                        Ok(parsed_ip) => {
+                            let mut v: Vec<String> = Vec::new();
+
+                            // continue to iterate over the addresses
+                            for host in ary {
+                                v.push(host.into());
+                            }
+
+                            input.insert(parsed_ip, v);
+                        }
+                        Err(e) => {
+                            writeln!(std::io::stderr().lock(), "Couldn't parse {}: {}", ip, e)?;
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+
+        Ok(input)
     }
 
     pub fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
