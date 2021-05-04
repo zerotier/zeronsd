@@ -21,10 +21,20 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     return Ok(());
 }
 
-async fn get_listen_ip(network_id: &str) -> Result<String, anyhow::Error> {
-    // FIXME make this portable
-    let authtoken = std::fs::read_to_string("/var/lib/zerotier-one/authtoken.secret")?;
+fn authtoken_path() -> Option<&'static str> {
+    if cfg!(target_os = "linux") {
+        Some("/var/lib/zerotier-one/authtoken.secret")
+    } else if cfg!(target_os = "windows") {
+        Some("/ProgramData/ZeroTier/One/authtoken.secret")
+    } else if cfg!(target_os = "macos") {
+        Some("/Library/Application Support/ZeroTier/One/authtoken.secret")
+    } else {
+        None
+    }
+}
 
+async fn get_listen_ip(authtoken_path: &str, network_id: &str) -> Result<String, anyhow::Error> {
+    let authtoken = std::fs::read_to_string(authtoken_path)?;
     let mut configuration = service::apis::configuration::Configuration::default();
     let api_key = service::apis::configuration::ApiKey {
         prefix: None,
@@ -47,11 +57,19 @@ fn start(
     domain: Option<&str>,
     network: Option<&str>,
     hosts_file: Option<&str>,
+    authtoken: Option<&str>,
 ) -> Result<(), anyhow::Error> {
     let domain_name = if let Some(tld) = domain {
         Name::from_str(&format!("{}.", tld))?
     } else {
         Name::from_str(crate::authority::DOMAIN_NAME)?
+    };
+
+    let authtoken = match authtoken {
+        Some(p) => p,
+        None => authtoken_path().expect(
+            "authtoken.secret not found; please provide the -s option to provide a custom path",
+        ),
     };
 
     let mut runtime = tokio::runtime::Builder::new_multi_thread()
@@ -62,7 +80,7 @@ fn start(
         .expect("failed to initialize tokio");
 
     if let Some(network) = network {
-        let ip_with_cidr = runtime.block_on(get_listen_ip(network))?;
+        let ip_with_cidr = runtime.block_on(get_listen_ip(authtoken, network))?;
         let ip = ip_with_cidr.splitn(2, "/").next().unwrap();
 
         println!("Welcome to ZeroNS!");
@@ -129,6 +147,7 @@ fn main() -> Result<(), anyhow::Error> {
             (about: "Start the nameserver")
             (@arg domain: -d --domain +takes_value "TLD to use for hostnames")
             (@arg file: -f --file +takes_value "An additional lists of hosts in /etc/hosts format")
+            (@arg secret_file: -s --secret +takes_value "Path to authtoken.secret (usually detected)")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
     );
@@ -146,6 +165,7 @@ fn main() -> Result<(), anyhow::Error> {
             args.value_of("domain"),
             args.value_of("NETWORK_ID"),
             args.value_of("file"),
+            args.value_of("secret_file"),
         )?,
         _ => {
             let stderr = std::io::stderr();
