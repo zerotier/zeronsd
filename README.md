@@ -12,7 +12,7 @@ ZeroNS provides names that are a part of Central's configured _networks_; once p
 
 ## Installation
 
-Please obtain a working [rust environment](https://rustup.rs/) first.
+Currently, [you must be on linux](https://github.com/zerotier/zeronsd/issues/5). We're working on it. Please obtain a working [rust environment](https://rustup.rs/) first.
 
 ```
 cargo install --git https://github.com/zerotier/zeronsd --branch main
