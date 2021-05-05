@@ -1,5 +1,5 @@
 [package]
-name = "service"
+name = "zerotier-one-api"
 version = "1.0.0"
 authors = ["OpenAPI Generator team and contributors"]
 edition = "2018"
