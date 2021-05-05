@@ -7,8 +7,12 @@ use std::{
 };
 
 use central::{apis::configuration::Configuration, models::Member};
+use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
-use trust_dns_resolver::config::{NameServerConfigGroup, ResolverOpts};
+use trust_dns_resolver::{
+    config::{NameServerConfigGroup, ResolverOpts},
+    IntoName,
+};
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
     client::rr::{Name, RData, Record},
@@ -21,10 +25,15 @@ pub const DOMAIN_NAME: &str = "domain.";
 const WHITESPACE_SPLIT: &str = r"\s+";
 const COMMENT_MATCH: &str = r"^\s*#";
 
+type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
+type PtrAuthority = Option<Authority>;
+
 pub struct ZTAuthority {
-    authority: Box<Arc<RwLock<InMemoryAuthority>>>,
+    ptr_authority: PtrAuthority,
+    authority: Authority,
     domain_name: Name,
     serial: Arc<Mutex<u32>>,
+    ptr_serial: Arc<Mutex<u32>>,
     network: String,
     config: Configuration,
     hosts_file: Option<String>,
@@ -39,9 +48,34 @@ impl ZTAuthority {
         network: String,
         config: Configuration,
         hosts_file: Option<String>,
+        listen_ip: String,
     ) -> Result<Arc<Self>, anyhow::Error> {
+        let ptr_authority = match IpCidr::from_str(listen_ip)? {
+            IpCidr::V4(ip) => {
+                let mut s = String::new();
+
+                for octet in ip
+                    .get_prefix_as_u8_array()
+                    .iter()
+                    .rev()
+                    .skip((ip.get_bits() / 8) as usize)
+                {
+                    s += &format!("{}.", octet).to_string();
+                }
+
+                Some(Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
+                    Name::from_str(&s.trim_end_matches("."))?
+                        .append_domain(&Name::from_str("in-addr.arpa.")?),
+                    trust_dns_server::authority::ZoneType::Primary,
+                    false,
+                )))))
+            }
+            IpCidr::V6(_) => None,
+        };
+
         Ok(Arc::new(Self {
             serial: Arc::new(Mutex::new(initial_serial)),
+            ptr_serial: Arc::new(Mutex::new(0)),
             domain_name: domain_name.clone(),
             network,
             config,
@@ -51,6 +85,7 @@ impl ZTAuthority {
                 trust_dns_server::authority::ZoneType::Primary,
                 false,
             )))),
+            ptr_authority,
         }))
     }
 
@@ -81,18 +116,34 @@ impl ZTAuthority {
 
     pub fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
         self.configure_hosts(self.authority.write().unwrap())?;
-        self.configure_members(self.authority.write().unwrap(), members)
+        self.configure_members(
+            self.authority.write().unwrap(),
+            self.ptr_authority.clone(),
+            members,
+        )
     }
 
     fn configure_members(
         &self,
         mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
+        ptr_authority: PtrAuthority,
         members: Vec<Member>,
     ) -> Result<(), anyhow::Error> {
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
             let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
             let mut serial = *(self.serial.lock().unwrap());
+            let mut ptr_serial = *(self.ptr_serial.lock().unwrap());
+
+            // this is default the zt-<member id> but can switch to a named name if
+            // tweaked in central. see below.
+            let mut canonical_name = fqdn.clone();
+            let mut member_is_named = false;
+
+            if let Some(name) = member.name.clone() {
+                canonical_name = Name::from_str(&name)?.append_name(&self.domain_name.clone());
+                member_is_named = true;
+            }
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
                 match IpAddr::from_str(&ip).unwrap() {
@@ -106,15 +157,28 @@ impl ZTAuthority {
                         serial += 1;
 
                         authority.upsert(address, serial);
-                        if let Some(name) = member.name.clone() {
+                        if member_is_named {
                             let mut address = Record::with(
-                                Name::from_str(&name)?.append_name(&self.domain_name.clone()),
+                                canonical_name.clone(),
                                 trust_dns_server::client::rr::RecordType::A,
                                 60,
                             );
                             address.set_rdata(RData::A(ip));
                             serial += 1;
                             authority.upsert(address, serial);
+                        }
+
+                        if let Some(local_ptr_authority) = ptr_authority.clone() {
+                            let mut local_ptr_authority = local_ptr_authority.write().unwrap();
+                            let mut ptr = Record::with(
+                                ip.into_name()?,
+                                trust_dns_server::client::rr::RecordType::PTR,
+                                60,
+                            );
+
+                            ptr.set_rdata(RData::PTR(canonical_name.clone()));
+                            ptr_serial += 1;
+                            local_ptr_authority.upsert(ptr, ptr_serial);
                         }
                     }
                     IpAddr::V6(ip) => {
@@ -217,6 +281,13 @@ impl ZTAuthority {
     pub fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
         let mut catalog = Catalog::default();
         catalog.upsert(self.domain_name.clone().into(), self.authority.box_clone());
+        if self.ptr_authority.is_some() {
+            let unwrapped = self.ptr_authority.clone().unwrap();
+            catalog.upsert(unwrapped.origin(), unwrapped.box_clone());
+        } else {
+            println!("PTR records are not supported on IPv6 networks (yet!)");
+        }
+
         let resolvconf = trust_dns_resolver::config::ResolverConfig::default();
         let mut nsconfig = NameServerConfigGroup::new();
 

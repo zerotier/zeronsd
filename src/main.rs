@@ -117,8 +117,14 @@ fn start(
                 None
             };
 
-            let authority =
-                ZTAuthority::new(domain_name.clone(), 1, network.clone(), config.clone(), hf)?;
+            let authority = ZTAuthority::new(
+                domain_name.clone(),
+                1,
+                network.clone(),
+                config.clone(),
+                hf,
+                ip_with_cidr.clone(),
+            )?;
 
             let owned = authority.to_owned();
             runtime.spawn(owned.find_members());

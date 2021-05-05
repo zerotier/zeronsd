@@ -10,6 +10,7 @@ edition = "2018"
 regex = ">= 0"
 anyhow = ">= 0"
 clap = ">= 0"
+cidr-utils = ">= 0"
 trust-dns-resolver = "*"
 trust-dns-server = { version = "0.20.1", features = ["trust-dns-resolver"] } 
 tokio = { version = "1", features = ["full"] }
