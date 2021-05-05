@@ -21,6 +21,25 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     return Ok(());
 }
 
+fn central_token(arg: Option<&str>) -> Option<String> {
+    if arg.is_some() {
+        return Some(
+            std::fs::read_to_string(arg.unwrap())
+                .expect("Could not load token file")
+                .trim()
+                .to_string(),
+        );
+    }
+
+    if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
+        if token.len() > 0 {
+            return Some(token);
+        }
+    }
+
+    None
+}
+
 fn authtoken_path() -> Option<&'static str> {
     if cfg!(target_os = "linux") {
         Some("/var/lib/zerotier-one/authtoken.secret")
@@ -58,6 +77,7 @@ fn start(
     network: Option<&str>,
     hosts_file: Option<&str>,
     authtoken: Option<&str>,
+    token: Option<&str>,
 ) -> Result<(), anyhow::Error> {
     let domain_name = if let Some(tld) = domain {
         Name::from_str(&format!("{}.", tld))?
@@ -86,7 +106,7 @@ fn start(
         println!("Welcome to ZeroNS!");
         println!("Your IP for this network: {}", ip);
 
-        if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
+        if let Some(token) = central_token(token) {
             let network = String::from(network);
             let mut config = Configuration::default();
             config.bearer_access_token = Some(token.clone());
@@ -131,7 +151,7 @@ fn start(
 
             runtime.block_on(server.listen(&format!("{}:53", ip.clone()), Duration::new(0, 1000)))
         } else {
-            Err(anyhow!("missing zerotier central token"))
+            Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"))
         }
     } else {
         return Err(anyhow!("no network ID"));
@@ -148,6 +168,7 @@ fn main() -> Result<(), anyhow::Error> {
             (@arg domain: -d --domain +takes_value "TLD to use for hostnames")
             (@arg file: -f --file +takes_value "An additional lists of hosts in /etc/hosts format")
             (@arg secret_file: -s --secret +takes_value "Path to authtoken.secret (usually detected)")
+            (@arg token_file: -t --token +takes_value "Path to a file containing the ZeroTier Central token")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
     );
@@ -166,6 +187,7 @@ fn main() -> Result<(), anyhow::Error> {
             args.value_of("NETWORK_ID"),
             args.value_of("file"),
             args.value_of("secret_file"),
+            args.value_of("token_file"),
         )?,
         _ => {
             let stderr = std::io::stderr();
