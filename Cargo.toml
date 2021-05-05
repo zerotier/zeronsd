@@ -2,6 +2,7 @@
 name = "zeronsd"
 version = "0.1.0"
 authors = ["Erik Hollensbe <linux@hollensbe.org>", "Adam Ierymenko <adam.ierymenko@zerotier.com>"]
+description = "Unicast DNS resolver for ZeroTier networks"
 homepage = "https://github.com/zerotier/zeronsd"
 repository = "https://github.com/zerotier/zeronsd"
 documentation = "https://github.com/zerotier/zeronsd/blob/main/README.md"
@@ -17,8 +18,8 @@ regex = ">= 0"
 anyhow = ">= 0"
 clap = ">= 0"
 cidr-utils = ">= 0"
-trust-dns-resolver = "*"
-trust-dns-server = { version = "0.20.1", features = ["trust-dns-resolver"] } 
+trust-dns-resolver = "0.20.2"
+trust-dns-server = { version = "0.20.2", features = ["trust-dns-resolver"] } 
 tokio = { version = "1", features = ["full"] }
-zerotier-central-api = { path = "./zerotier-central-api", version = "*" }
-zerotier-one-api = { path = "./zerotier-one-api", version = "*" }
+zerotier-central-api = { path = "./zerotier-central-api", version = "1.0.0" }
+zerotier-one-api = { path = "./zerotier-one-api", version = "1.0.0" }

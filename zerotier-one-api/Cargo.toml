@@ -1,8 +1,10 @@
 [package]
 name = "zerotier-one-api"
+description = "OpenAPI bindings to zerotier-one service"
+authors = ["Erik Hollensbe <linux@hollensbe.org>", "Adam Ierymenko <adam.ierymenko@zerotier.com>"]
 version = "1.0.0"
-authors = ["OpenAPI Generator team and contributors"]
 edition = "2018"
+license = "BSD-3-Clause"
 
 [dependencies]
 serde = "^1.0"
