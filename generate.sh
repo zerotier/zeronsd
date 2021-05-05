@@ -9,22 +9,17 @@ then
 fi
 
 PACKAGE=$1
+PREFIX=$2
 
-if [ "x$2" = "x" ]
-then
-  HOST=apidocs.zerotier.com
-else
-  HOST=$2
-fi
+HOST=${HOST:-apidocs.zerotier.com}
 
-
-rm -rf ./${PACKAGE}
-mkdir -p ./${PACKAGE}
+rm -rf ./${PREFIX}
+mkdir -p ./${PREFIX}
 docker pull openapitools/openapi-generator-cli:latest
-docker run --rm -u $(id -u):$(id -g) -v ${PWD}/${PACKAGE}:/swagger openapitools/openapi-generator-cli generate \
-  --package-name ${PACKAGE} \
+docker run --rm -u $(id -u):$(id -g) -v ${PWD}/${PREFIX}:/swagger openapitools/openapi-generator-cli generate \
+  --package-name ${PREFIX} \
   -i http://${HOST}/${PACKAGE}-v1/api-spec.json \
   -g rust \
   -o /swagger
 
-grep -v default-features ${PACKAGE}/Cargo.toml > tmp && mv tmp ${PACKAGE}/Cargo.toml
+grep -v default-features ${PREFIX}/Cargo.toml > tmp && mv tmp ${PREFIX}/Cargo.toml

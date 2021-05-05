@@ -83,17 +83,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3c69b077ad434294d3ce9f1f6143a2a4b89a8a2d54ef813d85003a4fd1137fd"
 
 [[package]]
-name = "central"
-version = "1.0.0"
-dependencies = [
- "reqwest",
- "serde",
- "serde_derive",
- "serde_json",
- "url",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1036,17 +1025,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "service"
-version = "1.0.0"
-dependencies = [
- "reqwest",
- "serde",
- "serde_derive",
- "serde_json",
- "url",
-]
-
-[[package]]
 name = "signal-hook-registry"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1598,12 +1576,34 @@ name = "zeronsd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "central",
  "cidr-utils",
  "clap",
  "regex",
- "service",
  "tokio",
  "trust-dns-resolver",
  "trust-dns-server",
+ "zerotier-central-api",
+ "zerotier-one-api",
+]
+
+[[package]]
+name = "zerotier-central-api"
+version = "1.0.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "url",
+]
+
+[[package]]
+name = "zerotier-one-api"
+version = "1.0.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "url",
 ]
