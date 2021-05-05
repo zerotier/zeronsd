@@ -1,22 +1,15 @@
 use std::time::Duration;
 use tokio::net::{TcpListener, UdpSocket};
 
-use central::apis::configuration::Configuration;
 use trust_dns_server::{authority::Catalog, server::ServerFuture};
 
 pub struct Server {
     catalog: Catalog,
-    _config: Configuration,
-    _network: String,
 }
 
 impl Server {
-    pub fn new(catalog: Catalog, _config: Configuration, _network: String) -> Self {
-        return Self {
-            catalog,
-            _config,
-            _network,
-        };
+    pub fn new(catalog: Catalog) -> Self {
+        return Self { catalog };
     }
 
     pub async fn listen(

@@ -143,12 +143,7 @@ fn start(
                 ))?;
             }
 
-            let server = crate::server::Server::new(
-                authority.clone().catalog(&mut runtime)?,
-                config,
-                network,
-            );
-
+            let server = crate::server::Server::new(authority.clone().catalog(&mut runtime)?);
             runtime.block_on(server.listen(&format!("{}:53", ip.clone()), Duration::new(0, 1000)))
         } else {
             Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"))
