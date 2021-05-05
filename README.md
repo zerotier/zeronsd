@@ -12,7 +12,7 @@ ZeroNS provides names that are a part of Central's configured _networks_; once p
 
 ## Installation
 
-Currently, [you must be on linux](https://github.com/zerotier/zeronsd/issues/5). We're working on it. Please obtain a working [rust environment](https://rustup.rs/) first.
+Please obtain a working [rust environment](https://rustup.rs/) first.
 
 ```
 cargo install --git https://github.com/zerotier/zeronsd --branch main
@@ -35,7 +35,8 @@ It should print some diagnostics after it has talked to your `zerotier-one` inst
 ### Flags
 
 - `-d <tld>` will set a TLD for your records; the default is `domain`.
-- `-f <hosts file` will parse a file in `/etc/hosts` format and append it to your records.
+- `-f <hosts file>` will parse a file in `/etc/hosts` format and append it to your records.
+- `-s <secret file>` path to `authtoken.secret` which is needed to talk to ZeroTier on localhost. You can provide this file with this argument, but it is auto-detected on multiple platforms including Linux, OS X and Windows.
 
 ### TTLs
 
