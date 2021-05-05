@@ -1,6 +1,6 @@
 # ZeroNS: a name service centered around the ZeroTier Central API
 
-ZeroNS provides names that are a part of Central's configured _networks_; once provided a network it:
+ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotier.com) configured _networks_; once provided a network it:
 
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
 - Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
@@ -37,6 +37,7 @@ It should print some diagnostics after it has talked to your `zerotier-one` inst
 - `-d <tld>` will set a TLD for your records; the default is `domain`.
 - `-f <hosts file>` will parse a file in `/etc/hosts` format and append it to your records.
 - `-s <secret file>` path to `authtoken.secret` which is needed to talk to ZeroTier on localhost. You can provide this file with this argument, but it is auto-detected on multiple platforms including Linux, OS X and Windows.
+- `-t <central token file>` path to file containing your [ZeroTier Central token](https://my.zerotier.com/account).
 
 ### TTLs
 
