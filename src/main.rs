@@ -1,9 +1,9 @@
 use authority::ZTAuthority;
-use central::apis::configuration::Configuration;
 use std::io::Write;
 use std::str::FromStr;
 use std::time::Duration;
 use trust_dns_server::client::rr::Name;
+use zerotier_central_api::apis::configuration::Configuration;
 
 extern crate clap;
 use clap::clap_app;
@@ -54,14 +54,15 @@ fn authtoken_path() -> Option<&'static str> {
 
 async fn get_listen_ip(authtoken_path: &str, network_id: &str) -> Result<String, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
-    let mut configuration = service::apis::configuration::Configuration::default();
-    let api_key = service::apis::configuration::ApiKey {
+    let mut configuration = zerotier_one_api::apis::configuration::Configuration::default();
+    let api_key = zerotier_one_api::apis::configuration::ApiKey {
         prefix: None,
         key: authtoken,
     };
     configuration.api_key = Some(api_key);
 
-    let listen = service::apis::network_api::get_network(&configuration, network_id).await?;
+    let listen =
+        zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await?;
     if let Some(assigned) = listen.assigned_addresses {
         if let Some(ip) = assigned.first() {
             // for now, we'll use the first addr returned. Soon, we will want to listen on all IPs.
@@ -130,13 +131,13 @@ fn start(
             runtime.spawn(owned.find_members());
 
             let mut zt_network = runtime.block_on(
-                central::apis::network_api::get_network_by_id(&config, &network),
+                zerotier_central_api::apis::network_api::get_network_by_id(&config, &network),
             )?;
 
             let mut domain_name = domain_name.clone();
             domain_name.set_fqdn(false);
 
-            let dns = Some(Box::new(central::models::NetworkConfigDns {
+            let dns = Some(Box::new(zerotier_central_api::models::NetworkConfigDns {
                 domain: Some(domain_name.to_string()),
                 servers: Some(Vec::from([String::from(ip.clone())])),
             }));
@@ -144,7 +145,7 @@ fn start(
             if let Some(mut zt_network_config) = zt_network.config.to_owned() {
                 zt_network_config.dns = dns;
                 zt_network.config = Some(zt_network_config);
-                runtime.block_on(central::apis::network_api::update_network(
+                runtime.block_on(zerotier_central_api::apis::network_api::update_network(
                     &config, &network, zt_network,
                 ))?;
             }

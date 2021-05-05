@@ -6,7 +6,6 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use central::{apis::configuration::Configuration, models::Member};
 use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::{
@@ -19,6 +18,7 @@ use trust_dns_server::{
     store::forwarder::ForwardAuthority,
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
+use zerotier_central_api::{apis::configuration::Configuration, models::Member};
 
 pub const DOMAIN_NAME: &str = "domain.";
 
@@ -90,9 +90,11 @@ impl ZTAuthority {
     }
 
     async fn get_members(self: Arc<Self>) -> Result<Vec<Member>, anyhow::Error> {
-        let list =
-            central::apis::network_member_api::get_network_member_list(&self.config, &self.network)
-                .await?;
+        let list = zerotier_central_api::apis::network_member_api::get_network_member_list(
+            &self.config,
+            &self.network,
+        )
+        .await?;
         Ok(list)
     }
 
