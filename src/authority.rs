@@ -6,6 +6,8 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
+use anyhow::anyhow;
+
 use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::{
@@ -143,8 +145,16 @@ impl ZTAuthority {
             let mut member_is_named = false;
 
             if let Some(name) = member.name.clone() {
-                canonical_name = Name::from_str(&name)?.append_name(&self.domain_name.clone());
-                member_is_named = true;
+                let name = name.trim();
+                if name.len() > 0 {
+                    canonical_name = match Name::from_str(&name) {
+                        Ok(record) => record.append_name(&self.domain_name.clone()),
+                        Err(e) => {
+                            return Err(anyhow!(e));
+                        }
+                    };
+                    member_is_named = true;
+                }
             }
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
