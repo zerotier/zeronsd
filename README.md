@@ -14,19 +14,58 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 
 Please obtain a working [rust environment](https://rustup.rs/) first.
 
+### Get a release from Cargo
+
+```
+cargo install zeronsd
+```
+
+### From Git
+
 ```
 cargo install --git https://github.com/zerotier/zeronsd --branch main
 ```
 
+### Docker
+
+There is a `Dockerfile` present in the repository you can use to build images in lieu of one of our official images (*N.B.:* these don't exist yet, for now, please build your own).
+
+There are two build arguments which control behavior:
+
+- `VERSION`: this is the branch or tag to fetch.
+- `IS_TAG`: if non-zero, tells cargo to fetch tags instead of branches.
+
+Example:
+
+```bash
+docker build . # builds latest master
+docker build --build-arg VERSION=somebranch # builds branch `somebranch`
+docker build --build-arg IS_TAG=1 VERSION=v0.1.0 # builds version 0.1.0 from tag v0.1.0
+```
+
+Once built, the image automatically runs `zeronsd` for you. The default subcommand is `help`.
+
 ## Usage
 
 Setting `ZEROTIER_CENTRAL_TOKEN` in the environment is required. You must be able to administer the network to use `zeronsd` with it. Also, running as `root` is required as _many client resolvers do not work over anything but port 53_. Your `zeronsd` instance will listen on both `udp` and `tcp`, port `53`.
+
+### Bare commandline
 
 **Tip**: running `sudo`? Pass the `-E` flag to import your current shell's environment, making it easier to add the `ZEROTIER_CENTRAL_TOKEN`.
 
 ```
 zeronsd start <network id>
 ```
+
+### Docker
+
+Running in docker is a little more complicated. You must be able to have a network interface you can import (joined a network) and must be able to reach `localhost:9999` on the host. At this time, for brevity's sake we are recommending running with `--net=host` until we have more time to investigate a potentially more secure solution.
+
+```
+docker run --net host zeronsd start <network id>
+```
+
+### Other notes
 
 You must have already joined a network and obviously, `zerotier-one` should be running!
 
