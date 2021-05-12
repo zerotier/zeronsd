@@ -61,8 +61,10 @@ zeronsd start <network id>
 
 Running in docker is a little more complicated. You must be able to have a network interface you can import (joined a network) and must be able to reach `localhost:9999` on the host. At this time, for brevity's sake we are recommending running with `--net=host` until we have more time to investigate a potentially more secure solution.
 
+You also need to mount your `authtoken.secret`, which we use to talk to `zerotier-one`
+
 ```
-docker run --net host zeronsd start <network id>
+docker run -v /var/lib/zerotier-one:/var/lib/zerotier-one:ro --net host zeronsd start <network id>
 ```
 
 ### Other notes
