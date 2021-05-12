@@ -40,7 +40,7 @@ Example:
 ```bash
 docker build . # builds latest master
 docker build --build-arg VERSION=somebranch # builds branch `somebranch`
-docker build --build-arg IS_TAG=1 VERSION=v0.1.0 # builds version 0.1.0 from tag v0.1.0
+docker build --build-arg IS_TAG=1 --build-arg VERSION=v0.1.0 # builds version 0.1.0 from tag v0.1.0
 ```
 
 Once built, the image automatically runs `zeronsd` for you. The default subcommand is `help`.
