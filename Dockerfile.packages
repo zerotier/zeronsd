@@ -1,0 +1,3 @@
+FROM rust
+
+RUN cargo install cargo-deb cargo-generate-rpm
