@@ -28,10 +28,11 @@ cargo install --git https://github.com/zerotier/zeronsd --branch main
 
 ### Docker
 
-There is a `Dockerfile` present in the repository you can use to build images in lieu of one of our official images (*N.B.:* these don't exist yet, for now, please build your own).
+There is a `Dockerfile` present in the repository you can use to build images in lieu of one of our [official images](https://hub.docker.com/r/zerotier/zeronsd).
 
 There are two build arguments which control behavior:
 
+- `IS_LOCAL`: if set, uses the local source tree and does not try to fetch.
 - `VERSION`: this is the branch or tag to fetch.
 - `IS_TAG`: if non-zero, tells cargo to fetch tags instead of branches.
 
