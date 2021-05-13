@@ -1,11 +1,12 @@
 FROM rust:latest as buildenv
 
+ARG IS_LOCAL=0
 ARG VERSION=main
 ARG IS_TAG=0
 
-RUN cargo install --git https://github.com/zerotier/zeronsd \
-  $(if [ "${IS_TAG}" != "0" ]; then echo "--tag"; else echo "--branch"; fi) \
-  "${VERSION}"
+COPY . /code
+WORKDIR /code
+RUN sh cargo-docker.sh
 
 FROM debian:latest
 

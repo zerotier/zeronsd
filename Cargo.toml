@@ -6,7 +6,7 @@ description = "Unicast DNS resolver for ZeroTier networks"
 homepage = "https://github.com/zerotier/zeronsd"
 repository = "https://github.com/zerotier/zeronsd"
 documentation = "https://github.com/zerotier/zeronsd/blob/main/README.md"
-license-file = "LICENSE"
+license = "BSD-3-Clause"
 readme = "README.md"
 keywords = ["dns", "zerotier"]
 edition = "2018"
@@ -23,3 +23,30 @@ trust-dns-server = { version = "0.20.2", features = ["trust-dns-resolver"] }
 tokio = { version = "1", features = ["full"] }
 zerotier-central-api = { path = "./zerotier-central-api", version = "1.0.0" }
 zerotier-one-api = { path = "./zerotier-one-api", version = "1.0.0" }
+
+[package.metadata.deb]
+copyright = "ZeroTier, Inc"
+
+extended-description = """
+ZeroNS provides names that are a part of ZeroTier Central's
+(https://my.zerotier.com) configured networks; once provided a network it:
+
+- Listens on the local interface joined to that network -- you will want to
+  start one ZeroNS per ZeroTier network.
+- Provides general DNS by forwarding all queries to `/etc/resolv.conf`
+  resolvers that do not match the TLD, similar to `dnsmasq`.
+- Tells Central to point all clients that have the "Manage DNS" settings turned
+  **on** to resolve to it.
+- Finally, sets a provided TLD (`.domain` is the default), as well as
+  configuring `A` (IPv4) and `AAAA` (IPv6) records for:
+  - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4/v6 addresses for
+    them.
+  - Names: _if_ the names are compatible with DNS names, they will be converted
+    as such: to `<name>.<tld>`.
+    - Please note that **collisions are possible** and that it's _up to the
+      admin to prevent them_.
+"""
+
+[package.metadata.generate-rpm]
+assets = [ { source = "target/release/zeronsd", dest = "/usr/bin/zeronsd", mode = "755" } ]
+requires = { openssl-libs = ">= 1.1.1g" }
