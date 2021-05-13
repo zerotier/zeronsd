@@ -29,12 +29,14 @@ packages-out:
 	@echo "The files were written as root. Please ensure they fit your needed permissions manually."
 	@echo
 
-test-packages:
+clean:
 	@echo
 	@echo Running sudo to clean your target directory
 	@echo
 	sudo rm -rf target zerotier-central-api/target zerotier-one-api/target 
 	cargo clean
+
+test-packages: clean
 	make packages
 	docker run -v ${PWD}:/code --rm -it centos rpm -ivh /code/target/generate-rpm/\*.rpm
 	# this is too clever, so let me explain it.
@@ -53,4 +55,5 @@ test-packages:
 
 .PHONY: generate central service \
 	docker-image docker-image-package \
-	packages packages-out test-packages
+	packages packages-out test-packages \
+	clean
