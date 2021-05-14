@@ -12,9 +12,17 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 
 ## Installation
 
-Please obtain a working [rust environment](https://rustup.rs/) first.
+Packages:
+
+- Linux: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb` and `*.rpm` formats.
+- Mac OS X: `brew tap zerotier/homebrew-tap && brew install zerotier/homebrew-tap/zeronsd`
+- Docker: `docker pull zerotier/zeronsd` (see below for more on docker)
+
+Other methods:
 
 ### Get a release from Cargo
+
+Please obtain a working [rust environment](https://rustup.rs/) first.
 
 ```
 cargo install zeronsd
