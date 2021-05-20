@@ -7,6 +7,7 @@ homepage = "https://github.com/zerotier/zeronsd"
 repository = "https://github.com/zerotier/zeronsd"
 documentation = "https://github.com/zerotier/zeronsd/blob/main/README.md"
 license = "BSD-3-Clause"
+license-file = "LICENSE"
 readme = "README.md"
 keywords = ["dns", "zerotier"]
 edition = "2018"

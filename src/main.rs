@@ -44,7 +44,7 @@ fn authtoken_path() -> Option<&'static str> {
     if cfg!(target_os = "linux") {
         Some("/var/lib/zerotier-one/authtoken.secret")
     } else if cfg!(target_os = "windows") {
-        Some("/ProgramData/ZeroTier/One/authtoken.secret")
+        Some("C:/ProgramData/ZeroTier/One/authtoken.secret")
     } else if cfg!(target_os = "macos") {
         Some("/Library/Application Support/ZeroTier/One/authtoken.secret")
     } else {
