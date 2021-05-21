@@ -14,7 +14,7 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 
 Packages:
 
-- Linux: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb` and `*.rpm` formats.
+- Linux/Windows: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb`, `*.rpm` for Linux, and MSI format for Windows.
 - Mac OS X: `brew tap zerotier/homebrew-tap && brew install zerotier/homebrew-tap/zeronsd`
 - Docker: `docker pull zerotier/zeronsd` (see below for more on docker)
 
@@ -38,7 +38,7 @@ cargo install --git https://github.com/zerotier/zeronsd --branch main
 
 There is a `Dockerfile` present in the repository you can use to build images in lieu of one of our [official images](https://hub.docker.com/r/zerotier/zeronsd).
 
-There are two build arguments which control behavior:
+There are build arguments which control behavior:
 
 - `IS_LOCAL`: if set, uses the local source tree and does not try to fetch.
 - `VERSION`: this is the branch or tag to fetch.
@@ -73,7 +73,7 @@ Running in docker is a little more complicated. You must be able to have a netwo
 You also need to mount your `authtoken.secret`, which we use to talk to `zerotier-one`
 
 ```
-docker run -v /var/lib/zerotier-one:/var/lib/zerotier-one:ro --net host zeronsd start <network id>
+docker run -v /var/lib/zerotier-one:/var/lib/zerotier-one:ro --net host zerotier/zeronsd start <network id>
 ```
 
 ### Other notes
