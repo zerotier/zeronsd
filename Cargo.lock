@@ -1574,7 +1574,7 @@ dependencies = [
 
 [[package]]
 name = "zeronsd"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "cidr-utils",
