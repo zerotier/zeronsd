@@ -135,7 +135,6 @@ fn start(
 
             let authority = ZTAuthority::new(
                 domain_name.clone(),
-                1,
                 network.clone(),
                 config.clone(),
                 hf,
