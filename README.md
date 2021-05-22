@@ -66,6 +66,27 @@ Setting `ZEROTIER_CENTRAL_TOKEN` in the environment is required. You must be abl
 zeronsd start <network id>
 ```
 
+### Running as a service
+
+_This behavior is currently only supported on Linux; we will accept patches for other platforms._
+
+The `zeronsd supervise` and `zeronsd unsupervise` commands can be used to manipulate systemd unit files related to your network. For the `supervise` case, simply pass the arguments you would normally pass to `start` and it will generate a unit from it.
+
+Example:
+
+```bash
+# to enable
+zeronsd supervise -t ~/.token -f /etc/hosts -d mydomain 36579ad8f6a82ad3
+# generates systemd unit file named /lib/systemd/system/zeronsd-36579ad8f6a82ad3.service
+systemctl daemon-reload
+systemctl enable zeronsd-36579ad8f6a82ad3.service && systemctl start zeronsd-36579ad8f6a82ad3.service
+
+# to disable
+systemctl disable zeronsd-36579ad8f6a82ad3.service && systemctl stop zeronsd-36579ad8f6a82ad3.service
+zeronsd unsupervise 36579ad8f6a82ad3
+systemctl daemon-reload
+```
+
 ### Docker
 
 Running in docker is a little more complicated. You must be able to have a network interface you can import (joined a network) and must be able to reach `localhost:9999` on the host. At this time, for brevity's sake we are recommending running with `--net=host` until we have more time to investigate a potentially more secure solution.
@@ -73,7 +94,9 @@ Running in docker is a little more complicated. You must be able to have a netwo
 You also need to mount your `authtoken.secret`, which we use to talk to `zerotier-one`
 
 ```
+
 docker run -v /var/lib/zerotier-one:/var/lib/zerotier-one:ro --net host zerotier/zeronsd start <network id>
+
 ```
 
 ### Other notes
@@ -108,3 +131,7 @@ ZeroNS demands a lot out of the [trust-dns](https://github.com/bluejekyll/trust-
 ## Author
 
 Erik Hollensbe <github@hollensbe.org>
+
+```
+
+```
