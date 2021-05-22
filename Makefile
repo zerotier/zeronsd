@@ -1,6 +1,15 @@
 # this fun little grep just extracts the version information from Cargo.toml.
 CARGO_VERSION=$$(grep version Cargo.toml | head -1 | awk '{ print $$3 }' | sed 's/"//g') .
 
+build: test
+	cargo build
+
+test:
+	cargo test
+
+test-integration: test
+	TOKEN=${TOKEN} NETWORK=${NETWORK} sudo -E bash -c "$$(which cargo) test -- --ignored"
+
 generate: central service
 
 central:

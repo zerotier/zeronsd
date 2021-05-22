@@ -22,12 +22,25 @@ WantedBy=default.target
 
 #[derive(Serialize)]
 pub struct Properties {
-    binpath: String,
-    domain: Option<String>,
-    network: String,
-    hosts_file: Option<String>,
-    authtoken: Option<String>,
-    token: String,
+    pub binpath: String,
+    pub domain: Option<String>,
+    pub network: String,
+    pub hosts_file: Option<String>,
+    pub authtoken: Option<String>,
+    pub token: String,
+}
+
+impl Default for Properties {
+    fn default() -> Self {
+        Self {
+            binpath: String::from("zeronsd"),
+            domain: None,
+            network: String::new(),
+            hosts_file: None,
+            authtoken: None,
+            token: String::new(),
+        }
+    }
 }
 
 impl<'a> Properties {
@@ -58,7 +71,7 @@ impl<'a> Properties {
         })
     }
 
-    fn validate(&mut self) -> Result<(), anyhow::Error> {
+    pub fn validate(&mut self) -> Result<(), anyhow::Error> {
         let tstat = match std::fs::metadata(self.token.clone()) {
             Ok(ts) => ts,
             Err(e) => return Err(anyhow!("Could not stat token file {}: {}", self.token, e)),
@@ -92,16 +105,43 @@ impl<'a> Properties {
         }
 
         if let Some(domain) = self.domain.clone() {
+            if domain.trim().len() == 0 {
+                return Err(anyhow!("Domain name cannot be empty"));
+            }
+
             match Name::parse(domain.as_str(), None) {
                 Ok(_) => {}
                 Err(e) => return Err(anyhow!("Domain name is invalid: {}", e)),
             }
         }
 
+        if let Some(authtoken) = self.authtoken.clone() {
+            let hstat = match std::fs::metadata(authtoken.clone()) {
+                Ok(hs) => hs,
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Could not stat authtoken file {}: {}",
+                        authtoken,
+                        e
+                    ))
+                }
+            };
+
+            if !hstat.is_file() {
+                return Err(anyhow!("authtoken file {} is not a file", authtoken));
+            }
+
+            self.authtoken = Some(
+                std::fs::canonicalize(authtoken)?
+                    .to_string_lossy()
+                    .to_string(),
+            );
+        }
+
         Ok(())
     }
 
-    fn systemd_template(&self) -> Result<String, anyhow::Error> {
+    pub fn systemd_template(&self) -> Result<String, anyhow::Error> {
         let mut t = TinyTemplate::new();
         t.add_template("systemd", SYSTEMD_UNIT)?;
         match t.render("systemd", self) {
