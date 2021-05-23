@@ -1,0 +1,12 @@
+
+[Unit]
+Description=zeronsd for network 1234567891011121
+Wants=zerotier-one.service
+
+[Service]
+Type=simple
+ExecStart=zeronsd start -t /proc/cpuinfo 1234567891011121
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

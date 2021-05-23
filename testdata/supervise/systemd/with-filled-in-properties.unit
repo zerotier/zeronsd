@@ -1,0 +1,12 @@
+
+[Unit]
+Description=zeronsd for network 1234567891011121
+Wants=zerotier-one.service
+
+[Service]
+Type=simple
+ExecStart=zeronsd start -t /proc/cpuinfo -s /var/lib/zerotier-one/authtoken.secret -f /etc/hosts -d zerotier 1234567891011121
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

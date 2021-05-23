@@ -2,6 +2,7 @@ use authority::ZTAuthority;
 use std::io::Write;
 use std::str::FromStr;
 use std::time::Duration;
+use tokio::runtime::Runtime;
 use trust_dns_server::client::rr::Name;
 use zerotier_central_api::apis::configuration::Configuration;
 
@@ -13,6 +14,7 @@ use anyhow::anyhow;
 mod authority;
 mod server;
 mod supervise;
+mod tests;
 
 fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     let stderr = std::io::stderr();
@@ -41,16 +43,34 @@ fn central_token(arg: Option<&str>) -> Option<String> {
     None
 }
 
-fn authtoken_path() -> Option<&'static str> {
-    if cfg!(target_os = "linux") {
-        Some("/var/lib/zerotier-one/authtoken.secret")
-    } else if cfg!(target_os = "windows") {
-        Some("C:/ProgramData/ZeroTier/One/authtoken.secret")
-    } else if cfg!(target_os = "macos") {
-        Some("/Library/Application Support/ZeroTier/One/authtoken.secret")
+fn authtoken_path(arg: Option<&str>) -> String {
+    if let Some(arg) = arg {
+        return String::from(arg);
     } else {
-        None
+        if cfg!(target_os = "linux") {
+            String::from("/var/lib/zerotier-one/authtoken.secret")
+        } else if cfg!(target_os = "windows") {
+            String::from("C:/ProgramData/ZeroTier/One/authtoken.secret")
+        } else if cfg!(target_os = "macos") {
+            String::from("/Library/Application Support/ZeroTier/One/authtoken.secret")
+        } else {
+            panic!(
+                "authtoken.secret not found; please provide the -s option to provide a custom path"
+            )
+        }
     }
+}
+
+fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
+    if let Some(tld) = tld {
+        if tld.len() > 0 {
+            return Ok(Name::from_str(&format!("{}.", tld))?);
+        } else {
+            return Err(anyhow!("Domain name must not be empty if provided."));
+        }
+    };
+
+    Ok(Name::from_str(crate::authority::DOMAIN_NAME)?)
 }
 
 async fn get_listen_ip(authtoken_path: &str, network_id: &str) -> Result<String, anyhow::Error> {
@@ -88,6 +108,25 @@ fn supervise(
     supervise::Properties::new(domain, network, hosts_file, authtoken, token)?.install_supervisor()
 }
 
+fn central_config(token: String) -> Configuration {
+    let mut config = Configuration::default();
+    config.bearer_access_token = Some(token);
+    return config;
+}
+
+fn init_runtime() -> Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(4)
+        .thread_name("zeronsd")
+        .build()
+        .expect("failed to initialize tokio")
+}
+
+fn parse_ip_from_cidr(ip_with_cidr: String) -> String {
+    ip_with_cidr.splitn(2, "/").next().unwrap().to_string()
+}
+
 fn start(
     domain: Option<&str>,
     network: Option<&str>,
@@ -95,43 +134,26 @@ fn start(
     authtoken: Option<&str>,
     token: Option<&str>,
 ) -> Result<(), anyhow::Error> {
-    let domain_name = if let Some(tld) = domain {
-        Name::from_str(&format!("{}.", tld))?
-    } else {
-        Name::from_str(crate::authority::DOMAIN_NAME)?
-    };
-
-    let authtoken = match authtoken {
-        Some(p) => p,
-        None => authtoken_path().expect(
-            "authtoken.secret not found; please provide the -s option to provide a custom path",
-        ),
-    };
-
-    let mut runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(4)
-        .thread_name("zeronsd")
-        .build()
-        .expect("failed to initialize tokio");
+    let domain_name = domain_or_default(domain)?;
+    let authtoken = authtoken_path(authtoken);
+    let mut runtime = init_runtime();
 
     if let Some(network) = network {
-        let ip_with_cidr = runtime.block_on(get_listen_ip(authtoken, network))?;
-        let ip = ip_with_cidr.splitn(2, "/").next().unwrap();
+        let ip_with_cidr = runtime.block_on(get_listen_ip(&authtoken, network))?;
+        let ip = parse_ip_from_cidr(ip_with_cidr.clone());
 
         println!("Welcome to ZeroNS!");
         println!("Your IP for this network: {}", ip);
 
         if let Some(token) = central_token(token) {
             let network = String::from(network);
-            let mut config = Configuration::default();
-            config.bearer_access_token = Some(token.clone());
-
             let hf = if let Some(hf) = hosts_file {
                 Some(hf.to_string())
             } else {
                 None
             };
+
+            let config = central_config(token);
 
             let authority = ZTAuthority::new(
                 domain_name.clone(),
@@ -178,7 +200,7 @@ fn main() -> Result<(), anyhow::Error> {
     let app = clap::clap_app!(zeronsd =>
         (author: "Erik Hollensbe <github@hollensbe.org>")
         (about: "zerotier central nameserver")
-        (version: "0.1.0")
+        (version: env!("CARGO_PKG_VERSION"))
         (@subcommand start =>
             (about: "Start the nameserver")
             (@arg domain: -d --domain +takes_value "TLD to use for hostnames")
