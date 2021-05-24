@@ -3,7 +3,7 @@ use std::{
     io::Write,
     net::IpAddr,
     str::FromStr,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use anyhow::anyhow;
@@ -16,7 +16,7 @@ use trust_dns_resolver::{
 };
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
-    client::rr::{Name, RData, Record},
+    client::rr::{Name, RData, Record, RecordType, RrKey},
     store::forwarder::ForwardAuthority,
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
@@ -34,8 +34,6 @@ pub struct ZTAuthority {
     ptr_authority: PtrAuthority,
     authority: Authority,
     domain_name: Name,
-    serial: Arc<Mutex<u32>>,
-    ptr_serial: Arc<Mutex<u32>>,
     network: String,
     config: Configuration,
     hosts_file: Option<String>,
@@ -43,10 +41,41 @@ pub struct ZTAuthority {
 
 type HostsFile = HashMap<IpAddr, Vec<String>>;
 
+fn upsert_address(
+    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    fqdn: Name,
+    rt: RecordType,
+    rdata: RData,
+) {
+    let mut address = Record::with(fqdn.clone(), rt, 60);
+    address.set_rdata(rdata);
+    let serial = authority.serial() + 1;
+    authority.upsert(address, serial);
+}
+
+fn set_ip_record(
+    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    name: Name,
+    newip: IpAddr,
+) {
+    match newip {
+        IpAddr::V4(newip) => {
+            upsert_address(authority, name.clone(), RecordType::A, RData::A(newip));
+        }
+        IpAddr::V6(newip) => {
+            upsert_address(
+                authority,
+                name.clone(),
+                RecordType::AAAA,
+                RData::AAAA(newip),
+            );
+        }
+    }
+}
+
 impl ZTAuthority {
     pub fn new(
         domain_name: Name,
-        initial_serial: u32,
         network: String,
         config: Configuration,
         hosts_file: Option<String>,
@@ -76,8 +105,6 @@ impl ZTAuthority {
         };
 
         Ok(Arc::new(Self {
-            serial: Arc::new(Mutex::new(initial_serial)),
-            ptr_serial: Arc::new(Mutex::new(0)),
             domain_name: domain_name.clone(),
             network,
             config,
@@ -127,6 +154,38 @@ impl ZTAuthority {
         )
     }
 
+    fn match_or_insert(
+        &self,
+        authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+        name: Name,
+        rt: RecordType,
+        newip: IpAddr,
+    ) {
+        match authority
+            .records()
+            .get(&RrKey::new(name.clone().into(), rt))
+        {
+            Some(records) => {
+                if let Some(rec) = records.records_without_rrsigs().nth(0) {
+                    let res = match rec.rdata() {
+                        RData::A(ip) => Some(IpAddr::from(*ip)),
+                        RData::AAAA(ip) => Some(IpAddr::from(*ip)),
+                        _ => None,
+                    };
+
+                    if let Some(res) = res {
+                        if !IpAddr::from(newip).eq(&res) {
+                            set_ip_record(authority, name, newip)
+                        }
+                    } else {
+                        set_ip_record(authority, name, newip)
+                    }
+                }
+            }
+            None => set_ip_record(authority, name, newip),
+        }
+    }
+
     fn configure_members(
         &self,
         mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
@@ -136,8 +195,6 @@ impl ZTAuthority {
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
             let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
-            let mut serial = *(self.serial.lock().unwrap());
-            let mut ptr_serial = *(self.ptr_serial.lock().unwrap());
 
             // this is default the zt-<member id> but can switch to a named name if
             // tweaked in central. see below.
@@ -158,51 +215,41 @@ impl ZTAuthority {
             }
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
-                match IpAddr::from_str(&ip).unwrap() {
-                    IpAddr::V4(ip) => {
-                        let mut address = Record::with(
-                            fqdn.clone(),
-                            trust_dns_server::client::rr::RecordType::A,
-                            60,
-                        );
-                        address.set_rdata(RData::A(ip));
-                        serial += 1;
+                let ip = IpAddr::from_str(&ip).unwrap();
 
-                        authority.upsert(address, serial);
+                match ip {
+                    IpAddr::V4(_) => {
+                        self.match_or_insert(&mut authority, fqdn.clone(), RecordType::A, ip);
                         if member_is_named {
-                            let mut address = Record::with(
+                            self.match_or_insert(
+                                &mut authority,
                                 canonical_name.clone(),
-                                trust_dns_server::client::rr::RecordType::A,
-                                60,
+                                RecordType::A,
+                                ip,
                             );
-                            address.set_rdata(RData::A(ip));
-                            serial += 1;
-                            authority.upsert(address, serial);
-                        }
-
-                        if let Some(local_ptr_authority) = ptr_authority.clone() {
-                            let mut local_ptr_authority = local_ptr_authority.write().unwrap();
-                            let mut ptr = Record::with(
-                                ip.into_name()?,
-                                trust_dns_server::client::rr::RecordType::PTR,
-                                60,
-                            );
-
-                            ptr.set_rdata(RData::PTR(canonical_name.clone()));
-                            ptr_serial += 1;
-                            local_ptr_authority.upsert(ptr, ptr_serial);
                         }
                     }
-                    IpAddr::V6(ip) => {
-                        let mut address = Record::with(
-                            fqdn.clone(),
-                            trust_dns_server::client::rr::RecordType::AAAA,
-                            60,
-                        );
-                        address.set_rdata(RData::AAAA(ip));
-                        serial += 1;
-                        authority.upsert(address, serial);
+                    IpAddr::V6(_) => {
+                        self.match_or_insert(&mut authority, fqdn.clone(), RecordType::AAAA, ip);
+                        if member_is_named {
+                            self.match_or_insert(
+                                &mut authority,
+                                canonical_name.clone(),
+                                RecordType::AAAA,
+                                ip,
+                            );
+                        }
                     }
+                }
+
+                if let Some(local_ptr_authority) = ptr_authority.clone() {
+                    let mut local_ptr_authority = local_ptr_authority.write().unwrap();
+                    let mut ptr = Record::with(ip.into_name()?, RecordType::PTR, 60);
+
+                    ptr.set_rdata(RData::PTR(canonical_name.clone()));
+                    let serial = local_ptr_authority.serial() + 1;
+
+                    local_ptr_authority.upsert(ptr, serial);
                 }
             }
         }
@@ -217,30 +264,7 @@ impl ZTAuthority {
         for (ip, hostnames) in self.parse_hosts()? {
             for hostname in hostnames {
                 let fqdn = Name::from_str(&hostname)?.append_name(&self.domain_name.clone());
-                let mut serial = *(self.serial.lock().unwrap());
-                match ip {
-                    IpAddr::V4(ip) => {
-                        let mut address = Record::with(
-                            fqdn.clone(),
-                            trust_dns_server::client::rr::RecordType::A,
-                            60,
-                        );
-                        address.set_rdata(RData::A(ip));
-                        serial += 1;
-
-                        authority.upsert(address, serial);
-                    }
-                    IpAddr::V6(ip) => {
-                        let mut address = Record::with(
-                            fqdn.clone(),
-                            trust_dns_server::client::rr::RecordType::AAAA,
-                            60,
-                        );
-                        address.set_rdata(RData::AAAA(ip));
-                        serial += 1;
-                        authority.upsert(address, serial);
-                    }
-                }
+                set_ip_record(&mut authority, fqdn, ip);
             }
         }
         Ok(())
