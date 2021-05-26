@@ -1,14 +1,16 @@
 # ZeroNS: a name service centered around the ZeroTier Central API
 
-ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotier.com) configured _networks_; once provided a network it:
+ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotier.com) configured _networks_; once provided an IPv4-capable network it:
 
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
 - Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
 - Tells Central to point all clients that have the "Manage DNS" settings turned **on** to resolve to it.
-- Finally, sets a provided TLD (`.domain` is the default), as well as configuring `A` (IPv4) and `AAAA` (IPv6) records for:
-  - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4/v6 addresses for them.
+- Finally, sets a provided TLD (`.domain` is the default), as well as configuring `A` (IPv4) records for:
+  - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4 addresses for them.
   - Names: _if_ the names are compatible with DNS names, they will be converted as such: to `<name>.<tld>`.
     - Please note that **collisions are possible** and that it's _up to the admin to prevent them_.
+
+_Please note that zeronsd still does not properly utilize IPv6; we hope to have this resolved by 0.2.0._
 
 ## Installation
 
