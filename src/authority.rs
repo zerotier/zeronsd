@@ -58,6 +58,8 @@ fn set_ip_record(
     name: Name,
     newip: IpAddr,
 ) {
+    eprintln!("Adding new record {}; ({})", name.clone(), &newip);
+
     match newip {
         IpAddr::V4(newip) => {
             upsert_address(authority, name.clone(), RecordType::A, RData::A(newip));
@@ -192,6 +194,8 @@ impl ZTAuthority {
         ptr_authority: PtrAuthority,
         members: Vec<Member>,
     ) -> Result<(), anyhow::Error> {
+        let mut records = Vec::new();
+
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
             let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
@@ -216,6 +220,8 @@ impl ZTAuthority {
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
                 let ip = IpAddr::from_str(&ip).unwrap();
+                records.push(fqdn.clone());
+                records.push(canonical_name.clone());
 
                 match ip {
                     IpAddr::V4(_) => {
@@ -252,6 +258,20 @@ impl ZTAuthority {
                     local_ptr_authority.upsert(ptr, serial);
                 }
             }
+        }
+
+        let mut rrkey_list = Vec::new();
+        let rr = authority.records_mut();
+
+        for (rrkey, _) in rr.clone() {
+            if !records.contains(&rrkey.name().into_name()?) {
+                rrkey_list.push(rrkey);
+            }
+        }
+
+        for rrkey in rrkey_list {
+            eprintln!("Removing expired record {}", &rrkey.name());
+            rr.remove(&rrkey);
         }
 
         Ok(())
