@@ -60,7 +60,7 @@ fn set_ptr_record(
     canonical_name: Name,
 ) {
     eprintln!(
-        "Adding new PTR record {}; ({})",
+        "Adding new PTR record {}: ({})",
         ip_name.clone(),
         canonical_name
     );
@@ -78,7 +78,7 @@ fn set_ip_record(
     name: Name,
     newip: IpAddr,
 ) {
-    eprintln!("Adding new record {}; ({})", name.clone(), &newip);
+    eprintln!("Adding new record {}: ({})", name.clone(), &newip);
 
     match newip {
         IpAddr::V4(newip) => {
@@ -93,6 +93,36 @@ fn set_ip_record(
             );
         }
     }
+}
+
+fn configure_ptr(
+    mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    ip: IpAddr,
+    canonical_name: Name,
+) -> Result<(), anyhow::Error> {
+    match authority
+        .records()
+        .get(&RrKey::new(ip.into_name()?.into(), RecordType::PTR))
+    {
+        Some(records) => {
+            if let Some(rec) = records.records(false, SupportedAlgorithms::all()).nth(0) {
+                let res = match rec.rdata() {
+                    RData::PTR(cn) => Some(cn.to_string()),
+                    _ => None,
+                };
+
+                if let Some(res) = res {
+                    if !canonical_name.to_string().eq(&res) {
+                        set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
+                    }
+                } else {
+                    set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
+                }
+            }
+        }
+        None => set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone()),
+    }
+    Ok(())
 }
 
 impl ZTAuthority {
@@ -269,43 +299,11 @@ impl ZTAuthority {
                 }
 
                 if let Some(local_ptr_authority) = ptr_authority.clone() {
-                    let mut local_ptr_authority = local_ptr_authority.write().unwrap();
-                    match local_ptr_authority
-                        .records()
-                        .get(&RrKey::new(ip.into_name()?.into(), RecordType::PTR))
-                    {
-                        Some(records) => {
-                            if let Some(rec) =
-                                records.records(false, SupportedAlgorithms::all()).nth(0)
-                            {
-                                let res = match rec.rdata() {
-                                    RData::PTR(cn) => Some(cn.to_string()),
-                                    _ => None,
-                                };
-
-                                if let Some(res) = res {
-                                    if !canonical_name.to_string().eq(&res) {
-                                        set_ptr_record(
-                                            &mut local_ptr_authority,
-                                            ip.into_name()?,
-                                            canonical_name.clone(),
-                                        );
-                                    }
-                                } else {
-                                    set_ptr_record(
-                                        &mut local_ptr_authority,
-                                        ip.into_name()?,
-                                        canonical_name.clone(),
-                                    );
-                                }
-                            }
-                        }
-                        None => set_ptr_record(
-                            &mut local_ptr_authority,
-                            ip.into_name()?,
-                            canonical_name.clone(),
-                        ),
-                    }
+                    configure_ptr(
+                        local_ptr_authority.write().unwrap(),
+                        ip,
+                        canonical_name.clone(),
+                    )?;
                 }
             }
         }
