@@ -42,6 +42,27 @@ pub struct ZTAuthority {
 
 type HostsFile = HashMap<IpAddr, Vec<String>>;
 
+fn prune_records(
+    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    written: Vec<Name>,
+) -> Result<(), anyhow::Error> {
+    let mut rrkey_list = Vec::new();
+    let rr = authority.records_mut();
+
+    for (rrkey, _) in rr.clone() {
+        if !written.contains(&rrkey.name().into_name()?) {
+            rrkey_list.push(rrkey);
+        }
+    }
+
+    for rrkey in rrkey_list {
+        eprintln!("Removing expired record {}", &rrkey.name());
+        rr.remove(&rrkey);
+    }
+
+    Ok(())
+}
+
 fn upsert_address(
     authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
     fqdn: Name,
@@ -245,6 +266,7 @@ impl ZTAuthority {
         members: Vec<Member>,
     ) -> Result<(), anyhow::Error> {
         let mut records = Vec::new();
+        let mut ptr_records = Vec::new();
 
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
@@ -271,7 +293,10 @@ impl ZTAuthority {
             for ip in member.config.unwrap().ip_assignments.unwrap() {
                 let ip = IpAddr::from_str(&ip).unwrap();
                 records.push(fqdn.clone());
-                records.push(canonical_name.clone());
+
+                if member_is_named {
+                    records.push(canonical_name.clone());
+                }
 
                 match ip {
                     IpAddr::V4(_) => {
@@ -299,6 +324,7 @@ impl ZTAuthority {
                 }
 
                 if let Some(local_ptr_authority) = ptr_authority.clone() {
+                    ptr_records.push(ip.into_name()?);
                     configure_ptr(
                         local_ptr_authority.write().unwrap(),
                         ip,
@@ -308,18 +334,10 @@ impl ZTAuthority {
             }
         }
 
-        let mut rrkey_list = Vec::new();
-        let rr = authority.records_mut();
+        prune_records(&mut authority, records)?;
 
-        for (rrkey, _) in rr.clone() {
-            if !records.contains(&rrkey.name().into_name()?) {
-                rrkey_list.push(rrkey);
-            }
-        }
-
-        for rrkey in rrkey_list {
-            eprintln!("Removing expired record {}", &rrkey.name());
-            rr.remove(&rrkey);
+        if let Some(ptr_authority) = ptr_authority {
+            prune_records(&mut ptr_authority.write().unwrap(), ptr_records)?;
         }
 
         Ok(())
@@ -352,7 +370,7 @@ impl ZTAuthority {
         for line in content.lines() {
             let mut ary = whitespace.split(line);
 
-            // the first item will be the host
+            // the first item will be the ip
             match ary.next() {
                 Some(ip) => {
                     if comment.is_match(ip) {
@@ -363,7 +381,7 @@ impl ZTAuthority {
                         Ok(parsed_ip) => {
                             let mut v: Vec<String> = Vec::new();
 
-                            // continue to iterate over the addresses
+                            // continue to iterate over the hosts
                             for host in ary {
                                 v.push(host.into());
                             }
