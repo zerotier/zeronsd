@@ -12,6 +12,7 @@ use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::{
     config::{NameServerConfigGroup, ResolverOpts},
+    proto::rr::dnssec::SupportedAlgorithms,
     IntoName,
 };
 use trust_dns_server::{
@@ -41,6 +42,27 @@ pub struct ZTAuthority {
 
 type HostsFile = HashMap<IpAddr, Vec<String>>;
 
+fn prune_records(
+    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    written: Vec<Name>,
+) -> Result<(), anyhow::Error> {
+    let mut rrkey_list = Vec::new();
+    let rr = authority.records_mut();
+
+    for (rrkey, _) in rr.clone() {
+        if !written.contains(&rrkey.name().into_name()?) {
+            rrkey_list.push(rrkey);
+        }
+    }
+
+    for rrkey in rrkey_list {
+        eprintln!("Removing expired record {}", &rrkey.name());
+        rr.remove(&rrkey);
+    }
+
+    Ok(())
+}
+
 fn upsert_address(
     authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
     fqdn: Name,
@@ -53,11 +75,32 @@ fn upsert_address(
     authority.upsert(address, serial);
 }
 
+fn set_ptr_record(
+    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    ip_name: Name,
+    canonical_name: Name,
+) {
+    eprintln!(
+        "Adding new PTR record {}: ({})",
+        ip_name.clone(),
+        canonical_name
+    );
+
+    upsert_address(
+        authority,
+        ip_name.clone(),
+        RecordType::PTR,
+        RData::PTR(canonical_name),
+    );
+}
+
 fn set_ip_record(
     authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
     name: Name,
     newip: IpAddr,
 ) {
+    eprintln!("Adding new record {}: ({})", name.clone(), &newip);
+
     match newip {
         IpAddr::V4(newip) => {
             upsert_address(authority, name.clone(), RecordType::A, RData::A(newip));
@@ -71,6 +114,36 @@ fn set_ip_record(
             );
         }
     }
+}
+
+fn configure_ptr(
+    mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    ip: IpAddr,
+    canonical_name: Name,
+) -> Result<(), anyhow::Error> {
+    match authority
+        .records()
+        .get(&RrKey::new(ip.into_name()?.into(), RecordType::PTR))
+    {
+        Some(records) => {
+            if let Some(rec) = records.records(false, SupportedAlgorithms::all()).nth(0) {
+                let res = match rec.rdata() {
+                    RData::PTR(cn) => Some(cn.to_string()),
+                    _ => None,
+                };
+
+                if let Some(res) = res {
+                    if !canonical_name.to_string().eq(&res) {
+                        set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
+                    }
+                } else {
+                    set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
+                }
+            }
+        }
+        None => set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone()),
+    }
+    Ok(())
 }
 
 impl ZTAuthority {
@@ -166,7 +239,7 @@ impl ZTAuthority {
             .get(&RrKey::new(name.clone().into(), rt))
         {
             Some(records) => {
-                if let Some(rec) = records.records_without_rrsigs().nth(0) {
+                if let Some(rec) = records.records(false, SupportedAlgorithms::all()).nth(0) {
                     let res = match rec.rdata() {
                         RData::A(ip) => Some(IpAddr::from(*ip)),
                         RData::AAAA(ip) => Some(IpAddr::from(*ip)),
@@ -192,6 +265,9 @@ impl ZTAuthority {
         ptr_authority: PtrAuthority,
         members: Vec<Member>,
     ) -> Result<(), anyhow::Error> {
+        let mut records = Vec::new();
+        let mut ptr_records = Vec::new();
+
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
             let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
@@ -216,6 +292,11 @@ impl ZTAuthority {
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
                 let ip = IpAddr::from_str(&ip).unwrap();
+                records.push(fqdn.clone());
+
+                if member_is_named {
+                    records.push(canonical_name.clone());
+                }
 
                 match ip {
                     IpAddr::V4(_) => {
@@ -243,15 +324,20 @@ impl ZTAuthority {
                 }
 
                 if let Some(local_ptr_authority) = ptr_authority.clone() {
-                    let mut local_ptr_authority = local_ptr_authority.write().unwrap();
-                    let mut ptr = Record::with(ip.into_name()?, RecordType::PTR, 60);
-
-                    ptr.set_rdata(RData::PTR(canonical_name.clone()));
-                    let serial = local_ptr_authority.serial() + 1;
-
-                    local_ptr_authority.upsert(ptr, serial);
+                    ptr_records.push(ip.into_name()?);
+                    configure_ptr(
+                        local_ptr_authority.write().unwrap(),
+                        ip,
+                        canonical_name.clone(),
+                    )?;
                 }
             }
+        }
+
+        prune_records(&mut authority, records)?;
+
+        if let Some(ptr_authority) = ptr_authority {
+            prune_records(&mut ptr_authority.write().unwrap(), ptr_records)?;
         }
 
         Ok(())
@@ -284,7 +370,7 @@ impl ZTAuthority {
         for line in content.lines() {
             let mut ary = whitespace.split(line);
 
-            // the first item will be the host
+            // the first item will be the ip
             match ary.next() {
                 Some(ip) => {
                     if comment.is_match(ip) {
@@ -295,7 +381,7 @@ impl ZTAuthority {
                         Ok(parsed_ip) => {
                             let mut v: Vec<String> = Vec::new();
 
-                            // continue to iterate over the addresses
+                            // continue to iterate over the hosts
                             for host in ary {
                                 v.push(host.into());
                             }

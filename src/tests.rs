@@ -1,8 +1,10 @@
+#[cfg(test)]
 struct TestParams {
     central_token: String,
     network: String,
 }
 
+#[cfg(test)]
 /// Set TOKEN and NETWORK to activate integration tests, otherwise they will pass silently.
 /// Requires a pre-configured zerotier network.
 /// You must also be root, and the `-- --ignored` flag must be passed to cargo test.
