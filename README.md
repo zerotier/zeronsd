@@ -14,6 +14,8 @@ _Please note that zeronsd still does not properly utilize IPv6; we hope to have 
 
 ## Installation
 
+Before continuing, be reminded that zeronsd is **alpha software**. That said, if you'd like to get started quickly with zeronsd, [click here for a user-friendly guide](https://github.com/zerotier/zeronsd-quickstart/blob/main/README.md)!
+
 Packages:
 
 - Linux/Windows: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb`, `*.rpm` for Linux, and MSI format for Windows.
