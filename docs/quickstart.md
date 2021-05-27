@@ -1,4 +1,3 @@
-
 # ZeroNSD Quickstart
 
 <p align="center">
@@ -21,7 +20,7 @@ It was DNS.<br>
 * When ZeroTier joins a network, it creates a virtual network interface.
 * When ZeroTier joins mutiple networks, there will be multiple network interfaces.
 * When ZeroNSD starts, it binds to a ZeroTier network interface.
-* When ZeroTier is joined to multiple networks, it need multiple ZeroNSDs, one for each interface.
+* When ZeroTier is joined to multiple networks, it needs multiple ZeroNSDs, one for each interface.
 
 This means:
 
@@ -36,8 +35,6 @@ machine on Digital Ocean, and one OSX laptop on a residential ISP. To
 follow along step by step, you'll need to provision equivalent
 infrastructure. If you use different platforms, you should be able to
 figure out what to do with minimal effort.
-
-## P
 
 ## Create a ZeroTier Network
 
@@ -151,7 +148,7 @@ ExecStart=/usr/bin/zerotier-systemd-manager
 WantedBy=multi-user.target
 EOF
 ```
-[O
+
 Finally, restart all the ZeroTier services.
 
 ```
