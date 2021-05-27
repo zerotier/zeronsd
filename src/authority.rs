@@ -30,33 +30,74 @@ const COMMENT_MATCH: &str = r"^\s*#";
 
 type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 type PtrAuthority = Option<Authority>;
+type HostsFile = HashMap<IpAddr, Vec<Name>>;
 
-pub struct ZTAuthority {
-    ptr_authority: PtrAuthority,
-    authority: Authority,
-    domain_name: Name,
-    network: String,
-    config: Configuration,
-    hosts_file: Option<String>,
+fn parse_hosts(hosts_file: Option<String>, domain_name: Name) -> Result<HostsFile, std::io::Error> {
+    let mut input: HostsFile = HashMap::new();
+
+    if let None = hosts_file {
+        return Ok(input);
+    }
+
+    let whitespace = regex::Regex::new(WHITESPACE_SPLIT).unwrap();
+    let comment = regex::Regex::new(COMMENT_MATCH).unwrap();
+    let content = std::fs::read_to_string(hosts_file.clone().unwrap())?;
+
+    for line in content.lines() {
+        let mut ary = whitespace.split(line);
+
+        // the first item will be the ip
+        match ary.next() {
+            Some(ip) => {
+                if comment.is_match(ip) {
+                    continue;
+                }
+
+                match IpAddr::from_str(ip) {
+                    Ok(parsed_ip) => {
+                        let mut v: Vec<Name> = Vec::new();
+
+                        // continue to iterate over the hosts
+                        for host in ary {
+                            v.push(Name::from_str(&host)?.append_name(&domain_name.clone()))
+                        }
+
+                        input.insert(parsed_ip, v);
+                    }
+                    Err(e) => {
+                        writeln!(std::io::stderr().lock(), "Couldn't parse {}: {}", ip, e)?;
+                    }
+                }
+            }
+            None => {}
+        }
+    }
+
+    Ok(input)
 }
-
-type HostsFile = HashMap<IpAddr, Vec<String>>;
 
 fn prune_records(
     authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
     written: Vec<Name>,
+    hosts: Box<HostsFile>,
 ) -> Result<(), anyhow::Error> {
     let mut rrkey_list = Vec::new();
     let rr = authority.records_mut();
 
     for (rrkey, _) in rr.clone() {
-        if !written.contains(&rrkey.name().into_name()?) {
+        let key = &rrkey.name().into_name()?;
+        if !written.contains(key)
+            && !hosts
+                .values()
+                .flatten()
+                .any(|v| v.to_string().eq(&key.to_string()))
+        {
             rrkey_list.push(rrkey);
         }
     }
 
     for rrkey in rrkey_list {
-        eprintln!("Removing expired record {}", &rrkey.name());
+        eprintln!("Removing expired record {}", rrkey.name());
         rr.remove(&rrkey);
     }
 
@@ -81,10 +122,15 @@ fn set_ptr_record(
     canonical_name: Name,
 ) {
     eprintln!(
-        "Adding new PTR record {}: ({})",
+        "Replacing PTR record {}: ({})",
         ip_name.clone(),
         canonical_name
     );
+
+    authority.records_mut().remove(&RrKey::new(
+        ip_name.clone().into_name().unwrap().into(),
+        RecordType::PTR,
+    ));
 
     upsert_address(
         authority,
@@ -126,24 +172,25 @@ fn configure_ptr(
         .get(&RrKey::new(ip.into_name()?.into(), RecordType::PTR))
     {
         Some(records) => {
-            if let Some(rec) = records.records(false, SupportedAlgorithms::all()).nth(0) {
-                let res = match rec.rdata() {
-                    RData::PTR(cn) => Some(cn.to_string()),
-                    _ => None,
-                };
-
-                if let Some(res) = res {
-                    if !canonical_name.to_string().eq(&res) {
-                        set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
-                    }
-                } else {
-                    set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
-                }
+            if !records
+                .records(false, SupportedAlgorithms::all())
+                .any(|rec| rec.rdata().eq(&RData::PTR(canonical_name.clone())))
+            {
+                set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
             }
         }
         None => set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone()),
     }
     Ok(())
+}
+
+pub struct ZTAuthority {
+    ptr_authority: PtrAuthority,
+    authority: Authority,
+    domain_name: Name,
+    network: String,
+    config: Configuration,
+    hosts: Box<HostsFile>,
 }
 
 impl ZTAuthority {
@@ -181,13 +228,13 @@ impl ZTAuthority {
             domain_name: domain_name.clone(),
             network,
             config,
-            hosts_file,
             authority: Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
                 domain_name.clone(),
                 trust_dns_server::authority::ZoneType::Primary,
                 false,
             )))),
             ptr_authority,
+            hosts: Box::new(parse_hosts(hosts_file.clone(), domain_name.clone())?),
         }))
     }
 
@@ -201,6 +248,9 @@ impl ZTAuthority {
     }
 
     pub async fn find_members(self: Arc<Self>) {
+        self.configure_hosts(self.authority.write().unwrap())
+            .unwrap();
+
         loop {
             match self.clone().get_members().await {
                 Ok(members) => match self.clone().configure(members) {
@@ -219,7 +269,6 @@ impl ZTAuthority {
     }
 
     pub fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
-        self.configure_hosts(self.authority.write().unwrap())?;
         self.configure_members(
             self.authority.write().unwrap(),
             self.ptr_authority.clone(),
@@ -239,20 +288,16 @@ impl ZTAuthority {
             .get(&RrKey::new(name.clone().into(), rt))
         {
             Some(records) => {
-                if let Some(rec) = records.records(false, SupportedAlgorithms::all()).nth(0) {
-                    let res = match rec.rdata() {
-                        RData::A(ip) => Some(IpAddr::from(*ip)),
-                        RData::AAAA(ip) => Some(IpAddr::from(*ip)),
-                        _ => None,
-                    };
+                let rdata = match newip {
+                    IpAddr::V4(ip) => RData::A(ip),
+                    IpAddr::V6(ip) => RData::AAAA(ip),
+                };
 
-                    if let Some(res) = res {
-                        if !IpAddr::from(newip).eq(&res) {
-                            set_ip_record(authority, name, newip)
-                        }
-                    } else {
-                        set_ip_record(authority, name, newip)
-                    }
+                if !records
+                    .records(false, SupportedAlgorithms::all())
+                    .any(|rec| rec.rdata().eq(&rdata))
+                {
+                    set_ip_record(authority, name, newip);
                 }
             }
             None => set_ip_record(authority, name, newip),
@@ -334,10 +379,14 @@ impl ZTAuthority {
             }
         }
 
-        prune_records(&mut authority, records)?;
+        prune_records(&mut authority, records, self.hosts.clone())?;
 
         if let Some(ptr_authority) = ptr_authority {
-            prune_records(&mut ptr_authority.write().unwrap(), ptr_records)?;
+            prune_records(
+                &mut ptr_authority.write().unwrap(),
+                ptr_records,
+                self.hosts.clone(),
+            )?;
         }
 
         Ok(())
@@ -347,57 +396,12 @@ impl ZTAuthority {
         &self,
         mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
     ) -> Result<(), anyhow::Error> {
-        for (ip, hostnames) in self.parse_hosts()? {
+        for (ip, hostnames) in self.hosts.iter() {
             for hostname in hostnames {
-                let fqdn = Name::from_str(&hostname)?.append_name(&self.domain_name.clone());
-                set_ip_record(&mut authority, fqdn, ip);
+                set_ip_record(&mut authority, hostname.clone(), *ip);
             }
         }
         Ok(())
-    }
-
-    fn parse_hosts(&self) -> Result<HostsFile, std::io::Error> {
-        let mut input: HostsFile = HashMap::new();
-
-        if let None = self.hosts_file {
-            return Ok(input);
-        }
-
-        let whitespace = regex::Regex::new(WHITESPACE_SPLIT).unwrap();
-        let comment = regex::Regex::new(COMMENT_MATCH).unwrap();
-        let content = std::fs::read_to_string(self.hosts_file.clone().unwrap())?;
-
-        for line in content.lines() {
-            let mut ary = whitespace.split(line);
-
-            // the first item will be the ip
-            match ary.next() {
-                Some(ip) => {
-                    if comment.is_match(ip) {
-                        continue;
-                    }
-
-                    match IpAddr::from_str(ip) {
-                        Ok(parsed_ip) => {
-                            let mut v: Vec<String> = Vec::new();
-
-                            // continue to iterate over the hosts
-                            for host in ary {
-                                v.push(host.into());
-                            }
-
-                            input.insert(parsed_ip, v);
-                        }
-                        Err(e) => {
-                            writeln!(std::io::stderr().lock(), "Couldn't parse {}: {}", ip, e)?;
-                        }
-                    }
-                }
-                None => {}
-            }
-        }
-
-        Ok(input)
     }
 
     pub fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
