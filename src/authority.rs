@@ -12,6 +12,7 @@ use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::{
     config::{NameServerConfigGroup, ResolverOpts},
+    proto::rr::dnssec::SupportedAlgorithms,
     IntoName,
 };
 use trust_dns_server::{
@@ -51,6 +52,25 @@ fn upsert_address(
     address.set_rdata(rdata);
     let serial = authority.serial() + 1;
     authority.upsert(address, serial);
+}
+
+fn set_ptr_record(
+    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    ip_name: Name,
+    canonical_name: Name,
+) {
+    eprintln!(
+        "Adding new PTR record {}; ({})",
+        ip_name.clone(),
+        canonical_name
+    );
+
+    upsert_address(
+        authority,
+        ip_name.clone(),
+        RecordType::PTR,
+        RData::PTR(canonical_name),
+    );
 }
 
 fn set_ip_record(
@@ -168,7 +188,7 @@ impl ZTAuthority {
             .get(&RrKey::new(name.clone().into(), rt))
         {
             Some(records) => {
-                if let Some(rec) = records.records_without_rrsigs().nth(0) {
+                if let Some(rec) = records.records(false, SupportedAlgorithms::all()).nth(0) {
                     let res = match rec.rdata() {
                         RData::A(ip) => Some(IpAddr::from(*ip)),
                         RData::AAAA(ip) => Some(IpAddr::from(*ip)),
@@ -250,12 +270,42 @@ impl ZTAuthority {
 
                 if let Some(local_ptr_authority) = ptr_authority.clone() {
                     let mut local_ptr_authority = local_ptr_authority.write().unwrap();
-                    let mut ptr = Record::with(ip.into_name()?, RecordType::PTR, 60);
+                    match local_ptr_authority
+                        .records()
+                        .get(&RrKey::new(ip.into_name()?.into(), RecordType::PTR))
+                    {
+                        Some(records) => {
+                            if let Some(rec) =
+                                records.records(false, SupportedAlgorithms::all()).nth(0)
+                            {
+                                let res = match rec.rdata() {
+                                    RData::PTR(cn) => Some(cn.to_string()),
+                                    _ => None,
+                                };
 
-                    ptr.set_rdata(RData::PTR(canonical_name.clone()));
-                    let serial = local_ptr_authority.serial() + 1;
-
-                    local_ptr_authority.upsert(ptr, serial);
+                                if let Some(res) = res {
+                                    if !canonical_name.to_string().eq(&res) {
+                                        set_ptr_record(
+                                            &mut local_ptr_authority,
+                                            ip.into_name()?,
+                                            canonical_name.clone(),
+                                        );
+                                    }
+                                } else {
+                                    set_ptr_record(
+                                        &mut local_ptr_authority,
+                                        ip.into_name()?,
+                                        canonical_name.clone(),
+                                    );
+                                }
+                            }
+                        }
+                        None => set_ptr_record(
+                            &mut local_ptr_authority,
+                            ip.into_name()?,
+                            canonical_name.clone(),
+                        ),
+                    }
                 }
             }
         }
