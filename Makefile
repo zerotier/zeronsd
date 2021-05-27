@@ -48,16 +48,9 @@ clean:
 test-packages: clean
 	make packages
 	docker run -v ${PWD}:/code --rm -it centos rpm -ivh /code/target/generate-rpm/\*.rpm
-	# this is too clever, so let me explain it.
-	# first, it finds the debian package
-	# it installs the package which if dependencies fail, then it forces apt to
-	# fetch the depenencies, and install the package. 
-	# ...
-	# note this can fail if the repositories aren't synced; and apt will remove
-	# the package instead. I'm not sure how to get apt to report this yet.
 	for image in debian ubuntu; do \
 		docker run -v ${PWD}:/code --rm -it $$image \
-			bash -c "dpkg -i /code/$$(find target -name '*.deb') || (apt update -qq && apt -f install -y)"; \
+			bash -c "apt update -qq && apt install libssl1.1 -y && dpkg -i /code/$$(find target -name '*.deb')"; \
 	done
 	docker run --rm zerotier/zeronsd:$(CARGO_VERSION) help 2>/dev/null
 	make packages-out
