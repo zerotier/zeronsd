@@ -47,12 +47,12 @@ You may do this manually through the [ZeroTier Central WebUI](https://my.zerotie
 ZeroTier must be installed and joined to the network you intend to provide DNS service to.
 The following should work from the CLI on most plaforms. Windows users
 may download the MSI from the [ZeroTier Downloads](https://www.zerotier.com/download/) page. For
-the remainder of this document, please replace the example network `159924d630edb88e` with a network ID your own.
+the remainder of this document, please replace the example network `af78bf94364e2035` with a network ID your own.
 
 ```
 notroot@ubuntu:~$ curl -s https://install.zerotier.com | sudo bash
-notroot@ubuntu:~$ sudo zerotier-cli join 159924d630edb88e
-notroot@ubuntu:~$ sudo zerotier-cli  set 159924d630edb88e allowDNS=1
+notroot@ubuntu:~$ sudo zerotier-cli join af78bf94364e2035
+notroot@ubuntu:~$ sudo zerotier-cli  set af78bf94364e2035 allowDNS=1
 ```
 
 ## Authorize the Nodes
@@ -82,71 +82,11 @@ sudo chmod 600 /var/lib/zerotier-one/token
 
 ## ZeroTier Systemd Manager
 
-ZeroTier Systemd Manager requires Go v1.16 or later. The instructions
-below will install a working Go environment, allowing a `go get`.
-
-We will be providing rpms and debs very soon.
+Download and install package for your plaform from the Github Releases page.
 
 ```
-curl -O https://storage.googleapis.com/golang/go1.16.4.linux-amd64.tar.gz
-sudo tar xzvf go1.16.4.linux-amd64.tar.gz -C /usr/local/
-export GOPATH=/usr
-export GOROOT=/usr/local/go
-export PATH=$PATH:$GOROOT/bin
-sudo go get github.com/zerotier/zerotier-systemd-manager
-```
-
-We need to patch the `zerotier-one` unit, as we want `systemd-networkd`.
-
-```
-cat <<EOF | sudo tee /lib/systemd/system/zerotier-one.service
-[Unit]
-Description=ZeroTier One
-After=network.target
-Wants=systemd-networkd.service
-
-[Service]
-ExecStart=/usr/sbin/zerotier-one
-Restart=always
-KillMode=process
-
-[Install]
-WantedBy=multi-user.target
-EOF
-```
-
-Two more files for systemd.. timer and service units.
-
-```
-cat <<EOF | sudo tee /lib/systemd/system/zerotier-systemd-manager.timer
-[Unit]
-Description=Update zerotier per-interface DNS settings
-Requires=zerotier-systemd-manager.service
-
-[Timer]
-Unit=zerotier-systemd-manager.service
-OnStartupSec=60
-OnUnitInactiveSec=60
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-```
-
-```
-cat <<EOF | sudo tee /lib/systemd/system/zerotier-systemd-manager.service
-[Unit]
-Description=Update zerotier per-interface DNS settings
-Wants=zerotier-systemd-manager.timer zerotier-one.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/zerotier-systemd-manager
-
-[Install]
-WantedBy=multi-user.target
-EOF
+wget https://github.com/zerotier/zerotier-systemd-manager/releases/download/v0.1.3/zerotier-systemd-manager_0.1.3_linux_amd64.deb
+sudo dpkg -i dpkg -i zerotier-systemd-manager_0.1.3_linux_amd64.deb
 ```
 
 Finally, restart all the ZeroTier services.
@@ -187,9 +127,9 @@ sudo /usr/bin/cargo install zeronsd --root /usr/local
 For each network you want to serve DNS to, do the following
 
 ```
-sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -d beyond.corp 159924d630edb88e
-sudo systemctl start zeronsd-159924d630edb88e
-sudo systemctl enable zeronsd-159924d630edb88e
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -d beyond.corp af78bf94364e2035
+sudo systemctl start zeronsd-af78bf94364e2035
+sudo systemctl enable zeronsd-af78bf94364e2035
 ```
 
 ## Verify functionality
