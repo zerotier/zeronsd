@@ -1,4 +1,3 @@
-
 # ZeroNSD Quickstart
 
 <p align="center">
@@ -21,7 +20,7 @@ It was DNS.<br>
 * When ZeroTier joins a network, it creates a virtual network interface.
 * When ZeroTier joins mutiple networks, there will be multiple network interfaces.
 * When ZeroNSD starts, it binds to a ZeroTier network interface.
-* When ZeroTier is joined to multiple networks, it need multiple ZeroNSDs, one for each interface.
+* When ZeroTier is joined to multiple networks, it needs multiple ZeroNSDs, one for each interface.
 
 This means:
 
@@ -51,15 +50,9 @@ may download the MSI from the [ZeroTier Downloads](https://www.zerotier.com/down
 the remainder of this document, please replace the example network `159924d630edb88e` with a network ID your own.
 
 ```
-curl -s https://install.zerotier.com | bash
-zerotier-cli join 159924d630edb88e
-zerotier-cli  set 159924d630edb88e allowDNS=1
-```
-
-```
-user@osx:~$ curl -s https://install.zerotier.com | sudo bash
-user@osx:~$ zerotier-cli join 159924d630edb88e
-user@osx:~$ zerotier-cli  set 159924d630edb88e allowDNS=1
+notroot@ubuntu:~$ curl -s https://install.zerotier.com | sudo bash
+notroot@ubuntu:~$ sudo zerotier-cli join 159924d630edb88e
+notroot@ubuntu:~$ sudo zerotier-cli  set 159924d630edb88e allowDNS=1
 ```
 
 ## Authorize the Nodes
@@ -82,9 +75,9 @@ generate records, as well as update DNS settings.
 You will need to stash this in a file for ZeroNSD to read.
 
 ```
-echo ZEROTIER_CENTRAL_TOKEN > ~/.token
-chown zerotier-one:zerotier-one ~/.token
-chmod 600 ~/.token
+sudo bash -c "echo ZEROTIER_CENTRAL_TOKEN > /var/lib/zerotier-one/token"
+sudo chown zerotier-one:zerotier-one /var/lib/zerotier-one/token
+sudo chmod 600 /var/lib/zerotier-one/token
 ```
 
 ## ZeroTier Systemd Manager
@@ -96,16 +89,17 @@ We will be providing rpms and debs very soon.
 
 ```
 curl -O https://storage.googleapis.com/golang/go1.16.4.linux-amd64.tar.gz
-tar xzvf go1.16.4.linux-amd64.tar.gz -C /usr/local/
+sudo tar xzvf go1.16.4.linux-amd64.tar.gz -C /usr/local/
 export GOPATH=/usr
 export GOROOT=/usr/local/go
-go get github.com/zerotier/zerotier-systemd-manager
+export PATH=$PATH:$GOROOT/bin
+sudo go get github.com/zerotier/zerotier-systemd-manager
 ```
 
 We need to patch the `zerotier-one` unit, as we want `systemd-networkd`.
 
 ```
-cat <<EOF> /lib/systemd/system/zerotier-one.service
+cat <<EOF | sudo tee /lib/systemd/system/zerotier-one.service
 [Unit]
 Description=ZeroTier One
 After=network.target
@@ -124,7 +118,7 @@ EOF
 Two more files for systemd.. timer and service units.
 
 ```
-cat <<EOF> /lib/systemd/system/zerotier-systemd-manager.timer
+cat <<EOF | sudo tee /lib/systemd/system/zerotier-systemd-manager.timer
 [Unit]
 Description=Update zerotier per-interface DNS settings
 Requires=zerotier-systemd-manager.service
@@ -141,7 +135,7 @@ EOF
 ```
 
 ```
-cat <<EOF> /lib/systemd/system/zerotier-systemd-manager.service
+cat <<EOF | sudo tee /lib/systemd/system/zerotier-systemd-manager.service
 [Unit]
 Description=Update zerotier per-interface DNS settings
 Wants=zerotier-systemd-manager.timer zerotier-one.service
@@ -158,10 +152,10 @@ EOF
 Finally, restart all the ZeroTier services.
 
 ```
-systemctl daemon-reload
-systemctl restart zerotier-one
-systemctl enable  zerotier-systemd-manager.timer
-systemctl restart zerotier-systemd-manager.service
+sudo systemctl daemon-reload
+sudo systemctl restart zerotier-one
+sudo systemctl enable  zerotier-systemd-manager.timer
+sudo systemctl restart zerotier-systemd-manager.service
 ```
 
 ## Install ZeroNSD
@@ -176,7 +170,7 @@ ZeroNSD publishes rpm, deb, and msi packages, available at https://github.com/ze
 
 ```
 wget https://github.com/zerotier/zeronsd/releases/download/v0.1.4/zeronsd_0.1.4_amd64.deb
-dpkg -i zeronsd_0.1.4_amd64.deb
+sudo dpkg -i zeronsd_0.1.4_amd64.deb
 ```
 
 ### Cargo
@@ -184,8 +178,8 @@ dpkg -i zeronsd_0.1.4_amd64.deb
 If we don't have packages for your platform, you can install it with cargo.
 
 ```
-/usr/bin/apt-get -y install net-tools librust-openssl-dev pkg-config cargo
-/usr/bin/cargo install zeronsd --root /usr/local
+sudo /usr/bin/apt-get -y install net-tools librust-openssl-dev pkg-config cargo
+sudo /usr/bin/cargo install zeronsd --root /usr/local
 ```
 
 ## Serve DNS
@@ -193,9 +187,9 @@ If we don't have packages for your platform, you can install it with cargo.
 For each network you want to serve DNS to, do the following
 
 ```
-zeronsd supervise -t ~/.token -f /etc/hosts -d beyond.corp 159924d630edb88e
-systemctl start zeronsd-159924d630edb88e
-systemctl enable zeronsd-159924d630edb88e
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -d beyond.corp 159924d630edb88e
+sudo systemctl start zeronsd-159924d630edb88e
+sudo systemctl enable zeronsd-159924d630edb88e
 ```
 
 ## Verify functionality
@@ -203,7 +197,7 @@ systemctl enable zeronsd-159924d630edb88e
 You should be able to ping the laptop via it's DNS name.
 
 ```
-root@ubuntu:~# ping laptop.beyond.corp
+notroot@ubuntu:~$ ping laptop.beyond.corp
 PING laptop.beyond.corp (172.22.192.177) 56(84) bytes of data.
 64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=1 ttl=64 time=50.1 ms
 64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=2 ttl=64 time=49.5 ms
@@ -216,7 +210,7 @@ resolution out of the box. To test DNS queries against ZeroNSD without
 itself to, and run queries against it explicitly.
 
 ```
-lsof -i -n | grep ^zeronsd | grep UDP | awk '{ print $9 }' | cut -f1 -d:
+sudo lsof -i -n | grep ^zeronsd | grep UDP | awk '{ print $9 }' | cut -f1 -d:
 172.22.245.70
 ```
 
@@ -241,7 +235,7 @@ dig +short @172.22.245.70 laptop.beyond.corp
 Add a line to `/etc/hosts` and query again.
 
 ```
-echo "1.2.3.4 test" >> /etc/hosts
+bash -c 'echo "1.2.3.4 test" >> /etc/hosts'
 dig +short @172.22.245.70 test.beyond.corp
 1.2.3.4
 ```
