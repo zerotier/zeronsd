@@ -57,7 +57,7 @@ notroot@ubuntu:~$ sudo zerotier-cli  set af78bf94364e2035 allowDNS=1
 
 ## Authorize the Nodes
 
-Authoriz the node to the network by clicking the "Auth" button in the
+Authorize the node to the network by clicking the "Auth" button in the
 `Members` section in the
 [ZeroTier Central WebUI](https://my.zerotier.com).
 
