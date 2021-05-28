@@ -82,11 +82,11 @@ sudo chmod 600 /var/lib/zerotier-one/token
 
 ## ZeroTier Systemd Manager
 
-Download and install package for your plaform from the Github Releases page.
+zerotier-systemd-manager publishes rpm and deb packages available at https://github.com/zerotier/zerotier-systemd-manager/releases
 
 ```
-wget https://github.com/zerotier/zerotier-systemd-manager/releases/download/v0.1.3/zerotier-systemd-manager_0.1.3_linux_amd64.deb
-sudo dpkg -i dpkg -i zerotier-systemd-manager_0.1.3_linux_amd64.deb
+wget https://github.com/zerotier/zerotier-systemd-manager/releases/download/v0.1.4/zerotier-systemd-manager_0.1.4_linux_amd64.deb
+sudo dpkg -i dpkg -i zerotier-systemd-manager_0.1.4_linux_amd64.deb
 ```
 
 Finally, restart all the ZeroTier services.
