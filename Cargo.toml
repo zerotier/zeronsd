@@ -27,6 +27,7 @@ zerotier-one-api = { path = "./zerotier-one-api", version = "1.0.0" }
 serde = ">= 0"
 serde_json = ">= 0"
 tinytemplate = ">= 0"
+rand = ">= 0"
 
 [package.metadata.deb]
 copyright = "ZeroTier, Inc"
