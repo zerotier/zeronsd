@@ -9,9 +9,9 @@ If any of this doesn't work, alert @erikh immediately.
 - `make test-packages`. Read the output to ensure it passes.
 - Push cargo: `cargo publish`. (Get @erikh involved if you need to)
 - Push docker image: `docker push zerotier/zeronsd:<version>` -- no `v` in the version here.
+- Commit and push main: `git commit -a -s -m "zeronsd v<version>" && git push <remote> main`
 - Tag git: `git tag v<version>`. The `v` is important here. Delete the tag if you created a non-`v` tag.
 - Push the tag: `git push <remote> v<version>`
-- Commit and push main: `git commit -a -s -m "zeronsd v<version>" && git push <remote> main`
 - Edit the release tag, it'll be [here](https://github.com/zerotier/zeronsd/releases).
   - In the `target` directory, there will be several files. Push them to the release.
     - `zeronsd_*.deb` is for debian/ubuntu systems.
