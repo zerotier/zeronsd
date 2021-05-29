@@ -28,15 +28,9 @@ fn get_authtoken() -> Result<String, anyhow::Error> {
     Ok(std::fs::read_to_string(authtoken_path(None))?)
 }
 
-#[allow(dead_code)]
 fn randstring(len: u8) -> String {
-    let mut v: Vec<u8> = Vec::new();
-    for _ in 0..len {
-        v.push((rand::random::<u8>() % 26) + 'a' as u8);
-    }
-
-    // nasty
-    v.into_iter()
+    (0..len)
+        .map(|_| (rand::random::<u8>() % 26) + 'a' as u8)
         .map(|c| (c as char).to_string())
         .collect::<Vec<String>>()
         .join("")
