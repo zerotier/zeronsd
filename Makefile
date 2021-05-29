@@ -8,7 +8,7 @@ test:
 	cargo test
 
 test-integration: test
-	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test -- --ignored --nocapture"
+	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test -j1 -- --ignored --nocapture --test-threads 1"
 
 generate: central service
 

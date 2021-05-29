@@ -14,11 +14,11 @@ impl Server {
 
     pub async fn listen(
         self,
-        listen_addr: &str,
+        listen_addr: String,
         tcp_timeout: Duration,
     ) -> Result<(), anyhow::Error> {
-        let tcp = TcpListener::bind(listen_addr).await?;
-        let udp = UdpSocket::bind(listen_addr).await?;
+        let tcp = TcpListener::bind(&listen_addr).await?;
+        let udp = UdpSocket::bind(&listen_addr).await?;
         let mut sf = ServerFuture::new(self.catalog);
 
         sf.register_socket(udp);

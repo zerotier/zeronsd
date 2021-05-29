@@ -63,21 +63,25 @@ fn network_definition(
     Ok(res)
 }
 
-struct TestNetwork {
-    network: Network,
-    central: Configuration,
-    zerotier: zerotier_one_api::apis::configuration::Configuration,
+pub struct TestNetwork {
+    pub network: Network,
+    pub central: Configuration,
+    pub zerotier: zerotier_one_api::apis::configuration::Configuration,
+    pub authtoken: String,
+    pub central_token: String,
+    pub identity: String,
     runtime: Arc<Mutex<Runtime>>,
 }
 
 impl TestNetwork {
-    fn new(runtime: Arc<Mutex<Runtime>>, network_def: String) -> Result<Self, anyhow::Error> {
+    pub fn new(network_def: &str) -> Result<Self, anyhow::Error> {
+        let runtime = Arc::new(Mutex::new(init_runtime()));
         let authtoken = get_authtoken()?;
 
         let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
         zerotier.api_key = Some(zerotier_one_api::apis::configuration::ApiKey {
             prefix: None,
-            key: authtoken,
+            key: authtoken.clone(),
         });
 
         let identity = runtime
@@ -87,14 +91,14 @@ impl TestNetwork {
             .unwrap();
 
         let token = std::env::var("TOKEN").expect("Please provide TOKEN in the environment");
-        let central = central_config(token);
+        let central = central_config(token.clone());
 
         let network = runtime
             .lock()
             .unwrap()
             .block_on(zerotier_central_api::apis::network_api::new_network(
                 &central,
-                serde_json::Value::Object(network_definition(network_def)?),
+                serde_json::Value::Object(network_definition(network_def.to_string())?),
             ))
             .unwrap();
 
@@ -119,6 +123,9 @@ impl TestNetwork {
             network,
             central,
             zerotier,
+            identity,
+            authtoken,
+            central_token: token,
             runtime: runtime.clone(),
         };
 
@@ -181,19 +188,15 @@ impl Drop for TestNetwork {
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     use crate::get_listen_ip;
 
-    let tmp = init_runtime();
-    let runtime = std::sync::Arc::new(Mutex::new(tmp));
-    let tn = TestNetwork::new(runtime.clone(), "basic-ipv4".to_string()).unwrap();
-    let authtoken = authtoken_path(None);
+    let tn = TestNetwork::new("basic-ipv4").unwrap();
+    let runtime = init_runtime();
 
-    tn.join()?;
+    let listen_ip = runtime.block_on(get_listen_ip(
+        &authtoken_path(None),
+        &tn.network.clone().id.unwrap(),
+    ))?;
 
-    let listen_ip = runtime
-        .lock()
-        .unwrap()
-        .block_on(get_listen_ip(&authtoken, &tn.network.clone().id.unwrap()))?;
     eprintln!("My listen IP is {}", listen_ip);
-
     assert_ne!(listen_ip, String::from(""));
 
     Ok(())
