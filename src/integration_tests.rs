@@ -28,6 +28,7 @@ fn get_authtoken() -> Result<String, anyhow::Error> {
     Ok(std::fs::read_to_string(authtoken_path(None))?)
 }
 
+#[allow(dead_code)]
 fn randstring(len: u8) -> String {
     let mut v: Vec<u8> = Vec::new();
     for _ in 0..len {
@@ -41,60 +42,24 @@ fn randstring(len: u8) -> String {
         .join("")
 }
 
-fn network_definition() -> serde_json::Map<String, serde_json::Value> {
-    let mut nd = serde_json::Map::default();
-    let mut network_config = serde_json::Map::default();
-    network_config.insert(
-        String::from("name"),
-        serde_json::Value::String(randstring(30)),
-    );
+fn network_definition(
+    name: String,
+) -> Result<serde_json::Map<String, serde_json::Value>, anyhow::Error> {
+    let mut res: serde_json::Map<String, serde_json::Value> = serde_json::from_reader(
+        std::fs::File::open(format!("testdata/networks/{}.json", name))?,
+    )?;
 
-    let mut assignment_pool = serde_json::Map::default();
-    assignment_pool.insert(
-        String::from("ipRangeStart"),
-        serde_json::Value::String(String::from("172.16.240.1")),
-    );
-    assignment_pool.insert(
-        String::from("ipRangeEnd"),
-        serde_json::Value::String(String::from("172.16.240.254")),
-    );
+    if let serde_json::Value::Object(config) = res.clone().get("config").unwrap() {
+        let mut new_config = config.clone();
+        new_config.insert(
+            "name".to_string(),
+            serde_json::Value::String(randstring(30)),
+        );
 
-    network_config.insert(
-        String::from("ipAssignmentPools"),
-        serde_json::Value::Array(vec![serde_json::Value::Object(assignment_pool)]),
-    );
+        res.insert("config".to_string(), serde_json::Value::Object(new_config));
+    }
 
-    let mut routes = serde_json::Map::default();
-    routes.insert(
-        String::from("target"),
-        serde_json::Value::String(String::from("172.16.240.0/24")),
-    );
-
-    network_config.insert(
-        String::from("routes"),
-        serde_json::Value::Array(vec![serde_json::Value::Object(routes)]),
-    );
-
-    let mut v4assign = serde_json::Map::default();
-    v4assign.insert(String::from("zt"), serde_json::Value::Bool(true));
-    network_config.insert(
-        String::from("v4AssignMode"),
-        serde_json::Value::Object(v4assign),
-    );
-
-    let mut v6assign = serde_json::Map::default();
-    v6assign.insert(String::from("6plane"), serde_json::Value::Bool(false));
-    network_config.insert(
-        String::from("v6AssignMode"),
-        serde_json::Value::Object(v6assign),
-    );
-
-    nd.insert(
-        String::from("config"),
-        serde_json::Value::Object(network_config),
-    );
-
-    nd
+    Ok(res)
 }
 
 struct TestNetwork {
@@ -105,7 +70,7 @@ struct TestNetwork {
 }
 
 impl TestNetwork {
-    fn new(runtime: Arc<Mutex<Runtime>>) -> Result<Self, anyhow::Error> {
+    fn new(runtime: Arc<Mutex<Runtime>>, network_def: String) -> Result<Self, anyhow::Error> {
         let authtoken = get_authtoken()?;
 
         let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
@@ -128,7 +93,7 @@ impl TestNetwork {
             .unwrap()
             .block_on(zerotier_central_api::apis::network_api::new_network(
                 &central,
-                serde_json::Value::Object(network_definition()),
+                serde_json::Value::Object(network_definition(network_def)?),
             ))
             .unwrap();
 
@@ -217,7 +182,7 @@ fn test_get_listen_ip() -> Result<(), anyhow::Error> {
 
     let tmp = init_runtime();
     let runtime = std::sync::Arc::new(Mutex::new(tmp));
-    let tn = TestNetwork::new(runtime.clone()).unwrap();
+    let tn = TestNetwork::new(runtime.clone(), "basic-ipv4".to_string()).unwrap();
     let authtoken = authtoken_path(None);
 
     tn.join()?;
