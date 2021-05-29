@@ -1591,6 +1591,7 @@ dependencies = [
  "clap",
  "regex",
  "serde",
+ "serde_json",
  "tinytemplate",
  "tokio",
  "trust-dns-resolver",
@@ -1612,7 +1613,7 @@ dependencies = [
 
 [[package]]
 name = "zerotier-one-api"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "reqwest",
  "serde",

@@ -8,7 +8,7 @@ test:
 	cargo test
 
 test-integration: test
-	TOKEN=${TOKEN} NETWORK=${NETWORK} sudo -E bash -c "$$(which cargo) test -- --ignored"
+	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test -- --ignored --nocapture"
 
 generate: central service
 

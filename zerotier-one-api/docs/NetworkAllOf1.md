@@ -1,4 +1,4 @@
-# Network
+# NetworkAllOf1
 
 ## Properties
 

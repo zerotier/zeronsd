@@ -1,31 +1,3 @@
-#[cfg(test)]
-struct TestParams {
-    central_token: String,
-    network: String,
-}
-
-#[cfg(test)]
-/// Set TOKEN and NETWORK to activate integration tests, otherwise they will pass silently.
-/// Requires a pre-configured zerotier network.
-/// You must also be root, and the `-- --ignored` flag must be passed to cargo test.
-fn integration_test_params() -> TestParams {
-    if let Ok(central_token) = std::env::var("TOKEN") {
-        if central_token.trim().len() > 0 {
-            if let Ok(network) = std::env::var("NETWORK") {
-                if network.trim().len() > 0 {
-                    eprintln!("Integration tests activated!");
-                    return TestParams {
-                        central_token,
-                        network,
-                    };
-                }
-            }
-        }
-    }
-
-    panic!("Please provide TOKEN and NETWORK to run these tests");
-}
-
 #[test]
 fn test_parse_ip_from_cidr() {
     use crate::parse_ip_from_cidr;
@@ -92,21 +64,6 @@ fn test_central_token() {
 fn test_central_token_panic() {
     use crate::central_token;
     central_token(Some("/nonexistent"));
-}
-
-#[test]
-#[ignore]
-fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    use crate::{authtoken_path, get_listen_ip, init_runtime};
-
-    let test_params = integration_test_params();
-    let runtime = init_runtime();
-    let authtoken = authtoken_path(None);
-
-    let listen_ip = runtime.block_on(get_listen_ip(&authtoken, &test_params.network))?;
-    assert_ne!(listen_ip, String::from(""));
-
-    Ok(())
 }
 
 #[test]
@@ -266,5 +223,61 @@ fn test_supervise_systemd_red() {
 
     for (name, mut props) in table {
         assert!(props.validate().is_err(), "{}", name);
+    }
+}
+
+#[test]
+fn test_parse_hosts() {
+    use crate::hosts::parse_hosts;
+    use std::net::IpAddr;
+    use std::str::FromStr;
+    use trust_dns_resolver::Name;
+
+    let domain = &Name::from_str("zombocom").unwrap();
+
+    for path in std::fs::read_dir("testdata/hosts-files")
+        .unwrap()
+        .into_iter()
+        .map(|p| p.unwrap())
+    {
+        if path.metadata().unwrap().is_file() {
+            let res = parse_hosts(Some(path.path().display().to_string()), domain.clone());
+            assert!(res.is_ok(), "{}", path.path().display());
+
+            let mut table = res.unwrap();
+
+            assert_eq!(
+                table
+                    .remove(&IpAddr::from_str("127.0.0.1").unwrap())
+                    .unwrap()
+                    .first()
+                    .unwrap(),
+                &Name::from_str("localhost").unwrap().append_domain(domain),
+                "{}",
+                path.path().display(),
+            );
+
+            assert_eq!(
+                table
+                    .remove(&IpAddr::from_str("::1").unwrap())
+                    .unwrap()
+                    .first()
+                    .unwrap(),
+                &Name::from_str("localhost").unwrap().append_domain(domain),
+                "{}",
+                path.path().display(),
+            );
+
+            let mut accounted = vec!["islay.localdomain", "islay"]
+                .into_iter()
+                .map(|s| Name::from_str(s).unwrap().append_domain(domain));
+
+            for name in table
+                .remove(&IpAddr::from_str("127.0.1.1").unwrap())
+                .unwrap()
+            {
+                assert!(accounted.any(|s| s.eq(&name)));
+            }
+        }
     }
 }

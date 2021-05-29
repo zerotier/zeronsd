@@ -13,8 +13,13 @@ use clap::clap_app;
 use anyhow::anyhow;
 
 mod authority;
+mod hosts;
 mod server;
 mod supervise;
+
+#[cfg(test)]
+mod integration_tests;
+#[cfg(test)]
 mod tests;
 
 fn write_help(app: clap::App) -> Result<(), anyhow::Error> {

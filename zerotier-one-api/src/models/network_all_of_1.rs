@@ -12,7 +12,7 @@
 
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Network {
+pub struct NetworkAllOf1 {
     /// Let ZeroTier modify the system's DNS settings
     #[serde(rename = "allowDNS", skip_serializing_if = "Option::is_none")]
     pub allow_dns: Option<bool>,
@@ -58,9 +58,9 @@ pub struct Network {
     pub _type: Option<String>,
 }
 
-impl Network {
-    pub fn new() -> Network {
-        Network {
+impl NetworkAllOf1 {
+    pub fn new() -> NetworkAllOf1 {
+        NetworkAllOf1 {
             allow_dns: None,
             allow_default: None,
             allow_global: None,

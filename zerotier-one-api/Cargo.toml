@@ -1,9 +1,9 @@
 [package]
 name = "zerotier-one-api"
+version = "1.1.0"
+edition = "2018"
 description = "OpenAPI bindings to zerotier-one service"
 authors = ["Erik Hollensbe <linux@hollensbe.org>", "Adam Ierymenko <adam.ierymenko@zerotier.com>"]
-version = "1.0.0"
-edition = "2018"
 license = "BSD-3-Clause"
 
 [dependencies]
@@ -13,6 +13,7 @@ serde_json = "^1.0"
 url = "^2.2"
 [dependencies.reqwest]
 version = "^0.11"
+default-features = false
 features = ["json", "multipart"]
 
 [dev-dependencies]
