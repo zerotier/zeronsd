@@ -45,7 +45,7 @@ You may do this manually through the [ZeroTier Central WebUI](https://my.zerotie
 ## Install ZeroTier
 
 ZeroTier must be installed and joined to the network you intend to provide DNS service to.
-The following should work from the CLI on most plaforms. Windows users
+The following should work from the CLI on most platforms. Windows users
 may download the MSI from the [ZeroTier Downloads](https://www.zerotier.com/download/) page. For
 the remainder of this document, please replace the example network `af78bf94364e2035` with a network ID your own.
 
@@ -95,6 +95,7 @@ Finally, restart all the ZeroTier services.
 sudo systemctl daemon-reload
 sudo systemctl restart zerotier-one
 sudo systemctl enable  zerotier-systemd-manager.timer
+sudo systemctl enable  zerotier-systemd-manager.service
 sudo systemctl restart zerotier-systemd-manager.service
 ```
 
