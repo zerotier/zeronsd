@@ -1,0 +1,7 @@
+# this is a comment
+
+     
+# that was whitespace on a line by itself
+127.0.0.1	localhost # this is an end of line comment
+::1		localhost # the ipv6 example
+127.0.1.1	islay.localdomain	islay # multiple hosts

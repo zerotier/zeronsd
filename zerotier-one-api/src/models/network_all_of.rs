@@ -12,15 +12,28 @@
 
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct StatusConfig {
-    #[serde(rename = "settings", skip_serializing_if = "Option::is_none")]
-    pub settings: Option<Box<crate::models::StatusConfigSettings>>,
+pub struct NetworkAllOf {
+    /// Let ZeroTier modify the system's DNS settings
+    #[serde(rename = "allowDNS", skip_serializing_if = "Option::is_none")]
+    pub allow_dns: Option<bool>,
+    /// Let ZeroTier to modify the system's default route.
+    #[serde(rename = "allowDefault", skip_serializing_if = "Option::is_none")]
+    pub allow_default: Option<bool>,
+    /// Let ZeroTier to manage IP addresses and Route assignments that aren't in private ranges (rfc1918).
+    #[serde(rename = "allowGlobal", skip_serializing_if = "Option::is_none")]
+    pub allow_global: Option<bool>,
+    /// Let ZeroTier to manage IP addresses and Route assignments.
+    #[serde(rename = "allowManaged", skip_serializing_if = "Option::is_none")]
+    pub allow_managed: Option<bool>,
 }
 
-impl StatusConfig {
-    pub fn new() -> StatusConfig {
-        StatusConfig {
-            settings: None,
+impl NetworkAllOf {
+    pub fn new() -> NetworkAllOf {
+        NetworkAllOf {
+            allow_dns: None,
+            allow_default: None,
+            allow_global: None,
+            allow_managed: None,
         }
     }
 }

@@ -25,6 +25,7 @@ tokio = { version = "1", features = ["full"] }
 zerotier-central-api = { path = "./zerotier-central-api", version = "1.0.0" }
 zerotier-one-api = { path = "./zerotier-one-api", version = "1.0.0" }
 serde = ">= 0"
+serde_json = ">= 0"
 tinytemplate = ">= 0"
 
 [package.metadata.deb]

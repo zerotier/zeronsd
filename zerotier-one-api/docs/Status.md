@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **address** | Option<**String**> |  | [optional]
-**clock** | Option<**i32**> |  | [optional]
+**clock** | Option<**f32**> |  | [optional]
 **config** | Option<[**crate::models::StatusConfig**](Status_config.md)> |  | [optional]
 **online** | Option<**bool**> |  | [optional]
 **planet_world_id** | Option<**f32**> |  | [optional]

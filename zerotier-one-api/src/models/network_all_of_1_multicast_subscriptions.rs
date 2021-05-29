@@ -12,15 +12,18 @@
 
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct StatusConfig {
-    #[serde(rename = "settings", skip_serializing_if = "Option::is_none")]
-    pub settings: Option<Box<crate::models::StatusConfigSettings>>,
+pub struct NetworkAllOf1MulticastSubscriptions {
+    #[serde(rename = "adi", skip_serializing_if = "Option::is_none")]
+    pub adi: Option<i32>,
+    #[serde(rename = "mac", skip_serializing_if = "Option::is_none")]
+    pub mac: Option<String>,
 }
 
-impl StatusConfig {
-    pub fn new() -> StatusConfig {
-        StatusConfig {
-            settings: None,
+impl NetworkAllOf1MulticastSubscriptions {
+    pub fn new() -> NetworkAllOf1MulticastSubscriptions {
+        NetworkAllOf1MulticastSubscriptions {
+            adi: None,
+            mac: None,
         }
     }
 }

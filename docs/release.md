@@ -4,7 +4,8 @@ If any of this doesn't work, alert @erikh immediately.
 
 - Run `make clean` and let it run as root.
 - Edit `Cargo.toml` to update the version string near the top of the file.
-- `NETWORK=foo TOKEN=bar make test-integration`. Use a network and token you're ok with destroying later. This should pass.
+- Put a token attached to a central instance into `test-token.txt`. This file is in `.gitignore` and should not be attached to networks you care about.
+- `NETWORK=foo make test-integration`. Use a network you're ok with destroying later. This should pass.
 - `make test-packages`. Read the output to ensure it passes.
 - Push cargo: `cargo publish`. (Get @erikh involved if you need to)
 - Push docker image: `docker push zerotier/zeronsd:<version>` -- no `v` in the version here.

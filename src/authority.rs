@@ -1,6 +1,6 @@
+use crate::hosts::{parse_hosts, HostsFile};
+
 use std::{
-    collections::HashMap,
-    io::Write,
     net::IpAddr,
     str::FromStr,
     sync::{Arc, RwLock},
@@ -25,56 +25,8 @@ use zerotier_central_api::{apis::configuration::Configuration, models::Member};
 
 pub const DOMAIN_NAME: &str = "domain.";
 
-const WHITESPACE_SPLIT: &str = r"\s+";
-const COMMENT_MATCH: &str = r"^\s*#";
-
 type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 type PtrAuthority = Option<Authority>;
-type HostsFile = HashMap<IpAddr, Vec<Name>>;
-
-fn parse_hosts(hosts_file: Option<String>, domain_name: Name) -> Result<HostsFile, std::io::Error> {
-    let mut input: HostsFile = HashMap::new();
-
-    if let None = hosts_file {
-        return Ok(input);
-    }
-
-    let whitespace = regex::Regex::new(WHITESPACE_SPLIT).unwrap();
-    let comment = regex::Regex::new(COMMENT_MATCH).unwrap();
-    let content = std::fs::read_to_string(hosts_file.clone().unwrap())?;
-
-    for line in content.lines() {
-        let mut ary = whitespace.split(line);
-
-        // the first item will be the ip
-        match ary.next() {
-            Some(ip) => {
-                if comment.is_match(ip) {
-                    continue;
-                }
-
-                match IpAddr::from_str(ip) {
-                    Ok(parsed_ip) => {
-                        let mut v: Vec<Name> = Vec::new();
-
-                        // continue to iterate over the hosts
-                        for host in ary {
-                            v.push(Name::from_str(&host)?.append_name(&domain_name.clone()))
-                        }
-
-                        input.insert(parsed_ip, v);
-                    }
-                    Err(e) => {
-                        writeln!(std::io::stderr().lock(), "Couldn't parse {}: {}", ip, e)?;
-                    }
-                }
-            }
-            None => {}
-        }
-    }
-
-    Ok(input)
-}
 
 fn prune_records(
     authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
@@ -442,4 +394,10 @@ impl ZTAuthority {
 
         Ok(catalog)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_boot() {}
 }

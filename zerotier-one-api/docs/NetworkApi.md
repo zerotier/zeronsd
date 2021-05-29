@@ -94,7 +94,7 @@ This endpoint does not need any parameter.
 
 ## update_network
 
-> crate::models::Network update_network(network_id, network_w)
+> crate::models::Network update_network(network_id, network)
 Join a network or update it's configuration
 
 ### Parameters
@@ -103,7 +103,7 @@ Join a network or update it's configuration
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **network_id** | **String** | ID of the network to change | [required] |
-**network_w** | [**NetworkW**](NetworkW.md) | Network object JSON | [required] |
+**network** | [**Network**](Network.md) | Network object JSON | [required] |
 
 ### Return type
 
