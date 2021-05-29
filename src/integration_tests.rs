@@ -181,8 +181,7 @@ impl Drop for TestNetwork {
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     use crate::get_listen_ip;
 
-    let tmp = init_runtime();
-    let runtime = std::sync::Arc::new(Mutex::new(tmp));
+    let runtime = std::sync::Arc::new(Mutex::new(init_runtime()));
     let tn = TestNetwork::new(runtime.clone(), "basic-ipv4".to_string()).unwrap();
     let authtoken = authtoken_path(None);
 
