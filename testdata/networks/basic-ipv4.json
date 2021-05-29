@@ -1,0 +1,22 @@
+{
+  "config": {
+    "name": "basic-ipv4-default",
+    "ipAssignmentPools": [
+      {
+        "ipRangeStart": "172.16.240.1",
+        "ipRangeEnd": "172.16.240.254"
+      }
+    ],
+    "routes": [
+      {
+        "target": "172.16.240.0/24"
+      }
+    ],
+    "v4AssignMode": {
+      "zt": true
+    },
+    "v6AssignMode": {
+      "6plane": false
+    }
+  }
+}
