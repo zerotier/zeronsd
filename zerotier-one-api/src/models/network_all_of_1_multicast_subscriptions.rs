@@ -14,7 +14,7 @@
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetworkAllOf1MulticastSubscriptions {
     #[serde(rename = "adi", skip_serializing_if = "Option::is_none")]
-    pub adi: Option<i32>,
+    pub adi: Option<f32>,
     #[serde(rename = "mac", skip_serializing_if = "Option::is_none")]
     pub mac: Option<String>,
 }
