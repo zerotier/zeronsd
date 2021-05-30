@@ -1,12 +1,13 @@
+use rand::prelude::SliceRandom;
 use trust_dns_resolver::{
     config::{NameServerConfig, ResolverConfig, ResolverOpts},
     proto::rr::RecordType,
-    IntoName, Resolver,
+    IntoName, Name, Resolver,
 };
 
 use crate::{
-    authtoken_path, domain_or_default, get_listen_ip, init_authority, init_runtime,
-    integration_tests::TestNetwork, parse_ip_from_cidr, tests::HOSTS_DIR,
+    authtoken_path, domain_or_default, get_listen_ip, hosts::parse_hosts, init_authority,
+    init_runtime, integration_tests::TestNetwork, parse_ip_from_cidr, tests::HOSTS_DIR,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -26,7 +27,7 @@ struct Service {
 }
 
 impl Service {
-    fn new(hosts: Option<String>) -> Self {
+    fn new(hosts: Option<&str>) -> Self {
         let mut runtime = init_runtime();
         let tn = TestNetwork::new("basic-ipv4").unwrap();
 
@@ -124,7 +125,7 @@ fn test_battery_single_domain() {
 
     eprintln!("Looking up {}", record);
 
-    for _ in 0..100000 {
+    for _ in 0..10000 {
         assert_eq!(
             service.lookup_a(record.clone()).to_string(),
             service.listen_ip
@@ -138,7 +139,7 @@ fn test_battery_single_domain() {
 
     eprintln!("Looking up {}", ptr_record);
 
-    for _ in 0..100000 {
+    for _ in 0..10000 {
         assert_eq!(
             service.lookup_ptr(ptr_record.to_string()),
             record.to_string()
@@ -175,4 +176,29 @@ fn test_battery_single_domain() {
 
 #[test]
 #[ignore]
-fn test_battery_multi_domain() {}
+fn test_battery_multi_domain_hosts_file() {
+    let service = Service::new(Some("basic"));
+
+    let record = format!("zt-{}.domain.", service.network().identity.clone());
+
+    eprintln!("Looking up random domains");
+
+    let mut hosts_map = parse_hosts(
+        Some(format!("{}/basic", HOSTS_DIR)),
+        "domain.".into_name().unwrap(),
+    )
+    .unwrap();
+
+    hosts_map.insert(
+        IpAddr::from_str(&service.listen_ip).unwrap(),
+        vec![record.into_name().unwrap()],
+    );
+
+    let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
+    for _ in 0..100000 {
+        hosts.shuffle(&mut rand::thread_rng());
+        let host = hosts.first().unwrap();
+        let ip = service.lookup_a(host.to_string());
+        assert!(hosts_map.get(&ip.into()).unwrap().contains(host));
+    }
+}
