@@ -1,3 +1,5 @@
+pub const HOSTS_DIR: &str = "testdata/hosts-files";
+
 #[test]
 fn test_parse_ip_from_cidr() {
     use crate::parse_ip_from_cidr;
@@ -235,7 +237,7 @@ fn test_parse_hosts() {
 
     let domain = &Name::from_str("zombocom").unwrap();
 
-    for path in std::fs::read_dir("testdata/hosts-files")
+    for path in std::fs::read_dir(HOSTS_DIR)
         .unwrap()
         .into_iter()
         .map(|p| p.unwrap())
