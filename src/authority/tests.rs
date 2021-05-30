@@ -6,7 +6,7 @@ use trust_dns_resolver::{
 
 use crate::{
     authtoken_path, domain_or_default, get_listen_ip, init_authority, init_runtime,
-    integration_tests::TestNetwork, parse_ip_from_cidr,
+    integration_tests::TestNetwork, parse_ip_from_cidr, tests::HOSTS_DIR,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -26,7 +26,7 @@ struct Service {
 }
 
 impl Service {
-    fn new() -> Self {
+    fn new(hosts: Option<String>) -> Self {
         let mut runtime = init_runtime();
         let tn = TestNetwork::new("basic-ipv4").unwrap();
 
@@ -44,7 +44,10 @@ impl Service {
             tn.central_token.clone(),
             tn.network.clone().id.unwrap(),
             domain_or_default(None).unwrap(),
-            None,
+            match hosts {
+                Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
+                None => None,
+            },
             listen_cidr.clone(),
             listen_ip.clone(),
         )
@@ -115,7 +118,7 @@ impl Service {
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
-    let service = Service::new();
+    let service = Service::new(None);
 
     let record = format!("zt-{}.domain.", service.network().identity.clone());
 
@@ -169,3 +172,7 @@ fn test_battery_single_domain() {
         }
     }
 }
+
+#[test]
+#[ignore]
+fn test_battery_multi_domain() {}
