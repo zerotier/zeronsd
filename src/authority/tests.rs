@@ -119,6 +119,8 @@ fn test_battery_single_domain() {
 
     let record = format!("zt-{}.domain.", service.network().identity.clone());
 
+    eprintln!("Looking up {}", record);
+
     for _ in 0..100000 {
         assert_eq!(
             service.lookup_a(record.clone()).to_string(),
@@ -131,10 +133,39 @@ fn test_battery_single_domain() {
         .into_name()
         .unwrap();
 
+    eprintln!("Looking up {}", ptr_record);
+
     for _ in 0..100000 {
         assert_eq!(
             service.lookup_ptr(ptr_record.to_string()),
             record.to_string()
         );
+    }
+
+    eprintln!("Interleaved lookups of PTR and A records");
+
+    for _ in 0..100000 {
+        // randomly switch order
+        if rand::random::<bool>() {
+            assert_eq!(
+                service.lookup_a(record.clone()).to_string(),
+                service.listen_ip
+            );
+
+            assert_eq!(
+                service.lookup_ptr(ptr_record.to_string()),
+                record.to_string()
+            );
+        } else {
+            assert_eq!(
+                service.lookup_ptr(ptr_record.to_string()),
+                record.to_string()
+            );
+
+            assert_eq!(
+                service.lookup_a(record.clone()).to_string(),
+                service.listen_ip
+            );
+        }
     }
 }
