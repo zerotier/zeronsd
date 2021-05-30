@@ -17,6 +17,7 @@
     },
     "v6AssignMode": {
       "6plane": false
-    }
+    },
+    "private": true
   }
 }

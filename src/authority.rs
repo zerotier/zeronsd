@@ -401,7 +401,7 @@ mod tests {
     use trust_dns_resolver::{
         config::{NameServerConfig, ResolverConfig, ResolverOpts},
         proto::rr::RecordType,
-        IntoName, Name, Resolver,
+        IntoName, Resolver,
     };
 
     use crate::{
