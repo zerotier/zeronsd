@@ -11,14 +11,14 @@ fi
 PACKAGE=$1
 PREFIX=$2
 
-HOST=${HOST:-apidocs.zerotier.com}
+HOST=${HOST:-docs.zerotier.com}
 
 rm -rf ./${PREFIX}
 mkdir -p ./${PREFIX}
 docker pull openapitools/openapi-generator-cli:latest
 docker run --rm -u $(id -u):$(id -g) -v ${PWD}/${PREFIX}:/swagger openapitools/openapi-generator-cli generate \
   --package-name ${PREFIX} \
-  -i http://${HOST}/${PACKAGE}-v1/api-spec.json \
+  -i http://${HOST}/openapi/${PACKAGE}v1.json \
   -g rust \
   -o /swagger
 
