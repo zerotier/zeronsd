@@ -4,8 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**id** | Option<**String**> | Network ID | [optional]
-**creation_time** | Option<**i64**> | Time the network was created | [optional]
+**id** | Option<**String**> | Network ID | [optional][readonly]
+**creation_time** | Option<**i64**> | Time the network was created | [optional][readonly]
 **capabilities** | Option<[**Vec<serde_json::Value>**](serde_json::Value.md)> | Array of network capabilities | [optional]
 **dns** | Option<[**crate::models::NetworkConfigDns**](NetworkConfig_dns.md)> |  | [optional]
 **enable_broadcast** | Option<**bool**> | Enable broadcast packets on the network | [optional]
