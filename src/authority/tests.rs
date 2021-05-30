@@ -19,7 +19,7 @@ use std::{
 use tokio::runtime::Runtime;
 
 struct Service {
-    _runtime: Arc<Mutex<Runtime>>,
+    _runtime: Arc<Mutex<Runtime>>, // this exists to save some typing but get the same effect as a static lifetime
     tn: Arc<TestNetwork>,
     resolver: Arc<Resolver>,
     pub listen_ip: String,
