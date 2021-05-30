@@ -7,7 +7,7 @@ use std::{
 use tokio::runtime::Runtime;
 use zerotier_central_api::{
     apis::configuration::Configuration,
-    models::{Member, Network},
+    models::{Member, MemberConfig, Network},
 };
 
 async fn get_identity(
@@ -105,6 +105,24 @@ impl TestNetwork {
         let mut member = Member::new();
         member.node_id = Some(identity.clone());
         member.network_id = Some(network.clone().id.unwrap());
+        member.config = Some(Box::new(MemberConfig {
+            v_rev: None,
+            v_major: None,
+            v_proto: None,
+            v_minor: None,
+            tags: None,
+            revision: None,
+            no_auto_assign_ips: Some(false),
+            last_authorized_time: None,
+            last_deauthorized_time: None,
+            id: None,
+            creation_time: None,
+            capabilities: None,
+            ip_assignments: None,
+            authorized: Some(true),
+            active_bridge: None,
+            identity: Some(identity.clone()),
+        }));
 
         runtime
             .lock()
