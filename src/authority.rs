@@ -4,6 +4,7 @@ use std::{
     net::IpAddr,
     str::FromStr,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use anyhow::anyhow;
@@ -143,6 +144,7 @@ pub struct ZTAuthority {
     network: String,
     config: Configuration,
     hosts: Box<HostsFile>,
+    update_interval: Duration,
 }
 
 impl ZTAuthority {
@@ -152,6 +154,7 @@ impl ZTAuthority {
         config: Configuration,
         hosts_file: Option<String>,
         listen_ip: String,
+        update_interval: Duration,
     ) -> Result<Arc<Self>, anyhow::Error> {
         let ptr_authority = match IpCidr::from_str(listen_ip)? {
             IpCidr::V4(ip) => {
@@ -177,6 +180,7 @@ impl ZTAuthority {
         };
 
         Ok(Arc::new(Self {
+            update_interval,
             domain_name: domain_name.clone(),
             network,
             config,
@@ -216,7 +220,7 @@ impl ZTAuthority {
                 }
             }
 
-            tokio::time::sleep(std::time::Duration::new(30, 0)).await;
+            tokio::time::sleep(self.update_interval).await;
         }
     }
 
