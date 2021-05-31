@@ -249,7 +249,7 @@ fn test_battery_single_domain_named() {
 
     let named_record = "islay.domain.".to_string();
 
-    for record in vec![member_record, named_record] {
+    for record in vec![member_record, named_record.clone()] {
         eprintln!("Looking up {}", record);
 
         for _ in 0..10000 {
@@ -258,5 +258,19 @@ fn test_battery_single_domain_named() {
                 service.listen_ip
             );
         }
+    }
+
+    let ptr_record = IpAddr::from_str(&service.listen_ip)
+        .unwrap()
+        .into_name()
+        .unwrap();
+
+    eprintln!("Looking up {}", ptr_record);
+
+    for _ in 0..10000 {
+        assert_eq!(
+            service.lookup_ptr(ptr_record.to_string()),
+            named_record.to_string(),
+        );
     }
 }
