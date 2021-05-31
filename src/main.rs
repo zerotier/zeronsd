@@ -141,6 +141,7 @@ fn init_authority(
     hosts_file: Option<String>,
     ip_with_cidr: String,
     ip: String,
+    update_interval: Duration,
 ) -> Result<Server, anyhow::Error> {
     let config = central_config(token);
 
@@ -150,6 +151,7 @@ fn init_authority(
         config.clone(),
         hosts_file,
         ip_with_cidr.clone(),
+        update_interval,
     )?;
 
     let owned = authority.to_owned();
@@ -214,6 +216,7 @@ fn start(
                 hf,
                 ip_with_cidr,
                 ip.clone(),
+                Duration::new(30, 0),
             )?;
 
             runtime.block_on(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)))

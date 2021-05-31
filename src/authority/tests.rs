@@ -13,13 +13,14 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
     sync::{Arc, Mutex},
+    thread,
     time::Duration,
 };
 
 use tokio::runtime::Runtime;
 
 struct Service {
-    _runtime: Arc<Mutex<Runtime>>,
+    runtime: Arc<Mutex<Runtime>>,
     tn: Arc<TestNetwork>,
     resolver: Arc<Resolver>,
     pub listen_ip: String,
@@ -27,7 +28,7 @@ struct Service {
 }
 
 impl Service {
-    fn new(hosts: Option<&str>) -> Self {
+    fn new(hosts: Option<&str>, update_interval: Option<Duration>) -> Self {
         let mut runtime = init_runtime();
         let tn = TestNetwork::new("basic-ipv4").unwrap();
 
@@ -51,6 +52,7 @@ impl Service {
             },
             listen_cidr.clone(),
             listen_ip.clone(),
+            update_interval.unwrap_or(Duration::new(30, 0)),
         )
         .unwrap();
 
@@ -72,12 +74,16 @@ impl Service {
             trust_dns_resolver::Resolver::new(resolver_config, ResolverOpts::default()).unwrap();
 
         Self {
-            _runtime: Arc::new(Mutex::new(runtime)),
+            runtime: Arc::new(Mutex::new(runtime)),
             tn: Arc::new(tn),
             listen_ip,
             listen_cidr,
             resolver: Arc::new(resolver),
         }
+    }
+
+    pub fn runtime(&self) -> Arc<Mutex<Runtime>> {
+        self.runtime.clone()
     }
 
     pub fn network(&self) -> Arc<TestNetwork> {
@@ -119,7 +125,7 @@ impl Service {
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
-    let service = Service::new(None);
+    let service = Service::new(None, None);
 
     let record = format!("zt-{}.domain.", service.network().identity.clone());
 
@@ -177,7 +183,7 @@ fn test_battery_single_domain() {
 #[test]
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
-    let service = Service::new(Some("basic"));
+    let service = Service::new(Some("basic"), None);
 
     let record = format!("zt-{}.domain.", service.network().identity.clone());
 
@@ -200,5 +206,71 @@ fn test_battery_multi_domain_hosts_file() {
         let host = hosts.first().unwrap();
         let ip = service.lookup_a(host.to_string());
         assert!(hosts_map.get(&ip.into()).unwrap().contains(host));
+    }
+}
+
+#[test]
+#[ignore]
+fn test_battery_single_domain_named() {
+    let update_interval = Duration::new(1, 0);
+    let service = Service::new(None, Some(update_interval));
+    let member_record = format!("zt-{}.domain.", service.network().identity.clone());
+
+    let mut member = service
+        .runtime()
+        .lock()
+        .unwrap()
+        .block_on(
+            zerotier_central_api::apis::network_member_api::get_network_member(
+                &service.network().central,
+                &service.network().network.clone().id.unwrap(),
+                &service.network().identity,
+            ),
+        )
+        .unwrap();
+
+    member.name = Some("islay".to_string());
+
+    service
+        .runtime()
+        .lock()
+        .unwrap()
+        .block_on(
+            zerotier_central_api::apis::network_member_api::update_network_member(
+                &service.network().central,
+                &service.network().network.clone().id.unwrap(),
+                &service.network().identity,
+                member,
+            ),
+        )
+        .unwrap();
+
+    thread::sleep(update_interval); // wait for it to update
+
+    let named_record = "islay.domain.".to_string();
+
+    for record in vec![member_record, named_record.clone()] {
+        eprintln!("Looking up {}", record);
+
+        for _ in 0..10000 {
+            assert_eq!(
+                service.lookup_a(record.clone()).to_string(),
+                service.listen_ip
+            );
+        }
+    }
+
+    let ptr_record = IpAddr::from_str(&service.listen_ip)
+        .unwrap()
+        .into_name()
+        .unwrap();
+
+    eprintln!("Looking up {}", ptr_record);
+
+    for _ in 0..10000 {
+        assert_eq!(
+            service.lookup_ptr(ptr_record.to_string()),
+            named_record.to_string(),
+        );
     }
 }
