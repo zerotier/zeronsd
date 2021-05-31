@@ -79,6 +79,29 @@ fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
     Ok(Name::from_str(crate::authority::DOMAIN_NAME)?)
 }
 
+fn parse_member_name(name: Option<String>) -> Option<Name> {
+    if let Some(name) = name {
+        let name = name.trim();
+        if name.len() > 0 {
+            // there are a few situations that the Name implementation allows that we don't want.
+            if name == "." || name.ends_with(".") {
+                eprintln!("Record {} not entered into catalog: '.' and records that ends in '.' are disallowed", name);
+                return None;
+            }
+
+            match Name::from_str(&name) {
+                Ok(record) => return Some(record),
+                Err(e) => {
+                    eprintln!("Record {} not entered into catalog: {:?}", name, e);
+                    return None;
+                }
+            };
+        }
+    }
+
+    None
+}
+
 async fn get_listen_ip(authtoken_path: &str, network_id: &str) -> Result<String, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
     let mut configuration = zerotier_one_api::apis::configuration::Configuration::default();

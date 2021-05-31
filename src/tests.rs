@@ -1,4 +1,31 @@
+use trust_dns_resolver::IntoName;
+
 pub const HOSTS_DIR: &str = "testdata/hosts-files";
+
+#[test]
+fn test_parse_member_name() {
+    use crate::parse_member_name;
+
+    assert_eq!(parse_member_name(None), None);
+
+    for name in vec!["islay", "ALL-CAPS", "Capitalized", "with.dots"] {
+        assert_eq!(
+            parse_member_name(Some(name.to_string())),
+            Some(name.into_name().unwrap()),
+            "{}",
+            name,
+        );
+    }
+
+    for bad_name in vec![".", "!", "!foo", "arghle."] {
+        assert_eq!(
+            parse_member_name(Some(bad_name.to_string())),
+            None,
+            "{}",
+            bad_name,
+        );
+    }
+}
 
 #[test]
 fn test_parse_ip_from_cidr() {

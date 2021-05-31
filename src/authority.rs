@@ -1,4 +1,7 @@
-use crate::hosts::{parse_hosts, HostsFile};
+use crate::{
+    hosts::{parse_hosts, HostsFile},
+    parse_member_name,
+};
 
 use std::{
     net::IpAddr,
@@ -133,20 +136,6 @@ fn configure_ptr(
         None => set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone()),
     }
     Ok(())
-}
-
-fn parse_member_name(name: Option<String>) -> Option<Name> {
-    if let Some(name) = name {
-        let name = name.trim();
-        if name.len() > 0 {
-            match Name::from_str(&name) {
-                Ok(record) => return Some(record),
-                Err(_) => return None,
-            };
-        }
-    }
-
-    None
 }
 
 pub struct ZTAuthority {
