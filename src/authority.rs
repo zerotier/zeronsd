@@ -1,4 +1,7 @@
-use crate::hosts::{parse_hosts, HostsFile};
+use crate::{
+    hosts::{parse_hosts, HostsFile},
+    parse_member_name,
+};
 
 use std::{
     net::IpAddr,
@@ -6,8 +9,6 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-
-use anyhow::anyhow;
 
 use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
@@ -278,17 +279,9 @@ impl ZTAuthority {
             let mut canonical_name = fqdn.clone();
             let mut member_is_named = false;
 
-            if let Some(name) = member.name.clone() {
-                let name = name.trim();
-                if name.len() > 0 {
-                    canonical_name = match Name::from_str(&name) {
-                        Ok(record) => record.append_name(&self.domain_name.clone()),
-                        Err(e) => {
-                            return Err(anyhow!(e));
-                        }
-                    };
-                    member_is_named = true;
-                }
+            if let Some(name) = parse_member_name(member.name.clone()) {
+                canonical_name = name.append_name(&self.domain_name.clone());
+                member_is_named = true;
             }
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
