@@ -7,8 +7,6 @@ use std::{
     time::Duration,
 };
 
-use anyhow::anyhow;
-
 use cidr_utils::cidr::IpCidr;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::{
@@ -135,6 +133,20 @@ fn configure_ptr(
         None => set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone()),
     }
     Ok(())
+}
+
+fn parse_member_name(name: Option<String>) -> Option<Name> {
+    if let Some(name) = name {
+        let name = name.trim();
+        if name.len() > 0 {
+            match Name::from_str(&name) {
+                Ok(record) => return Some(record),
+                Err(_) => return None,
+            };
+        }
+    }
+
+    None
 }
 
 pub struct ZTAuthority {
@@ -278,17 +290,9 @@ impl ZTAuthority {
             let mut canonical_name = fqdn.clone();
             let mut member_is_named = false;
 
-            if let Some(name) = member.name.clone() {
-                let name = name.trim();
-                if name.len() > 0 {
-                    canonical_name = match Name::from_str(&name) {
-                        Ok(record) => record.append_name(&self.domain_name.clone()),
-                        Err(e) => {
-                            return Err(anyhow!(e));
-                        }
-                    };
-                    member_is_named = true;
-                }
+            if let Some(name) = parse_member_name(member.name.clone()) {
+                canonical_name = name.append_name(&self.domain_name.clone());
+                member_is_named = true;
             }
 
             for ip in member.config.unwrap().ip_assignments.unwrap() {
