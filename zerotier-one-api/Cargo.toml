@@ -1,6 +1,6 @@
 [package]
 name = "zerotier-one-api"
-version = "1.1.0"
+version = "1.0.1"
 edition = "2018"
 description = "OpenAPI bindings to zerotier-one service"
 authors = ["Erik Hollensbe <linux@hollensbe.org>", "Adam Ierymenko <adam.ierymenko@zerotier.com>"]
