@@ -1,5 +1,5 @@
 # this fun little grep just extracts the version information from Cargo.toml.
-CARGO_VERSION=$$(grep version Cargo.toml | head -1 | awk '{ print $$3 }' | sed 's/"//g') .
+CARGO_VERSION=$$(grep version Cargo.toml | head -1 | awk '{ print $$3 }' | sed 's/"//g')
 
 build: test
 	cargo build
@@ -22,7 +22,7 @@ docker-image:
 	docker build -t zerotier/zeronsd .
 
 docker-image-package:
-	docker build --build-arg IS_LOCAL=1 -t zerotier/zeronsd:$(CARGO_VERSION)
+	docker build --build-arg IS_LOCAL=1 -t zerotier/zeronsd:$(CARGO_VERSION) .
 
 packages:
 	make docker-image-package
@@ -52,7 +52,7 @@ test-packages: clean
 		docker run -v ${PWD}:/code --rm -it $$image \
 			bash -c "apt update -qq && apt install libssl1.1 -y && dpkg -i /code/$$(find target -name '*.deb')"; \
 	done
-	docker run --rm zerotier/zeronsd:$(CARGO_VERSION) help 2>/dev/null
+	[ "$$(docker run --rm zerotier/zeronsd:$(CARGO_VERSION) --version)" = "zeronsd $(CARGO_VERSION)" ]
 	make packages-out
 
 .PHONY: generate central service \

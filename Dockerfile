@@ -13,5 +13,4 @@ FROM debian:latest
 RUN apt-get update -qq && apt-get install libssl1.1 -y && apt-get autoclean -y && apt-get clean -y
 COPY --from=buildenv /usr/local/cargo/bin/zeronsd /usr/bin/zeronsd
 
-ENTRYPOINT "/usr/bin/zeronsd"
-CMD "help"
+ENTRYPOINT ["/usr/bin/zeronsd"]
