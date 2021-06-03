@@ -13,6 +13,7 @@ If any of this doesn't work, alert @erikh immediately.
 - Publish any cargo subpackages (e.g., the openapi client libraries).
 - Push cargo: `cargo publish`. (Get @erikh involved if you need to)
 - Push docker image: `docker push zerotier/zeronsd:<version>` -- no `v` in the version here.
+- Tag `latest` docker image and push it: `docker tag zerotier/zeronsd:<version> zerotier/zeronsd:latest && docker push zerotier/zeronsd:latest`
 - Edit the release tag, it'll be [here](https://github.com/zerotier/zeronsd/releases).
   - In the `target` directory, there will be several files. Push them to the release.
     - `zeronsd_*.deb` is for debian/ubuntu systems.
