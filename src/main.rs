@@ -22,6 +22,12 @@ mod integration_tests;
 #[cfg(test)]
 mod tests;
 
+const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
+
+fn version() -> String {
+    "zeronsd ".to_string() + VERSION_STRING
+}
+
 fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     let stderr = std::io::stderr();
     let mut lock = stderr.lock();
@@ -109,6 +115,8 @@ async fn get_listen_ip(authtoken_path: &str, network_id: &str) -> Result<String,
         prefix: None,
         key: authtoken,
     };
+
+    configuration.user_agent = Some(version());
     configuration.api_key = Some(api_key);
 
     let listen =
@@ -139,6 +147,7 @@ fn supervise(
 
 fn central_config(token: String) -> Configuration {
     let mut config = Configuration::default();
+    config.user_agent = Some(version());
     config.bearer_access_token = Some(token);
     return config;
 }
@@ -255,7 +264,7 @@ fn main() -> Result<(), anyhow::Error> {
     let app = clap::clap_app!(zeronsd =>
         (author: "Erik Hollensbe <github@hollensbe.org>")
         (about: "zerotier central nameserver")
-        (version: env!("CARGO_PKG_VERSION"))
+        (version: VERSION_STRING)
         (@subcommand start =>
             (about: "Start the nameserver")
             (@arg domain: -d --domain +takes_value "TLD to use for hostnames")
