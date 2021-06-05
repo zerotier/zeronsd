@@ -6,8 +6,13 @@ use trust_dns_resolver::{
 };
 
 use crate::{
-    authtoken_path, domain_or_default, get_listen_ip, hosts::parse_hosts, init_authority,
-    init_runtime, integration_tests::TestNetwork, parse_ip_from_cidr, tests::HOSTS_DIR,
+    hosts::parse_hosts,
+    integration_tests::TestNetwork,
+    tests::HOSTS_DIR,
+    utils::{
+        authtoken_path, domain_or_default, get_listen_ip, init_authority, init_runtime,
+        parse_ip_from_cidr,
+    },
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
