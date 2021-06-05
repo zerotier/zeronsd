@@ -4,7 +4,7 @@ pub const HOSTS_DIR: &str = "testdata/hosts-files";
 
 #[test]
 fn test_parse_member_name() {
-    use crate::parse_member_name;
+    use crate::utils::parse_member_name;
 
     assert_eq!(parse_member_name(None), None);
 
@@ -29,7 +29,7 @@ fn test_parse_member_name() {
 
 #[test]
 fn test_parse_ip_from_cidr() {
-    use crate::parse_ip_from_cidr;
+    use crate::utils::parse_ip_from_cidr;
 
     let results = vec![
         ("192.168.12.1/16", "192.168.12.1"),
@@ -49,7 +49,7 @@ fn test_parse_ip_from_cidr() {
 
 #[test]
 fn test_domain_or_default() {
-    use crate::{authority::DOMAIN_NAME, domain_or_default};
+    use crate::utils::{domain_or_default, DOMAIN_NAME};
     use std::str::FromStr;
     use trust_dns_server::client::rr::Name;
 
@@ -75,7 +75,7 @@ fn test_domain_or_default() {
 
 #[test]
 fn test_central_token() {
-    use crate::central_token;
+    use crate::utils::central_token;
 
     assert!(central_token(None).is_none());
     std::env::set_var("ZEROTIER_CENTRAL_TOKEN", "abcdef");
@@ -91,7 +91,7 @@ fn test_central_token() {
 #[test]
 #[should_panic]
 fn test_central_token_panic() {
-    use crate::central_token;
+    use crate::utils::central_token;
     central_token(Some("/nonexistent"));
 }
 

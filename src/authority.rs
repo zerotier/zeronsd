@@ -1,6 +1,6 @@
 use crate::{
     hosts::{parse_hosts, HostsFile},
-    parse_member_name,
+    utils::parse_member_name,
 };
 
 use std::{
@@ -24,8 +24,6 @@ use trust_dns_server::{
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
 use zerotier_central_api::{apis::configuration::Configuration, models::Member};
-
-pub const DOMAIN_NAME: &str = "domain.";
 
 type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 type PtrAuthority = Option<Authority>;

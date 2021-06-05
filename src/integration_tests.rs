@@ -1,4 +1,4 @@
-use crate::{authtoken_path, central_config, get_listen_ip, init_runtime};
+use crate::utils::{authtoken_path, central_config, get_listen_ip, init_runtime};
 use std::{
     sync::{Arc, Mutex},
     thread::sleep,
@@ -204,8 +204,6 @@ impl Drop for TestNetwork {
 #[test]
 #[ignore]
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    use crate::get_listen_ip;
-
     let tn = TestNetwork::new("basic-ipv4").unwrap();
     let runtime = init_runtime();
 
