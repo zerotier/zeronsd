@@ -1,8 +1,3 @@
-use crate::{
-    hosts::{parse_hosts, HostsFile},
-    utils::parse_member_name,
-};
-
 use std::{
     net::IpAddr,
     str::FromStr,
@@ -24,6 +19,11 @@ use trust_dns_server::{
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
 use zerotier_central_api::{apis::configuration::Configuration, models::Member};
+
+use crate::{
+    hosts::{parse_hosts, HostsFile},
+    utils::parse_member_name,
+};
 
 type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 type PtrAuthority = Option<Authority>;
