@@ -1,8 +1,3 @@
-use crate::{
-    hosts::{parse_hosts, HostsFile},
-    utils::parse_member_name,
-};
-
 use std::{
     net::IpAddr,
     str::FromStr,
@@ -24,6 +19,11 @@ use trust_dns_server::{
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
 use zerotier_central_api::{apis::configuration::Configuration, models::Member};
+
+use crate::{
+    hosts::{parse_hosts, HostsFile},
+    utils::{parse_member_name, ToHostname},
+};
 
 type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 type PtrAuthority = Option<Authority>;
@@ -270,15 +270,15 @@ impl ZTAuthority {
 
         for member in members {
             let member_name = format!("zt-{}", member.node_id.unwrap());
-            let fqdn = Name::from_str(&member_name)?.append_name(&self.domain_name.clone());
+            let fqdn = member_name.to_fqdn(self.domain_name.clone())?;
 
             // this is default the zt-<member id> but can switch to a named name if
             // tweaked in central. see below.
             let mut canonical_name = fqdn.clone();
             let mut member_is_named = false;
 
-            if let Some(name) = parse_member_name(member.name.clone()) {
-                canonical_name = name.append_name(&self.domain_name.clone());
+            if let Some(name) = parse_member_name(member.name.clone(), self.domain_name.clone()) {
+                canonical_name = name;
                 member_is_named = true;
             }
 

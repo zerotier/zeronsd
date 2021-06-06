@@ -1,4 +1,4 @@
-use trust_dns_resolver::IntoName;
+use crate::utils::{domain_or_default, ToHostname};
 
 pub const HOSTS_DIR: &str = "testdata/hosts-files";
 
@@ -6,24 +6,45 @@ pub const HOSTS_DIR: &str = "testdata/hosts-files";
 fn test_parse_member_name() {
     use crate::utils::parse_member_name;
 
-    assert_eq!(parse_member_name(None), None);
+    let actual_domains: &mut Vec<Option<&str>> =
+        &mut vec!["tld", "domain", "zerotier", "test.subdomain"]
+            .iter()
+            .map(|s| Some(*s))
+            .collect::<Vec<Option<&str>>>();
 
-    for name in vec!["islay", "ALL-CAPS", "Capitalized", "with.dots"] {
-        assert_eq!(
-            parse_member_name(Some(name.to_string())),
-            Some(name.into_name().unwrap()),
-            "{}",
-            name,
-        );
-    }
+    actual_domains.push(None); // make sure the None case also gets checked
 
-    for bad_name in vec![".", "!", "!foo", "arghle."] {
-        assert_eq!(
-            parse_member_name(Some(bad_name.to_string())),
-            None,
-            "{}",
-            bad_name,
-        );
+    for domain in actual_domains {
+        let domain_name = domain_or_default(*domain).unwrap().clone();
+
+        assert_eq!(parse_member_name(None, domain_name.clone()), None);
+
+        for name in vec!["islay", "ALL-CAPS", "Capitalized", "with.dots"] {
+            assert_eq!(
+                parse_member_name(Some(name.to_string()), domain_name.clone()),
+                Some(name.to_fqdn(domain_name.clone()).unwrap()),
+                "{}",
+                name,
+            );
+        }
+
+        for bad_name in vec![".", "!", "arghle."] {
+            assert_eq!(
+                parse_member_name(Some(bad_name.to_string()), domain_name.clone()),
+                None,
+                "{}",
+                bad_name,
+            );
+        }
+
+        for (orig, translated) in vec![("Erik's laptop", "eriks-laptop"), ("!foo", "foo")] {
+            assert_eq!(
+                parse_member_name(Some(orig.to_string()), domain_name.clone()),
+                Some(translated.to_fqdn(domain_name.clone()).unwrap()),
+                "{}",
+                orig,
+            );
+        }
     }
 }
 
