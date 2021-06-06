@@ -3,12 +3,12 @@ use trust_dns_server::client::rr::Name;
 
 use crate::utils::ToHostname;
 
-pub type HostsFile = HashMap<IpAddr, Vec<Name>>;
+pub(crate) type HostsFile = HashMap<IpAddr, Vec<Name>>;
 
 const WHITESPACE_SPLIT: &str = r"\s+";
 const COMMENT_MATCH: &str = r"^\s*#";
 
-pub fn parse_hosts(
+pub(crate) fn parse_hosts(
     hosts_file: Option<String>,
     domain_name: Name,
 ) -> Result<HostsFile, std::io::Error> {

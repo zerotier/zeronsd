@@ -140,7 +140,7 @@ fn configure_ptr(
     Ok(())
 }
 
-pub struct ZTAuthority {
+pub(crate) struct ZTAuthority {
     ptr_authority: PtrAuthority,
     authority: Authority,
     domain_name: Name,
@@ -151,7 +151,7 @@ pub struct ZTAuthority {
 }
 
 impl ZTAuthority {
-    pub fn new(
+    pub(crate) fn new(
         domain_name: Name,
         network: String,
         config: Configuration,
@@ -206,7 +206,7 @@ impl ZTAuthority {
         Ok(list)
     }
 
-    pub async fn find_members(self: Arc<Self>) {
+    pub(crate) async fn find_members(self: Arc<Self>) {
         self.configure_hosts(
             self.authority
                 .write()
@@ -231,7 +231,7 @@ impl ZTAuthority {
         }
     }
 
-    pub fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
+    pub(crate) fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
         self.configure_members(
             self.authority
                 .write()
@@ -373,7 +373,7 @@ impl ZTAuthority {
         Ok(())
     }
 
-    pub fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
+    pub(crate) fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
         let mut catalog = Catalog::default();
         catalog.upsert(self.domain_name.clone().into(), self.authority.box_clone());
         if self.ptr_authority.is_some() {

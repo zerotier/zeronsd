@@ -3,16 +3,16 @@ use tokio::net::{TcpListener, UdpSocket};
 
 use trust_dns_server::{authority::Catalog, server::ServerFuture};
 
-pub struct Server {
+pub(crate) struct Server {
     catalog: Catalog,
 }
 
 impl Server {
-    pub fn new(catalog: Catalog) -> Self {
+    pub(crate) fn new(catalog: Catalog) -> Self {
         return Self { catalog };
     }
 
-    pub async fn listen(
+    pub(crate) async fn listen(
         self,
         listen_addr: String,
         tcp_timeout: Duration,
