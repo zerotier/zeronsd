@@ -181,8 +181,8 @@ pub(crate) fn init_authority(
 
 fn translation_table() -> Vec<(Regex, &'static str)> {
     vec![
-        (regex::Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
-        (regex::Regex::new(r"[^.\s\w\d-]+").unwrap(), ""), // catch-all at the end
+        (Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
+        (Regex::new(r"[^.\s\w\d-]+").unwrap(), ""), // catch-all at the end
     ]
 }
 
