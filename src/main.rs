@@ -137,7 +137,9 @@ fn main() -> Result<(), anyhow::Error> {
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();
-            app.clone().write_long_help(&mut lock).unwrap();
+            app.clone()
+                .write_long_help(&mut lock)
+                .expect("Could not write help to stdio: Welp.");
             writeln!(lock)?;
             return Ok(());
         }
