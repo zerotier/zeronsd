@@ -35,7 +35,11 @@ pub(crate) fn init_runtime() -> Runtime {
 }
 
 pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> String {
-    ip_with_cidr.splitn(2, "/").next().unwrap().to_string()
+    ip_with_cidr
+        .splitn(2, "/")
+        .next()
+        .expect("Could not parse IP from CIDR")
+        .to_string()
 }
 
 pub(crate) fn central_token(arg: Option<&str>) -> Option<String> {
@@ -181,8 +185,8 @@ pub(crate) fn init_authority(
 
 fn translation_table() -> Vec<(Regex, &'static str)> {
     vec![
-        (regex::Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
-        (regex::Regex::new(r"[^.\s\w\d-]+").unwrap(), ""), // catch-all at the end
+        (Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
+        (Regex::new(r"[^.\s\w\d-]+").unwrap(), ""), // catch-all at the end
     ]
 }
 

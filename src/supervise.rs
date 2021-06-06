@@ -170,7 +170,9 @@ impl<'a> Properties {
                 Err(e) => {
                     return Err(anyhow!(
                         "Could not write the template {}; are you root? ({})",
-                        service_path.to_str().unwrap(),
+                        service_path
+                            .to_str()
+                            .expect("Could not coerce service path to string"),
                         e,
                     ))
                 }
@@ -178,7 +180,7 @@ impl<'a> Properties {
 
             println!(
                 "Service definition written to {}.\nDon't forget to `systemctl daemon-reload` and `systemctl enable zeronsd-{}`",
-                service_path.to_str().unwrap(),
+                service_path.to_str().expect("Could not coerce service path to string"),
                 self.network,
             );
         } else {
@@ -193,7 +195,9 @@ impl<'a> Properties {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow!(
                     "Could not uninstall supervisor unit file ({}): {}",
-                    self.service_path().to_str().unwrap(),
+                    self.service_path()
+                        .to_str()
+                        .expect("Could not coerce service path to string"),
                     e
                 )),
             }

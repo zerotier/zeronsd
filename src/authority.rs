@@ -80,7 +80,11 @@ fn set_ptr_record(
     );
 
     authority.records_mut().remove(&RrKey::new(
-        ip_name.clone().into_name().unwrap().into(),
+        ip_name
+            .clone()
+            .into_name()
+            .expect("Could not coerce IP address into DNS name")
+            .into(),
         RecordType::PTR,
     ));
 
@@ -203,8 +207,12 @@ impl ZTAuthority {
     }
 
     pub async fn find_members(self: Arc<Self>) {
-        self.configure_hosts(self.authority.write().unwrap())
-            .unwrap();
+        self.configure_hosts(
+            self.authority
+                .write()
+                .expect("Could not acquire write lock on authority"),
+        )
+        .expect("Could not configure authority from hosts file");
 
         loop {
             match self.clone().get_members().await {
@@ -225,7 +233,9 @@ impl ZTAuthority {
 
     pub fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
         self.configure_members(
-            self.authority.write().unwrap(),
+            self.authority
+                .write()
+                .expect("Could not acquire write lock on authority"),
             self.ptr_authority.clone(),
             members,
         )
@@ -269,7 +279,10 @@ impl ZTAuthority {
         let mut ptr_records = Vec::new();
 
         for member in members {
-            let member_name = format!("zt-{}", member.node_id.unwrap());
+            let member_name = format!(
+                "zt-{}",
+                member.node_id.expect("Node ID for member does not exist")
+            );
             let fqdn = member_name.to_fqdn(self.domain_name.clone())?;
 
             // this is default the zt-<member id> but can switch to a named name if
@@ -282,8 +295,13 @@ impl ZTAuthority {
                 member_is_named = true;
             }
 
-            for ip in member.config.unwrap().ip_assignments.unwrap() {
-                let ip = IpAddr::from_str(&ip).unwrap();
+            for ip in member
+                .config
+                .expect("Member config does not exist")
+                .ip_assignments
+                .expect("IP assignments for member do not exist")
+            {
+                let ip = IpAddr::from_str(&ip).expect("Could not parse IP address");
                 records.push(fqdn.clone());
 
                 if member_is_named {
@@ -318,7 +336,9 @@ impl ZTAuthority {
                 if let Some(local_ptr_authority) = ptr_authority.clone() {
                     ptr_records.push(ip.into_name()?);
                     configure_ptr(
-                        local_ptr_authority.write().unwrap(),
+                        local_ptr_authority
+                            .write()
+                            .expect("Could not acquire PTR authority write lock"),
                         ip,
                         canonical_name.clone(),
                     )?;
@@ -330,7 +350,9 @@ impl ZTAuthority {
 
         if let Some(ptr_authority) = ptr_authority {
             prune_records(
-                &mut ptr_authority.write().unwrap(),
+                &mut ptr_authority
+                    .write()
+                    .expect("Could not acquire PTR authority write lock"),
                 ptr_records,
                 self.hosts.clone(),
             )?;
@@ -380,7 +402,9 @@ impl ZTAuthority {
             config,
         );
 
-        let forwarder = runtime.block_on(forwarder).unwrap();
+        let forwarder = runtime
+            .block_on(forwarder)
+            .expect("Could not initiate forwarder service");
 
         catalog.upsert(
             Name::root().into(),
