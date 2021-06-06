@@ -162,6 +162,7 @@ impl TestNetwork {
         )?;
 
         let id = self.network.id.clone().unwrap();
+        let mut count = 0;
 
         while let Err(e) = self
             .runtime
@@ -169,8 +170,12 @@ impl TestNetwork {
             .unwrap()
             .block_on(get_listen_ip(&authtoken_path(None), &id))
         {
-            eprintln!("While joining network: {:?}", e);
             sleep(Duration::new(1, 0));
+            count += 1;
+            if count >= 5 {
+                eprintln!("5 attempts: While joining network: {:?}", e);
+                count = 0;
+            }
         }
         Ok(())
     }
