@@ -1,6 +1,8 @@
 use std::{collections::HashMap, io::Write, net::IpAddr, str::FromStr};
 use trust_dns_server::client::rr::Name;
 
+use crate::utils::ToHostname;
+
 pub type HostsFile = HashMap<IpAddr, Vec<Name>>;
 
 const WHITESPACE_SPLIT: &str = r"\s+";
@@ -40,7 +42,17 @@ pub fn parse_hosts(
 
                         // continue to iterate over the hosts
                         for host in ary.take_while(|h| !comment.is_match(h)) {
-                            v.push(Name::from_str(&host)?.append_name(&domain_name.clone()))
+                            let fqdn = match host.to_fqdn(domain_name.clone()) {
+                                Ok(fqdn) => Some(fqdn),
+                                Err(e) => {
+                                    eprintln!("Invalid host {}: {:?}", host, e);
+                                    None
+                                }
+                            };
+
+                            if let Some(fqdn) = fqdn {
+                                v.push(fqdn)
+                            }
                         }
 
                         input.insert(parsed_ip, v);

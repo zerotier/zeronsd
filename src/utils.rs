@@ -1,6 +1,8 @@
 use std::{str::FromStr, time::Duration};
 
 use tokio::runtime::Runtime;
+use trust_dns_resolver::proto::error::ProtoError;
+use trust_dns_resolver::IntoName;
 use trust_dns_server::client::rr::Name;
 use zerotier_central_api::apis::configuration::Configuration;
 
@@ -85,7 +87,7 @@ pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error
     Ok(Name::from_str(DOMAIN_NAME)?)
 }
 
-pub(crate) fn parse_member_name(name: Option<String>) -> Option<Name> {
+pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name> {
     if let Some(name) = name {
         let name = name.trim();
         if name.len() > 0 {
@@ -95,7 +97,7 @@ pub(crate) fn parse_member_name(name: Option<String>) -> Option<Name> {
                 return None;
             }
 
-            match Name::from_str(&name) {
+            match name.to_fqdn(domain_name) {
                 Ok(record) => return Some(record),
                 Err(e) => {
                     eprintln!("Record {} not entered into catalog: {:?}", name, e);
@@ -181,4 +183,29 @@ pub(crate) fn init_authority(
     Ok(crate::server::Server::new(
         authority.clone().catalog(runtime)?,
     ))
+}
+
+pub(crate) trait ToHostname {
+    fn to_hostname(self) -> Result<Name, ProtoError>;
+    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error>;
+}
+
+impl ToHostname for &str {
+    fn to_hostname(self) -> Result<Name, ProtoError> {
+        self.into_name()
+    }
+
+    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
+        Ok(self.into_name()?.append_domain(&domain))
+    }
+}
+
+impl ToHostname for String {
+    fn to_hostname(self) -> Result<Name, ProtoError> {
+        self.into_name()
+    }
+
+    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
+        Ok(self.into_name()?.append_domain(&domain))
+    }
 }
