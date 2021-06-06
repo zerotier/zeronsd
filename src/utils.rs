@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
+use regex::Regex;
 use tokio::runtime::Runtime;
-use trust_dns_resolver::proto::error::ProtoError;
 use trust_dns_resolver::IntoName;
 use trust_dns_server::client::rr::Name;
 use zerotier_central_api::apis::configuration::Configuration;
@@ -91,12 +91,6 @@ pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Opti
     if let Some(name) = name {
         let name = name.trim();
         if name.len() > 0 {
-            // there are a few situations that the Name implementation allows that we don't want.
-            if name == "." || name.ends_with(".") {
-                eprintln!("Record {} not entered into catalog: '.' and records that ends in '.' are disallowed", name);
-                return None;
-            }
-
             match name.to_fqdn(domain_name) {
                 Ok(record) => return Some(record),
                 Err(e) => {
@@ -185,27 +179,49 @@ pub(crate) fn init_authority(
     ))
 }
 
+fn translation_table() -> Vec<(Regex, &'static str)> {
+    vec![
+        (regex::Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
+        (regex::Regex::new(r"[^.\s\w\d-]+").unwrap(), ""), // catch-all at the end
+    ]
+}
+
 pub(crate) trait ToHostname {
-    fn to_hostname(self) -> Result<Name, ProtoError>;
+    fn to_hostname(self) -> Result<Name, anyhow::Error>;
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error>;
 }
 
 impl ToHostname for &str {
-    fn to_hostname(self) -> Result<Name, ProtoError> {
-        self.into_name()
+    fn to_hostname(self) -> Result<Name, anyhow::Error> {
+        self.clone().to_string().to_hostname()
     }
 
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
-        Ok(self.into_name()?.append_domain(&domain))
+        Ok(self.to_hostname()?.append_domain(&domain))
     }
 }
 
 impl ToHostname for String {
-    fn to_hostname(self) -> Result<Name, ProtoError> {
-        self.into_name()
+    fn to_hostname(self) -> Result<Name, anyhow::Error> {
+        let mut s = self.clone().trim().to_string();
+        for (regex, replacement) in translation_table() {
+            s = regex.replace_all(&s, replacement).to_string();
+        }
+
+        let s = s.trim();
+
+        if s == "." || s.ends_with(".") {
+            return Err(anyhow!("Record {} not entered into catalog: '.' and records that ends in '.' are disallowed", s));
+        }
+
+        if s.len() == 0 {
+            return Err(anyhow!("translated hostname {} is an empty string", self));
+        }
+
+        Ok(s.trim().into_name()?)
     }
 
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
-        Ok(self.into_name()?.append_domain(&domain))
+        Ok(self.to_hostname()?.append_domain(&domain))
     }
 }

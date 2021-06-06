@@ -28,12 +28,21 @@ fn test_parse_member_name() {
             );
         }
 
-        for bad_name in vec![".", "!", "!foo", "arghle."] {
+        for bad_name in vec![".", "!", "arghle."] {
             assert_eq!(
                 parse_member_name(Some(bad_name.to_string()), domain_name.clone()),
                 None,
                 "{}",
                 bad_name,
+            );
+        }
+
+        for (orig, translated) in vec![("Erik's laptop", "eriks-laptop"), ("!foo", "foo")] {
+            assert_eq!(
+                parse_member_name(Some(orig.to_string()), domain_name.clone()),
+                Some(translated.to_fqdn(domain_name.clone()).unwrap()),
+                "{}",
+                orig,
             );
         }
     }
