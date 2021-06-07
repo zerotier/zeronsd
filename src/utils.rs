@@ -28,7 +28,7 @@ pub(crate) fn central_config(token: String) -> Configuration {
 pub(crate) fn init_runtime() -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(4)
+        .worker_threads(num_cpus::get())
         .thread_name("zeronsd")
         .build()
         .expect("failed to initialize tokio")
