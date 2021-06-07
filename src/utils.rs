@@ -108,10 +108,10 @@ pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Opti
     None
 }
 
-pub(crate) async fn get_listen_ip(
+pub(crate) async fn get_listen_ips(
     authtoken_path: &str,
     network_id: &str,
-) -> Result<String, anyhow::Error> {
+) -> Result<Vec<String>, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
     let mut configuration = zerotier_one_api::apis::configuration::Configuration::default();
     let api_key = zerotier_one_api::apis::configuration::ApiKey {
@@ -125,9 +125,8 @@ pub(crate) async fn get_listen_ip(
     let listen =
         zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await?;
     if let Some(assigned) = listen.assigned_addresses {
-        if let Some(ip) = assigned.first() {
-            // for now, we'll use the first addr returned. Soon, we will want to listen on all IPs.
-            return Ok(ip.clone());
+        if assigned.len() > 0 {
+            return Ok(assigned);
         }
     }
 

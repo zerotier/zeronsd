@@ -1,4 +1,4 @@
-use std::{io::Write, time::Duration};
+use std::{io::Write, thread::sleep, time::Duration};
 
 use clap::clap_app;
 
@@ -49,38 +49,54 @@ fn start(
     let runtime = &mut utils::init_runtime();
 
     if let Some(network) = network {
-        let ip_with_cidr = runtime.block_on(utils::get_listen_ip(&authtoken, network))?;
-        let ip = utils::parse_ip_from_cidr(ip_with_cidr.clone());
+        let token = utils::central_token(token);
+        let network = String::from(network);
+        let hf = if let Some(hf) = hosts_file {
+            Some(hf.to_string())
+        } else {
+            None
+        };
+
+        if token.is_none() {
+            return Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"));
+        }
+
+        let token = token.unwrap();
 
         println!("Welcome to ZeroNS!");
-        println!("Your IP for this network: {}", ip);
 
-        if let Some(token) = utils::central_token(token) {
-            let network = String::from(network);
-            let hf = if let Some(hf) = hosts_file {
-                Some(hf.to_string())
-            } else {
-                None
-            };
+        let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &network))?;
 
-            let server = utils::init_authority(
-                runtime,
-                token,
-                network,
-                domain_name,
-                hf,
-                ip_with_cidr,
-                ip.clone(),
-                Duration::new(30, 0),
-            )?;
+        if ips.len() > 0 {
+            for ip_with_cidr in ips {
+                let ip = utils::parse_ip_from_cidr(ip_with_cidr.clone());
+                println!("Your IP for this network: {}", ip);
 
-            runtime.block_on(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)))
-        } else {
-            Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"))
+                let server = utils::init_authority(
+                    runtime,
+                    token.clone(),
+                    network.clone(),
+                    domain_name.clone(),
+                    hf.clone(),
+                    ip_with_cidr.clone(),
+                    ip.clone(),
+                    Duration::new(30, 0),
+                )?;
+
+                runtime.spawn(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)));
+            }
+
+            async fn wait() {
+                loop {
+                    sleep(Duration::new(60, 0))
+                }
+            }
+
+            return Ok(runtime.block_on(wait()));
         }
-    } else {
-        return Err(anyhow!("no network ID"));
     }
+
+    return Err(anyhow!("no network ID"));
 }
 
 fn main() -> Result<(), anyhow::Error> {

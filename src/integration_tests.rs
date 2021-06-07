@@ -1,4 +1,4 @@
-use crate::utils::{authtoken_path, central_config, get_listen_ip, init_runtime};
+use crate::utils::{authtoken_path, central_config, get_listen_ips, init_runtime};
 use std::{
     sync::{Arc, Mutex},
     thread::sleep,
@@ -168,7 +168,7 @@ impl TestNetwork {
             .runtime
             .lock()
             .unwrap()
-            .block_on(get_listen_ip(&authtoken_path(None), &id))
+            .block_on(get_listen_ips(&authtoken_path(None), &id))
         {
             sleep(Duration::new(1, 0));
             count += 1;
@@ -212,13 +212,13 @@ fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     let tn = TestNetwork::new("basic-ipv4").unwrap();
     let runtime = init_runtime();
 
-    let listen_ip = runtime.block_on(get_listen_ip(
+    let listen_ip = runtime.block_on(get_listen_ips(
         &authtoken_path(None),
         &tn.network.clone().id.unwrap(),
     ))?;
 
-    eprintln!("My listen IP is {}", listen_ip);
-    assert_ne!(listen_ip, String::from(""));
+    eprintln!("My listen IP is {}", listen_ip.first().unwrap());
+    assert_ne!(*listen_ip.first().unwrap(), String::from(""));
 
     Ok(())
 }

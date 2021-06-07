@@ -10,7 +10,7 @@ use crate::{
     integration_tests::TestNetwork,
     tests::HOSTS_DIR,
     utils::{
-        authtoken_path, domain_or_default, get_listen_ip, init_authority, init_runtime,
+        authtoken_path, domain_or_default, get_listen_ips, init_authority, init_runtime,
         parse_ip_from_cidr,
     },
 };
@@ -38,13 +38,13 @@ impl Service {
         let tn = TestNetwork::new("basic-ipv4").unwrap();
 
         let listen_cidr = runtime
-            .block_on(get_listen_ip(
+            .block_on(get_listen_ips(
                 &authtoken_path(None),
                 &tn.network.clone().id.unwrap(),
             ))
             .unwrap();
 
-        let listen_ip = parse_ip_from_cidr(listen_cidr.clone());
+        let listen_ip = parse_ip_from_cidr(listen_cidr.first().unwrap().clone());
 
         let server = init_authority(
             &mut runtime,
@@ -55,7 +55,7 @@ impl Service {
                 Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
                 None => None,
             },
-            listen_cidr.clone(),
+            listen_cidr.first().unwrap().clone(),
             listen_ip.clone(),
             update_interval.unwrap_or(Duration::new(30, 0)),
         )
@@ -82,7 +82,7 @@ impl Service {
             runtime: Arc::new(Mutex::new(runtime)),
             tn: Arc::new(tn),
             listen_ip,
-            listen_cidr,
+            listen_cidr: listen_cidr.first().unwrap().clone(),
             resolver: Arc::new(resolver),
         }
     }
