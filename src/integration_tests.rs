@@ -1,4 +1,7 @@
-use crate::utils::{authtoken_path, central_config, get_listen_ips, init_runtime};
+use crate::utils::{
+    authtoken_path, central_config, get_authtoken, get_identity, get_listen_ips, init_runtime,
+    zerotier_config,
+};
 use std::{
     sync::{Arc, Mutex},
     thread::sleep,
@@ -9,24 +12,6 @@ use zerotier_central_api::{
     apis::configuration::Configuration,
     models::{Member, MemberConfig, Network},
 };
-
-async fn get_identity(
-    configuration: &zerotier_one_api::apis::configuration::Configuration,
-) -> Result<String, anyhow::Error> {
-    let status = zerotier_one_api::apis::status_api::get_status(configuration).await?;
-
-    Ok(status
-        .public_identity
-        .unwrap()
-        .splitn(3, ":")
-        .nth(0)
-        .unwrap()
-        .to_owned())
-}
-
-fn get_authtoken() -> Result<String, anyhow::Error> {
-    Ok(std::fs::read_to_string(authtoken_path(None))?)
-}
 
 fn randstring(len: u8) -> String {
     (0..len)
@@ -63,48 +48,26 @@ fn network_definition(
     Ok(res)
 }
 
-pub struct TestNetwork {
-    pub network: Network,
-    pub central: Configuration,
-    pub zerotier: zerotier_one_api::apis::configuration::Configuration,
-    pub authtoken: String,
-    pub central_token: String,
-    pub identity: String,
-    runtime: Arc<Mutex<Runtime>>,
+#[derive(Clone)]
+pub(crate) struct TestContext {
+    member: Option<Member>,
+    identity: String,
+    zerotier: zerotier_one_api::apis::configuration::Configuration,
+    token: String,
+    central: Configuration,
+    authtoken: String,
 }
 
-impl TestNetwork {
-    pub fn new(network_def: &str) -> Result<Self, anyhow::Error> {
-        let runtime = Arc::new(Mutex::new(init_runtime()));
-        let authtoken = get_authtoken()?;
+impl TestContext {
+    pub fn set_member(&mut self, member: Member) {
+        self.member = Some(member)
+    }
 
-        let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
-        zerotier.api_key = Some(zerotier_one_api::apis::configuration::ApiKey {
-            prefix: None,
-            key: authtoken.clone(),
-        });
-
-        let identity = runtime
-            .lock()
-            .unwrap()
-            .block_on(get_identity(&zerotier))
-            .unwrap();
-
-        let token = std::env::var("TOKEN").expect("Please provide TOKEN in the environment");
-        let central = central_config(token.clone());
-
-        let network = runtime
-            .lock()
-            .unwrap()
-            .block_on(zerotier_central_api::apis::network_api::new_network(
-                &central,
-                serde_json::Value::Object(network_definition(network_def.to_string())?),
-            ))
-            .unwrap();
-
+    pub fn set_member_default(&mut self, network_id: String) {
         let mut member = Member::new();
-        member.node_id = Some(identity.clone());
-        member.network_id = Some(network.clone().id.unwrap());
+
+        member.node_id = Some(self.identity.clone());
+        member.network_id = Some(network_id);
         member.config = Some(Box::new(MemberConfig {
             v_rev: None,
             v_major: None,
@@ -121,17 +84,69 @@ impl TestNetwork {
             ip_assignments: None,
             authorized: Some(true),
             active_bridge: None,
-            identity: Some(identity.clone()),
+            identity: Some(self.identity.clone()),
         }));
+
+        self.set_member(member)
+    }
+}
+
+impl Default for TestContext {
+    fn default() -> Self {
+        let runtime = init_runtime();
+        let authtoken = get_authtoken(None).expect("Could not read authtoken");
+        let zerotier = zerotier_config(authtoken.clone());
+        let identity = runtime
+            .block_on(get_identity(&zerotier))
+            .expect("Could not retrieve identity from zerotier");
+
+        let token = std::env::var("TOKEN").expect("Please provide TOKEN in the environment");
+        let central = central_config(token.clone());
+
+        Self {
+            member: None,
+            identity,
+            zerotier,
+            token,
+            central,
+            authtoken: authtoken.clone(),
+        }
+    }
+}
+
+pub(crate) struct TestNetwork {
+    pub network: Network,
+    runtime: Arc<Mutex<Runtime>>,
+    context: TestContext,
+}
+
+impl TestNetwork {
+    pub fn new(network_def: &str, tc: &mut TestContext) -> Result<Self, anyhow::Error> {
+        let runtime = Arc::new(Mutex::new(init_runtime()));
+
+        let network = runtime
+            .lock()
+            .unwrap()
+            .block_on(zerotier_central_api::apis::network_api::new_network(
+                &tc.central,
+                serde_json::Value::Object(network_definition(network_def.to_string())?),
+            ))
+            .unwrap();
+
+        if tc.member.is_none() {
+            tc.set_member_default(network.clone().id.unwrap());
+        }
+
+        let member = tc.clone().member.unwrap();
 
         runtime
             .lock()
             .unwrap()
             .block_on(
                 zerotier_central_api::apis::network_member_api::update_network_member(
-                    &central,
+                    &tc.central,
                     &network.clone().id.unwrap(),
-                    &identity,
+                    &tc.identity,
                     member,
                 ),
             )
@@ -139,12 +154,8 @@ impl TestNetwork {
 
         let s = Self {
             network,
-            central,
-            zerotier,
-            identity,
-            authtoken,
-            central_token: token,
             runtime: runtime.clone(),
+            context: tc.clone(),
         };
 
         s.join().unwrap();
@@ -155,7 +166,7 @@ impl TestNetwork {
         let network = zerotier_one_api::models::Network::new();
         self.runtime.lock().unwrap().block_on(
             zerotier_one_api::apis::network_api::update_network(
-                &self.zerotier,
+                &self.context.zerotier,
                 &self.network.id.clone().unwrap(),
                 network,
             ),
@@ -183,11 +194,23 @@ impl TestNetwork {
     pub fn leave(&self) -> Result<(), anyhow::Error> {
         self.runtime.lock().unwrap().block_on(
             zerotier_one_api::apis::network_api::delete_network(
-                &self.zerotier,
+                &self.context.zerotier,
                 &self.network.id.clone().unwrap(),
             ),
         )?;
         Ok(())
+    }
+
+    pub fn token(&self) -> String {
+        self.context.token.clone()
+    }
+
+    pub fn identity(&self) -> String {
+        self.context.identity.clone()
+    }
+
+    pub fn central(&self) -> Configuration {
+        self.context.central.clone()
     }
 }
 
@@ -199,7 +222,7 @@ impl Drop for TestNetwork {
             .lock()
             .unwrap()
             .block_on(zerotier_central_api::apis::network_api::delete_network(
-                &self.central,
+                &self.context.central,
                 &opt.unwrap(),
             ))
             .unwrap();
@@ -209,16 +232,18 @@ impl Drop for TestNetwork {
 #[test]
 #[ignore]
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    let tn = TestNetwork::new("basic-ipv4").unwrap();
+    let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default()).unwrap();
     let runtime = init_runtime();
 
-    let listen_ip = runtime.block_on(get_listen_ips(
+    let listen_ips = runtime.block_on(get_listen_ips(
         &authtoken_path(None),
         &tn.network.clone().id.unwrap(),
     ))?;
 
-    eprintln!("My listen IP is {}", listen_ip.first().unwrap());
-    assert_ne!(*listen_ip.first().unwrap(), String::from(""));
+    eprintln!("My listen IP is {}", listen_ips.first().unwrap());
+    assert_ne!(*listen_ips.first().unwrap(), String::from(""));
+
+    drop(tn);
 
     Ok(())
 }

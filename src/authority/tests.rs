@@ -7,7 +7,7 @@ use trust_dns_resolver::{
 
 use crate::{
     hosts::parse_hosts,
-    integration_tests::TestNetwork,
+    integration_tests::{TestContext, TestNetwork},
     tests::HOSTS_DIR,
     utils::{
         authtoken_path, domain_or_default, get_listen_ips, init_authority, init_runtime,
@@ -35,7 +35,7 @@ struct Service {
 impl Service {
     fn new(hosts: Option<&str>, update_interval: Option<Duration>) -> Self {
         let mut runtime = init_runtime();
-        let tn = TestNetwork::new("basic-ipv4").unwrap();
+        let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default()).unwrap();
 
         let listen_cidr = runtime
             .block_on(get_listen_ips(
@@ -48,7 +48,7 @@ impl Service {
 
         let server = init_authority(
             &mut runtime,
-            tn.central_token.clone(),
+            tn.token(),
             tn.network.clone().id.unwrap(),
             domain_or_default(None).unwrap(),
             match hosts {
@@ -132,7 +132,7 @@ impl Service {
 fn test_battery_single_domain() {
     let service = Service::new(None, None);
 
-    let record = format!("zt-{}.domain.", service.network().identity.clone());
+    let record = format!("zt-{}.domain.", service.network().identity().clone());
 
     eprintln!("Looking up {}", record);
 
@@ -190,7 +190,7 @@ fn test_battery_single_domain() {
 fn test_battery_multi_domain_hosts_file() {
     let service = Service::new(Some("basic"), None);
 
-    let record = format!("zt-{}.domain.", service.network().identity.clone());
+    let record = format!("zt-{}.domain.", service.network().identity().clone());
 
     eprintln!("Looking up random domains");
 
@@ -219,7 +219,7 @@ fn test_battery_multi_domain_hosts_file() {
 fn test_battery_single_domain_named() {
     let update_interval = Duration::new(1, 0);
     let service = Service::new(None, Some(update_interval));
-    let member_record = format!("zt-{}.domain.", service.network().identity.clone());
+    let member_record = format!("zt-{}.domain.", service.network().identity().clone());
 
     let mut member = service
         .runtime()
@@ -227,9 +227,9 @@ fn test_battery_single_domain_named() {
         .unwrap()
         .block_on(
             zerotier_central_api::apis::network_member_api::get_network_member(
-                &service.network().central,
+                &service.network().central(),
                 &service.network().network.clone().id.unwrap(),
-                &service.network().identity,
+                &service.network().identity(),
             ),
         )
         .unwrap();
@@ -242,9 +242,9 @@ fn test_battery_single_domain_named() {
         .unwrap()
         .block_on(
             zerotier_central_api::apis::network_member_api::update_network_member(
-                &service.network().central,
+                &service.network().central(),
                 &service.network().network.clone().id.unwrap(),
-                &service.network().identity,
+                &service.network().identity(),
                 member,
             ),
         )

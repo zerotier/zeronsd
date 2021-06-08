@@ -18,6 +18,36 @@ fn version() -> String {
     "zeronsd ".to_string() + VERSION_STRING
 }
 
+pub(crate) async fn get_identity(
+    configuration: &zerotier_one_api::apis::configuration::Configuration,
+) -> Result<String, anyhow::Error> {
+    let status = zerotier_one_api::apis::status_api::get_status(configuration).await?;
+
+    Ok(status
+        .public_identity
+        .unwrap()
+        .splitn(3, ":")
+        .nth(0)
+        .unwrap()
+        .to_owned())
+}
+
+pub(crate) fn get_authtoken(or: Option<&str>) -> Result<String, anyhow::Error> {
+    Ok(std::fs::read_to_string(authtoken_path(or))?)
+}
+
+pub(crate) fn zerotier_config(
+    authtoken: String,
+) -> zerotier_one_api::apis::configuration::Configuration {
+    let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
+    zerotier.api_key = Some(zerotier_one_api::apis::configuration::ApiKey {
+        prefix: None,
+        key: authtoken.clone(),
+    });
+
+    zerotier
+}
+
 pub(crate) fn central_config(token: String) -> Configuration {
     let mut config = Configuration::default();
     config.user_agent = Some(version());
