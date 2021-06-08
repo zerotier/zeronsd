@@ -48,9 +48,53 @@ fn network_definition(
     Ok(res)
 }
 
+pub(crate) trait MemberUtil {
+    fn set_defaults(&mut self, network_id: String, identity: String);
+}
+
+pub(crate) trait MemberConfigUtil {
+    fn set_ip_assignments(&mut self, ips: Vec<&str>);
+    fn set_defaults(&mut self, identity: String);
+}
+
+impl MemberUtil for Member {
+    fn set_defaults(&mut self, network_id: String, identity: String) {
+        self.node_id = Some(identity.clone());
+        self.network_id = Some(network_id);
+        let mut mc = MemberConfig::new();
+        mc.set_defaults(identity);
+        self.config = Some(Box::new(mc));
+    }
+}
+
+impl MemberConfigUtil for MemberConfig {
+    fn set_ip_assignments(&mut self, ips: Vec<&str>) {
+        self.ip_assignments = Some(ips.into_iter().map(|s| s.to_string()).collect())
+    }
+
+    fn set_defaults(&mut self, identity: String) {
+        self.v_rev = None;
+        self.v_major = None;
+        self.v_proto = None;
+        self.v_minor = None;
+        self.tags = None;
+        self.revision = None;
+        self.no_auto_assign_ips = Some(false);
+        self.last_authorized_time = None;
+        self.last_deauthorized_time = None;
+        self.id = None;
+        self.creation_time = None;
+        self.capabilities = None;
+        self.ip_assignments = None;
+        self.authorized = Some(true);
+        self.active_bridge = None;
+        self.identity = Some(identity);
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct TestContext {
-    member: Option<Member>,
+    member_config: Option<Box<MemberConfig>>,
     identity: String,
     zerotier: zerotier_one_api::apis::configuration::Configuration,
     token: String,
@@ -59,35 +103,14 @@ pub(crate) struct TestContext {
 }
 
 impl TestContext {
-    pub fn set_member(&mut self, member: Member) {
-        self.member = Some(member)
-    }
-
-    pub fn set_member_default(&mut self, network_id: String) {
+    pub fn get_member(&mut self, network_id: String) -> Member {
         let mut member = Member::new();
+        member.set_defaults(network_id, self.identity.clone());
+        if self.member_config.is_some() {
+            member.config = self.member_config.clone();
+        }
 
-        member.node_id = Some(self.identity.clone());
-        member.network_id = Some(network_id);
-        member.config = Some(Box::new(MemberConfig {
-            v_rev: None,
-            v_major: None,
-            v_proto: None,
-            v_minor: None,
-            tags: None,
-            revision: None,
-            no_auto_assign_ips: Some(false),
-            last_authorized_time: None,
-            last_deauthorized_time: None,
-            id: None,
-            creation_time: None,
-            capabilities: None,
-            ip_assignments: None,
-            authorized: Some(true),
-            active_bridge: None,
-            identity: Some(self.identity.clone()),
-        }));
-
-        self.set_member(member)
+        member
     }
 }
 
@@ -104,7 +127,7 @@ impl Default for TestContext {
         let central = central_config(token.clone());
 
         Self {
-            member: None,
+            member_config: None,
             identity,
             zerotier,
             token,
@@ -133,11 +156,7 @@ impl TestNetwork {
             ))
             .unwrap();
 
-        if tc.member.is_none() {
-            tc.set_member_default(network.clone().id.unwrap());
-        }
-
-        let member = tc.clone().member.unwrap();
+        let member = tc.get_member(network.clone().id.unwrap());
 
         runtime
             .lock()
@@ -244,6 +263,26 @@ fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     assert_ne!(*listen_ips.first().unwrap(), String::from(""));
 
     drop(tn);
+
+    let mut tc = TestContext::default();
+    let mut mc = MemberConfig::new();
+    mc.set_defaults(tc.identity.clone());
+
+    // see testdata/networks/basic-ipv4.json
+    let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
+    mc.set_ip_assignments(ips.clone());
+    tc.member_config = Some(Box::new(mc));
+
+    let tn = TestNetwork::new("basic-ipv4", &mut tc).unwrap();
+    let runtime = init_runtime();
+
+    let mut listen_ips = runtime.block_on(get_listen_ips(
+        &authtoken_path(None),
+        &tn.network.clone().id.unwrap(),
+    ))?;
+
+    assert_eq!(listen_ips.sort(), ips.sort());
+    eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
     Ok(())
 }
