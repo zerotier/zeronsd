@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use cidr_utils::cidr::IpCidr;
+use ipnetwork::IpNetwork;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::{
     config::{NameServerConfigGroup, ResolverOpts},
@@ -25,8 +25,21 @@ use crate::{
     utils::{parse_member_name, ToHostname},
 };
 
-type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
-type PtrAuthority = Option<Authority>;
+pub(crate) type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
+pub(crate) type PtrAuthority = Option<Authority>;
+
+pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<PtrAuthority, anyhow::Error> {
+    Ok(match ip {
+        IpNetwork::V4(ip) => Some(Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
+            ip.network()
+                .into_name()?
+                .trim_to((ip.prefix() as usize / 8) + 2),
+            trust_dns_server::authority::ZoneType::Primary,
+            false,
+        ))))),
+        IpNetwork::V6(_) => None,
+    })
+}
 
 fn prune_records(
     authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
@@ -156,32 +169,9 @@ impl ZTAuthority {
         network: String,
         config: Configuration,
         hosts_file: Option<String>,
-        listen_ip: String,
+        ptr_authority: PtrAuthority,
         update_interval: Duration,
     ) -> Result<Arc<Self>, anyhow::Error> {
-        let ptr_authority = match IpCidr::from_str(listen_ip)? {
-            IpCidr::V4(ip) => {
-                let mut s = String::new();
-
-                for octet in ip
-                    .get_prefix_as_u8_array()
-                    .iter()
-                    .rev()
-                    .skip((ip.get_bits() / 8) as usize)
-                {
-                    s += &format!("{}.", octet).to_string();
-                }
-
-                Some(Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
-                    Name::from_str(&s.trim_end_matches("."))?
-                        .append_domain(&Name::from_str("in-addr.arpa.")?),
-                    trust_dns_server::authority::ZoneType::Primary,
-                    false,
-                )))))
-            }
-            IpCidr::V6(_) => None,
-        };
-
         Ok(Arc::new(Self {
             update_interval,
             domain_name: domain_name.clone(),

@@ -1,8 +1,11 @@
-use std::{io::Write, time::Duration};
+use std::{collections::HashMap, io::Write, str::FromStr, thread::sleep, time::Duration};
 
 use clap::clap_app;
 
 use anyhow::anyhow;
+use ipnetwork::IpNetwork;
+
+use crate::{authority::new_ptr_authority, utils::update_central_dns};
 
 mod authority;
 mod hosts;
@@ -49,38 +52,80 @@ fn start(
     let runtime = &mut utils::init_runtime();
 
     if let Some(network) = network {
-        let ip_with_cidr = runtime.block_on(utils::get_listen_ip(&authtoken, network))?;
-        let ip = utils::parse_ip_from_cidr(ip_with_cidr.clone());
+        let token = utils::central_token(token);
+        let network = String::from(network);
+        let hf = if let Some(hf) = hosts_file {
+            Some(hf.to_string())
+        } else {
+            None
+        };
+
+        if token.is_none() {
+            return Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"));
+        }
+
+        let token = token.unwrap();
 
         println!("Welcome to ZeroNS!");
-        println!("Your IP for this network: {}", ip);
 
-        if let Some(token) = utils::central_token(token) {
-            let network = String::from(network);
-            let hf = if let Some(hf) = hosts_file {
-                Some(hf.to_string())
-            } else {
-                None
-            };
+        let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &network))?;
 
-            let server = utils::init_authority(
+        if ips.len() > 0 {
+            update_central_dns(
                 runtime,
-                token,
-                network,
-                domain_name,
-                hf,
-                ip_with_cidr,
-                ip.clone(),
-                Duration::new(30, 0),
+                domain_name.clone(),
+                ips.first().unwrap().to_string(),
+                token.clone(),
+                network.clone(),
             )?;
 
-            runtime.block_on(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)))
-        } else {
-            Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"))
+            let mut listen_ips = Vec::new();
+            let mut ipmap = HashMap::new();
+            let mut ptrmap = HashMap::new();
+
+            for cidr in ips.clone() {
+                let listen_ip = utils::parse_ip_from_cidr(cidr.clone());
+                listen_ips.push(listen_ip.clone());
+                let cidr = IpNetwork::from_str(&cidr.clone())?;
+                if !ipmap.contains_key(&listen_ip) {
+                    ipmap.insert(listen_ip, cidr);
+                    ptrmap.insert(cidr, new_ptr_authority(cidr)?);
+                }
+            }
+
+            for ip in listen_ips {
+                println!("Your IP for this network: {}", ip);
+                let cidr = ipmap
+                    .get(&ip)
+                    .expect("Could not locate underlying network subnet");
+                let ptr_authority = ptrmap
+                    .get(cidr)
+                    .expect("Could not locate PTR authority for subnet");
+
+                let server = utils::init_authority(
+                    runtime,
+                    ptr_authority.clone(),
+                    token.clone(),
+                    network.clone(),
+                    domain_name.clone(),
+                    hf.clone(),
+                    Duration::new(30, 0),
+                )?;
+
+                runtime.spawn(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)));
+            }
+
+            async fn wait() {
+                loop {
+                    sleep(Duration::new(60, 0))
+                }
+            }
+
+            return Ok(runtime.block_on(wait()));
         }
-    } else {
-        return Err(anyhow!("no network ID"));
     }
+
+    return Err(anyhow!("no network ID"));
 }
 
 fn main() -> Result<(), anyhow::Error> {
