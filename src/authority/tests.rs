@@ -1,4 +1,4 @@
-use rand::prelude::SliceRandom;
+use rand::prelude::{IteratorRandom, SliceRandom};
 use trust_dns_resolver::{
     config::{NameServerConfig, ResolverConfig, ResolverOpts},
     proto::rr::RecordType,
@@ -24,18 +24,55 @@ use std::{
 
 use tokio::runtime::Runtime;
 
+#[derive(Clone)]
 struct Service {
     runtime: Arc<Mutex<Runtime>>,
     tn: Arc<TestNetwork>,
-    resolver: Arc<Resolver>,
-    pub listen_ip: String,
+    resolvers: Arc<Vec<Arc<Resolver>>>,
+    pub listen_ips: Vec<String>,
     pub listen_cidr: String,
 }
 
+pub(crate) trait Lookup {
+    fn lookup_a(&self, record: String) -> Ipv4Addr;
+    fn lookup_ptr(&self, record: String) -> String;
+}
+
+impl Lookup for Resolver {
+    fn lookup_a(&self, record: String) -> Ipv4Addr {
+        self.lookup(record, RecordType::A)
+            .unwrap()
+            .record_iter()
+            .nth(0)
+            .unwrap()
+            .rdata()
+            .clone()
+            .into_a()
+            .unwrap()
+    }
+
+    fn lookup_ptr(&self, record: String) -> String {
+        self.lookup(record, RecordType::PTR)
+            .unwrap()
+            .record_iter()
+            .nth(0)
+            .unwrap()
+            .rdata()
+            .clone()
+            .into_ptr()
+            .unwrap()
+            .to_string()
+    }
+}
+
 impl Service {
-    fn new(hosts: Option<&str>, update_interval: Option<Duration>) -> Self {
+    fn new(hosts: Option<&str>, update_interval: Option<Duration>, ips: Option<Vec<&str>>) -> Self {
         let mut runtime = init_runtime();
-        let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default()).unwrap();
+        let mut tn = TestNetwork::new("basic-ipv4", &mut TestContext::default()).unwrap();
+
+        if let Some(ips) = ips {
+            tn = TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default(), ips).unwrap();
+        }
 
         let listen_cidr = runtime
             .block_on(get_listen_ips(
@@ -81,10 +118,19 @@ impl Service {
         Self {
             runtime: Arc::new(Mutex::new(runtime)),
             tn: Arc::new(tn),
-            listen_ip,
+            listen_ips: vec![listen_ip],
             listen_cidr: listen_cidr.first().unwrap().clone(),
-            resolver: Arc::new(resolver),
+            resolvers: Arc::new(vec![resolver].into_iter().map(|r| Arc::new(r)).collect()),
         }
+    }
+
+    pub fn any_listen_ip(&self) -> String {
+        self.listen_ips
+            .clone()
+            .into_iter()
+            .choose(&mut rand::thread_rng())
+            .unwrap()
+            .clone()
     }
 
     pub fn runtime(&self) -> Arc<Mutex<Runtime>> {
@@ -95,42 +141,31 @@ impl Service {
         self.tn.clone()
     }
 
-    pub fn resolver(&self) -> Arc<Resolver> {
-        self.resolver.clone()
+    pub fn resolvers(&self) -> Arc<Vec<Arc<Resolver>>> {
+        self.resolvers.clone()
+    }
+
+    pub fn any_resolver(&self) -> Arc<Resolver> {
+        self.resolvers()
+            .choose(&mut rand::thread_rng())
+            .to_owned()
+            .unwrap()
+            .clone()
     }
 
     pub fn lookup_a(&self, record: String) -> Ipv4Addr {
-        self.resolver()
-            .lookup(record, RecordType::A)
-            .unwrap()
-            .record_iter()
-            .nth(0)
-            .unwrap()
-            .rdata()
-            .clone()
-            .into_a()
-            .unwrap()
+        self.any_resolver().lookup_a(record)
     }
 
-    pub fn lookup_ptr(&self, record: String) -> String {
-        self.resolver()
-            .lookup(record, RecordType::PTR)
-            .unwrap()
-            .record_iter()
-            .nth(0)
-            .unwrap()
-            .rdata()
-            .clone()
-            .into_ptr()
-            .unwrap()
-            .to_string()
+    pub fn lookup_ptr(self, record: String) -> String {
+        self.any_resolver().lookup_ptr(record)
     }
 }
 
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
-    let service = Service::new(None, None);
+    let service = Service::new(None, None, None);
 
     let record = format!("zt-{}.domain.", service.network().identity().clone());
 
@@ -139,11 +174,11 @@ fn test_battery_single_domain() {
     for _ in 0..10000 {
         assert_eq!(
             service.lookup_a(record.clone()).to_string(),
-            service.listen_ip
+            service.any_listen_ip()
         );
     }
 
-    let ptr_record = IpAddr::from_str(&service.listen_ip)
+    let ptr_record = IpAddr::from_str(&service.any_listen_ip())
         .unwrap()
         .into_name()
         .unwrap();
@@ -151,6 +186,7 @@ fn test_battery_single_domain() {
     eprintln!("Looking up {}", ptr_record);
 
     for _ in 0..10000 {
+        let service = service.clone();
         assert_eq!(
             service.lookup_ptr(ptr_record.to_string()),
             record.to_string()
@@ -164,22 +200,22 @@ fn test_battery_single_domain() {
         if rand::random::<bool>() {
             assert_eq!(
                 service.lookup_a(record.clone()).to_string(),
-                service.listen_ip
+                service.any_listen_ip(),
             );
 
             assert_eq!(
-                service.lookup_ptr(ptr_record.to_string()),
+                service.clone().lookup_ptr(ptr_record.to_string()),
                 record.to_string()
             );
         } else {
             assert_eq!(
-                service.lookup_ptr(ptr_record.to_string()),
+                service.clone().lookup_ptr(ptr_record.to_string()),
                 record.to_string()
             );
 
             assert_eq!(
                 service.lookup_a(record.clone()).to_string(),
-                service.listen_ip
+                service.any_listen_ip(),
             );
         }
     }
@@ -188,7 +224,7 @@ fn test_battery_single_domain() {
 #[test]
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
-    let service = Service::new(Some("basic"), None);
+    let service = Service::new(Some("basic"), None, None);
 
     let record = format!("zt-{}.domain.", service.network().identity().clone());
 
@@ -201,7 +237,7 @@ fn test_battery_multi_domain_hosts_file() {
     .unwrap();
 
     hosts_map.insert(
-        IpAddr::from_str(&service.listen_ip).unwrap(),
+        IpAddr::from_str(&service.any_listen_ip()).unwrap(),
         vec![record.into_name().unwrap()],
     );
 
@@ -218,7 +254,7 @@ fn test_battery_multi_domain_hosts_file() {
 #[ignore]
 fn test_battery_single_domain_named() {
     let update_interval = Duration::new(1, 0);
-    let service = Service::new(None, Some(update_interval));
+    let service = Service::new(None, Some(update_interval), None);
     let member_record = format!("zt-{}.domain.", service.network().identity().clone());
 
     let mut member = service
@@ -260,12 +296,12 @@ fn test_battery_single_domain_named() {
         for _ in 0..10000 {
             assert_eq!(
                 service.lookup_a(record.clone()).to_string(),
-                service.listen_ip
+                service.any_listen_ip(),
             );
         }
     }
 
-    let ptr_record = IpAddr::from_str(&service.listen_ip)
+    let ptr_record = IpAddr::from_str(&service.any_listen_ip())
         .unwrap()
         .into_name()
         .unwrap();
@@ -274,7 +310,7 @@ fn test_battery_single_domain_named() {
 
     for _ in 0..10000 {
         assert_eq!(
-            service.lookup_ptr(ptr_record.to_string()),
+            service.clone().lookup_ptr(ptr_record.to_string()),
             named_record.to_string(),
         );
     }

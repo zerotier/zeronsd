@@ -137,6 +137,7 @@ impl Default for TestContext {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct TestNetwork {
     pub network: Network,
     runtime: Arc<Mutex<Runtime>>,
@@ -144,6 +145,18 @@ pub(crate) struct TestNetwork {
 }
 
 impl TestNetwork {
+    pub fn new_multi_ip(
+        network_def: &str,
+        tc: &mut TestContext,
+        ips: Vec<&str>,
+    ) -> Result<Self, anyhow::Error> {
+        let mut mc = MemberConfig::new();
+        mc.set_defaults(tc.identity.clone());
+        mc.set_ip_assignments(ips);
+        tc.member_config = Some(Box::new(mc));
+        Self::new(network_def, tc)
+    }
+
     pub fn new(network_def: &str, tc: &mut TestContext) -> Result<Self, anyhow::Error> {
         let runtime = Arc::new(Mutex::new(init_runtime()));
 
@@ -264,16 +277,10 @@ fn test_get_listen_ip() -> Result<(), anyhow::Error> {
 
     drop(tn);
 
-    let mut tc = TestContext::default();
-    let mut mc = MemberConfig::new();
-    mc.set_defaults(tc.identity.clone());
-
     // see testdata/networks/basic-ipv4.json
     let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    mc.set_ip_assignments(ips.clone());
-    tc.member_config = Some(Box::new(mc));
-
-    let tn = TestNetwork::new("basic-ipv4", &mut tc).unwrap();
+    let tn =
+        TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default(), ips.clone()).unwrap();
     let runtime = init_runtime();
 
     let mut listen_ips = runtime.block_on(get_listen_ips(
