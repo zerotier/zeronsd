@@ -1,8 +1,11 @@
-use std::{io::Write, thread::sleep, time::Duration};
+use std::{collections::HashMap, io::Write, str::FromStr, thread::sleep, time::Duration};
 
 use clap::clap_app;
 
 use anyhow::anyhow;
+use ipnetwork::IpNetwork;
+
+use crate::{authority::new_ptr_authority, utils::update_central_dns};
 
 mod authority;
 mod hosts;
@@ -68,18 +71,44 @@ fn start(
         let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &network))?;
 
         if ips.len() > 0 {
-            for ip_with_cidr in ips {
-                let ip = utils::parse_ip_from_cidr(ip_with_cidr.clone());
+            update_central_dns(
+                runtime,
+                domain_name.clone(),
+                ips.first().unwrap().to_string(),
+                token.clone(),
+                network.clone(),
+            )?;
+
+            let mut listen_ips = Vec::new();
+            let mut ipmap = HashMap::new();
+            let mut ptrmap = HashMap::new();
+
+            for cidr in ips.clone() {
+                let listen_ip = utils::parse_ip_from_cidr(cidr.clone());
+                listen_ips.push(listen_ip.clone());
+                let cidr = IpNetwork::from_str(&cidr.clone())?;
+                if !ipmap.contains_key(&listen_ip) {
+                    ipmap.insert(listen_ip, cidr);
+                    ptrmap.insert(cidr, new_ptr_authority(cidr)?);
+                }
+            }
+
+            for ip in listen_ips {
                 println!("Your IP for this network: {}", ip);
+                let cidr = ipmap
+                    .get(&ip)
+                    .expect("Could not locate underlying network subnet");
+                let ptr_authority = ptrmap
+                    .get(cidr)
+                    .expect("Could not locate PTR authority for subnet");
 
                 let server = utils::init_authority(
                     runtime,
+                    ptr_authority.clone(),
                     token.clone(),
                     network.clone(),
                     domain_name.clone(),
                     hf.clone(),
-                    ip_with_cidr.clone(),
-                    ip.clone(),
                     Duration::new(30, 0),
                 )?;
 

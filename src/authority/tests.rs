@@ -1,3 +1,4 @@
+use ipnetwork::IpNetwork;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
     thread_rng,
@@ -9,6 +10,7 @@ use trust_dns_resolver::{
 };
 
 use crate::{
+    authority::new_ptr_authority,
     hosts::parse_hosts,
     integration_tests::{init_test_runtime, TestContext, TestNetwork},
     tests::HOSTS_DIR,
@@ -17,10 +19,11 @@ use crate::{
     },
 };
 use std::{
+    collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
-    sync::{Arc, Mutex},
-    thread,
+    sync::{mpsc::sync_channel, Arc, Mutex},
+    thread::{self, sleep},
     time::Duration,
 };
 
@@ -75,12 +78,28 @@ fn create_listeners(
 
     let mut listen_ips = Vec::new();
 
+    let (s, r) = sync_channel(listen_cidrs.len());
+
+    let mut ipmap = HashMap::new();
+    let mut ptrmap = HashMap::new();
+
     for cidr in listen_cidrs.clone() {
         let listen_ip = parse_ip_from_cidr(cidr.clone());
         listen_ips.push(listen_ip.clone());
+        let cidr = IpNetwork::from_str(&cidr.clone()).unwrap();
+        if !ipmap.contains_key(&listen_ip) {
+            ipmap.insert(listen_ip, cidr);
+            ptrmap.insert(cidr, new_ptr_authority(cidr).unwrap());
+        }
+    }
+
+    for ip in listen_ips.clone() {
+        let cidr = ipmap.get(&ip).unwrap();
+        let ptr_authority = ptrmap.get(cidr).unwrap();
 
         let server = init_authority(
             &mut runtime.lock().unwrap(),
+            ptr_authority.clone(),
             tn.token(),
             tn.network.clone().id.unwrap(),
             domain_or_default(None).unwrap(),
@@ -88,17 +107,31 @@ fn create_listeners(
                 Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
                 None => None,
             },
-            cidr.clone(),
-            listen_ip.clone(),
-            update_interval.unwrap_or(Duration::new(30, 0)),
+            update_interval.unwrap_or(Duration::new(1, 0)),
         )
         .unwrap();
 
-        runtime.lock().unwrap().spawn(server.listen(
-            format!("{}:53", listen_ip.clone()).to_owned(),
-            Duration::new(0, 1000),
-        ));
+        let sync = s.clone();
+
+        runtime.lock().unwrap().spawn({
+            sync.send(()).unwrap();
+            drop(sync);
+            server.listen(
+                format!("{}:53", ip.clone()).to_owned(),
+                Duration::new(0, 1000),
+            )
+        });
     }
+
+    drop(s);
+
+    loop {
+        if r.recv().is_err() {
+            break;
+        }
+    }
+
+    sleep(Duration::new(2, 0)); // FIXME this sleep should not be necessary
 
     (listen_cidrs, listen_ips.clone())
 }
@@ -203,16 +236,18 @@ fn test_battery_single_domain() {
     let record = format!("zt-{}.domain.", service.network().identity().clone());
 
     eprintln!("Looking up {}", record);
+    let mut listen_ips = service.listen_ips.clone();
+    listen_ips.sort();
 
     for _ in 0..10000 {
-        assert_eq!(
-            service
-                .lookup_a(record.clone())
-                .into_iter()
-                .map(|i| i.to_string())
-                .collect::<Vec<String>>(),
-            service.listen_ips
-        );
+        let mut ips = service
+            .lookup_a(record.clone())
+            .into_iter()
+            .map(|i| i.to_string())
+            .collect::<Vec<String>>();
+        ips.sort();
+
+        assert_eq!(ips, listen_ips);
     }
 
     let ptr_records: Vec<Name> = service
@@ -360,15 +395,17 @@ fn test_battery_single_domain_named() {
     for record in vec![member_record, named_record.clone()] {
         eprintln!("Looking up {}", record);
 
+        let mut listen_ips = service.listen_ips.clone();
+        listen_ips.sort();
+
         for _ in 0..10000 {
-            assert_eq!(
-                service
-                    .lookup_a(record.clone())
-                    .into_iter()
-                    .map(|i| i.to_string())
-                    .collect::<Vec<String>>(),
-                service.listen_ips
-            );
+            let mut ips = service
+                .lookup_a(record.clone())
+                .into_iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<String>>();
+            ips.sort();
+            assert_eq!(ips, listen_ips.clone(),);
         }
     }
 

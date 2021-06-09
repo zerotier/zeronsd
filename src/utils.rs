@@ -8,6 +8,7 @@ use zerotier_central_api::apis::configuration::Configuration;
 
 use anyhow::anyhow;
 
+use crate::authority::PtrAuthority;
 use crate::authority::ZTAuthority;
 use crate::server::Server;
 
@@ -133,29 +134,18 @@ pub(crate) async fn get_listen_ips(
     Err(anyhow!("No listen IPs available on this network"))
 }
 
-pub(crate) fn init_authority(
+/*
+ * FIXME this and init_authority need an overhaul
+ */
+
+pub(crate) fn update_central_dns(
     runtime: &mut Runtime,
+    domain_name: Name,
+    ip: String,
     token: String,
     network: String,
-    domain_name: Name,
-    hosts_file: Option<String>,
-    ip_with_cidr: String,
-    ip: String,
-    update_interval: Duration,
-) -> Result<Server, anyhow::Error> {
+) -> Result<(), anyhow::Error> {
     let config = central_config(token);
-
-    let authority = ZTAuthority::new(
-        domain_name.clone(),
-        network.clone(),
-        config.clone(),
-        hosts_file,
-        ip_with_cidr.clone(),
-        update_interval,
-    )?;
-
-    let owned = authority.to_owned();
-    runtime.spawn(owned.find_members());
 
     let mut zt_network = runtime.block_on(
         zerotier_central_api::apis::network_api::get_network_by_id(&config, &network),
@@ -176,6 +166,32 @@ pub(crate) fn init_authority(
             &config, &network, zt_network,
         ))?;
     }
+
+    Ok(())
+}
+
+pub(crate) fn init_authority(
+    runtime: &mut Runtime,
+    ptr_authority: PtrAuthority,
+    token: String,
+    network: String,
+    domain_name: Name,
+    hosts_file: Option<String>,
+    update_interval: Duration,
+) -> Result<Server, anyhow::Error> {
+    let config = central_config(token);
+
+    let authority = ZTAuthority::new(
+        domain_name.clone(),
+        network.clone(),
+        config.clone(),
+        hosts_file,
+        ptr_authority,
+        update_interval,
+    )?;
+
+    let owned = authority.to_owned();
+    runtime.spawn(owned.find_members());
 
     Ok(crate::server::Server::new(
         authority.clone().catalog(runtime)?,
