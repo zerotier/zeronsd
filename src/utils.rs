@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 
 use regex::Regex;
@@ -8,9 +9,9 @@ use zerotier_central_api::apis::configuration::Configuration;
 
 use anyhow::anyhow;
 
+use crate::authority::Authority;
 use crate::authority::PtrAuthority;
 use crate::authority::ZTAuthority;
-use crate::server::Server;
 
 pub(crate) const DOMAIN_NAME: &str = "domain.";
 pub(crate) const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -171,31 +172,25 @@ pub(crate) fn update_central_dns(
 }
 
 pub(crate) fn init_authority(
-    runtime: &mut Runtime,
     ptr_authority: PtrAuthority,
     token: String,
     network: String,
     domain_name: Name,
     hosts_file: Option<String>,
     update_interval: Duration,
-) -> Result<Server, anyhow::Error> {
+    authority: Authority,
+) -> Result<Arc<ZTAuthority>, anyhow::Error> {
     let config = central_config(token);
 
-    let authority = ZTAuthority::new(
+    ZTAuthority::new(
         domain_name.clone(),
         network.clone(),
         config.clone(),
         hosts_file,
         ptr_authority,
         update_interval,
-    )?;
-
-    let owned = authority.to_owned();
-    runtime.spawn(owned.find_members());
-
-    Ok(crate::server::Server::new(
-        authority.clone().catalog(runtime)?,
-    ))
+        authority,
+    )
 }
 
 fn translation_table() -> Vec<(Regex, &'static str)> {
