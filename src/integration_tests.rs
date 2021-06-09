@@ -1,7 +1,4 @@
-use crate::utils::{
-    authtoken_path, central_config, get_authtoken, get_identity, get_listen_ips, init_runtime,
-    zerotier_config,
-};
+use crate::utils::{authtoken_path, central_config, get_listen_ips, init_runtime};
 use std::{
     sync::{Arc, Mutex},
     thread::sleep,
@@ -46,6 +43,42 @@ fn network_definition(
     }
 
     Ok(res)
+}
+
+pub(crate) async fn get_identity(
+    configuration: &zerotier_one_api::apis::configuration::Configuration,
+) -> Result<String, anyhow::Error> {
+    let status = zerotier_one_api::apis::status_api::get_status(configuration).await?;
+
+    Ok(status
+        .public_identity
+        .unwrap()
+        .splitn(3, ":")
+        .nth(0)
+        .unwrap()
+        .to_owned())
+}
+
+pub(crate) fn get_authtoken(or: Option<&str>) -> Result<String, anyhow::Error> {
+    Ok(std::fs::read_to_string(authtoken_path(or))?)
+}
+
+pub(crate) fn zerotier_config(
+    authtoken: String,
+) -> zerotier_one_api::apis::configuration::Configuration {
+    let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
+    zerotier.api_key = Some(zerotier_one_api::apis::configuration::ApiKey {
+        prefix: None,
+        key: authtoken.clone(),
+    });
+
+    zerotier
+}
+
+pub(crate) type TestRuntime = Arc<Mutex<Runtime>>;
+
+pub(crate) fn init_test_runtime() -> TestRuntime {
+    Arc::new(Mutex::new(init_runtime()))
 }
 
 pub(crate) trait MemberUtil {
@@ -146,6 +179,7 @@ pub(crate) struct TestNetwork {
 
 impl TestNetwork {
     pub fn new_multi_ip(
+        runtime: TestRuntime,
         network_def: &str,
         tc: &mut TestContext,
         ips: Vec<&str>,
@@ -154,12 +188,14 @@ impl TestNetwork {
         mc.set_defaults(tc.identity.clone());
         mc.set_ip_assignments(ips);
         tc.member_config = Some(Box::new(mc));
-        Self::new(network_def, tc)
+        Self::new(runtime, network_def, tc)
     }
 
-    pub fn new(network_def: &str, tc: &mut TestContext) -> Result<Self, anyhow::Error> {
-        let runtime = Arc::new(Mutex::new(init_runtime()));
-
+    pub fn new(
+        runtime: TestRuntime,
+        network_def: &str,
+        tc: &mut TestContext,
+    ) -> Result<Self, anyhow::Error> {
         let network = runtime
             .lock()
             .unwrap()
@@ -249,7 +285,7 @@ impl TestNetwork {
 impl Drop for TestNetwork {
     fn drop(&mut self) {
         let opt = self.network.id.clone();
-        self.leave().unwrap();
+        self.leave().unwrap_or(());
         self.runtime
             .lock()
             .unwrap()
@@ -257,14 +293,19 @@ impl Drop for TestNetwork {
                 &self.context.central,
                 &opt.unwrap(),
             ))
-            .unwrap();
+            .unwrap_or(());
     }
 }
 
 #[test]
 #[ignore]
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default()).unwrap();
+    let tn = TestNetwork::new(
+        init_test_runtime(),
+        "basic-ipv4",
+        &mut TestContext::default(),
+    )
+    .unwrap();
     let runtime = init_runtime();
 
     let listen_ips = runtime.block_on(get_listen_ips(
@@ -279,11 +320,16 @@ fn test_get_listen_ip() -> Result<(), anyhow::Error> {
 
     // see testdata/networks/basic-ipv4.json
     let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let tn =
-        TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default(), ips.clone()).unwrap();
-    let runtime = init_runtime();
+    let runtime = init_test_runtime();
+    let tn = TestNetwork::new_multi_ip(
+        runtime.clone(),
+        "basic-ipv4",
+        &mut TestContext::default(),
+        ips.clone(),
+    )
+    .unwrap();
 
-    let mut listen_ips = runtime.block_on(get_listen_ips(
+    let mut listen_ips = runtime.lock().unwrap().block_on(get_listen_ips(
         &authtoken_path(None),
         &tn.network.clone().id.unwrap(),
     ))?;

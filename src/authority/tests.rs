@@ -1,4 +1,7 @@
-use rand::prelude::{IteratorRandom, SliceRandom};
+use rand::{
+    prelude::{IteratorRandom, SliceRandom},
+    thread_rng,
+};
 use trust_dns_resolver::{
     config::{NameServerConfig, ResolverConfig, ResolverOpts},
     proto::rr::RecordType,
@@ -7,11 +10,10 @@ use trust_dns_resolver::{
 
 use crate::{
     hosts::parse_hosts,
-    integration_tests::{TestContext, TestNetwork},
+    integration_tests::{init_test_runtime, TestContext, TestNetwork},
     tests::HOSTS_DIR,
     utils::{
-        authtoken_path, domain_or_default, get_listen_ips, init_authority, init_runtime,
-        parse_ip_from_cidr,
+        authtoken_path, domain_or_default, get_listen_ips, init_authority, parse_ip_from_cidr,
     },
 };
 use std::{
@@ -30,61 +32,55 @@ struct Service {
     tn: Arc<TestNetwork>,
     resolvers: Arc<Vec<Arc<Resolver>>>,
     pub listen_ips: Vec<String>,
-    pub listen_cidr: String,
+    pub listen_cidrs: Vec<String>,
 }
 
 pub(crate) trait Lookup {
-    fn lookup_a(&self, record: String) -> Ipv4Addr;
-    fn lookup_ptr(&self, record: String) -> String;
+    fn lookup_a(&self, record: String) -> Vec<Ipv4Addr>;
+    fn lookup_ptr(&self, record: String) -> Vec<String>;
 }
 
 impl Lookup for Resolver {
-    fn lookup_a(&self, record: String) -> Ipv4Addr {
+    fn lookup_a(&self, record: String) -> Vec<Ipv4Addr> {
         self.lookup(record, RecordType::A)
             .unwrap()
             .record_iter()
-            .nth(0)
-            .unwrap()
-            .rdata()
-            .clone()
-            .into_a()
-            .unwrap()
+            .map(|r| r.rdata().clone().into_a().unwrap())
+            .collect()
     }
 
-    fn lookup_ptr(&self, record: String) -> String {
+    fn lookup_ptr(&self, record: String) -> Vec<String> {
         self.lookup(record, RecordType::PTR)
             .unwrap()
             .record_iter()
-            .nth(0)
-            .unwrap()
-            .rdata()
-            .clone()
-            .into_ptr()
-            .unwrap()
-            .to_string()
+            .map(|r| r.rdata().clone().into_ptr().unwrap().to_string())
+            .collect()
     }
 }
 
-impl Service {
-    fn new(hosts: Option<&str>, update_interval: Option<Duration>, ips: Option<Vec<&str>>) -> Self {
-        let mut runtime = init_runtime();
-        let mut tn = TestNetwork::new("basic-ipv4", &mut TestContext::default()).unwrap();
+fn create_listeners(
+    runtime: Arc<Mutex<Runtime>>,
+    tn: &TestNetwork,
+    hosts: Option<&str>,
+    update_interval: Option<Duration>,
+) -> (Vec<String>, Vec<String>) {
+    let listen_cidrs = runtime
+        .lock()
+        .unwrap()
+        .block_on(get_listen_ips(
+            &authtoken_path(None),
+            &tn.network.clone().id.unwrap(),
+        ))
+        .unwrap();
 
-        if let Some(ips) = ips {
-            tn = TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default(), ips).unwrap();
-        }
+    let mut listen_ips = Vec::new();
 
-        let listen_cidr = runtime
-            .block_on(get_listen_ips(
-                &authtoken_path(None),
-                &tn.network.clone().id.unwrap(),
-            ))
-            .unwrap();
-
-        let listen_ip = parse_ip_from_cidr(listen_cidr.first().unwrap().clone());
+    for cidr in listen_cidrs.clone() {
+        let listen_ip = parse_ip_from_cidr(cidr.clone());
+        listen_ips.push(listen_ip.clone());
 
         let server = init_authority(
-            &mut runtime,
+            &mut runtime.lock().unwrap(),
             tn.token(),
             tn.network.clone().id.unwrap(),
             domain_or_default(None).unwrap(),
@@ -92,38 +88,71 @@ impl Service {
                 Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
                 None => None,
             },
-            listen_cidr.first().unwrap().clone(),
+            cidr.clone(),
             listen_ip.clone(),
             update_interval.unwrap_or(Duration::new(30, 0)),
         )
         .unwrap();
 
-        runtime.spawn(server.listen(
+        runtime.lock().unwrap().spawn(server.listen(
             format!("{}:53", listen_ip.clone()).to_owned(),
             Duration::new(0, 1000),
         ));
+    }
 
+    (listen_cidrs, listen_ips.clone())
+}
+
+fn create_resolvers(ips: Vec<String>) -> Vec<Arc<Resolver>> {
+    let mut resolvers = Vec::new();
+
+    for ip in ips {
         let mut resolver_config = ResolverConfig::new();
         resolver_config.add_search(domain_or_default(None).unwrap());
         resolver_config.add_name_server(NameServerConfig {
-            socket_addr: SocketAddr::new(IpAddr::from_str(&listen_ip).unwrap(), 53),
+            socket_addr: SocketAddr::new(IpAddr::from_str(&ip).unwrap(), 53),
             protocol: trust_dns_resolver::config::Protocol::Udp,
             tls_dns_name: None,
             trust_nx_responses: true,
         });
 
-        let resolver =
-            trust_dns_resolver::Resolver::new(resolver_config, ResolverOpts::default()).unwrap();
+        resolvers.push(Arc::new(
+            trust_dns_resolver::Resolver::new(resolver_config, ResolverOpts::default()).unwrap(),
+        ));
+    }
+
+    resolvers
+}
+
+impl Service {
+    fn new(hosts: Option<&str>, update_interval: Option<Duration>, ips: Option<Vec<&str>>) -> Self {
+        let runtime = init_test_runtime();
+
+        let tn = if let Some(ips) = ips {
+            TestNetwork::new_multi_ip(
+                runtime.clone(),
+                "basic-ipv4",
+                &mut TestContext::default(),
+                ips,
+            )
+            .unwrap()
+        } else {
+            TestNetwork::new(runtime.clone(), "basic-ipv4", &mut TestContext::default()).unwrap()
+        };
+
+        let (listen_cidrs, listen_ips) =
+            create_listeners(runtime.clone(), &tn, hosts, update_interval);
 
         Self {
-            runtime: Arc::new(Mutex::new(runtime)),
+            runtime,
             tn: Arc::new(tn),
-            listen_ips: vec![listen_ip],
-            listen_cidr: listen_cidr.first().unwrap().clone(),
-            resolvers: Arc::new(vec![resolver].into_iter().map(|r| Arc::new(r)).collect()),
+            listen_ips: listen_ips.clone(),
+            listen_cidrs,
+            resolvers: Arc::new(create_resolvers(listen_ips)),
         }
     }
 
+    #[allow(dead_code)]
     pub fn any_listen_ip(&self) -> String {
         self.listen_ips
             .clone()
@@ -153,11 +182,11 @@ impl Service {
             .clone()
     }
 
-    pub fn lookup_a(&self, record: String) -> Ipv4Addr {
+    pub fn lookup_a(&self, record: String) -> Vec<Ipv4Addr> {
         self.any_resolver().lookup_a(record)
     }
 
-    pub fn lookup_ptr(self, record: String) -> String {
+    pub fn lookup_ptr(self, record: String) -> Vec<String> {
         self.any_resolver().lookup_ptr(record)
     }
 }
@@ -165,7 +194,11 @@ impl Service {
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
-    let service = Service::new(None, None, None);
+    let service = Service::new(
+        None,
+        None,
+        Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
+    );
 
     let record = format!("zt-{}.domain.", service.network().identity().clone());
 
@@ -173,24 +206,32 @@ fn test_battery_single_domain() {
 
     for _ in 0..10000 {
         assert_eq!(
-            service.lookup_a(record.clone()).to_string(),
-            service.any_listen_ip()
+            service
+                .lookup_a(record.clone())
+                .into_iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<String>>(),
+            service.listen_ips
         );
     }
 
-    let ptr_record = IpAddr::from_str(&service.any_listen_ip())
-        .unwrap()
-        .into_name()
-        .unwrap();
+    let ptr_records: Vec<Name> = service
+        .listen_ips
+        .clone()
+        .into_iter()
+        .map(|ip| IpAddr::from_str(&ip).unwrap().into_name().unwrap())
+        .collect();
 
-    eprintln!("Looking up {}", ptr_record);
+    for ptr_record in ptr_records.clone() {
+        eprintln!("Looking up {}", ptr_record);
 
-    for _ in 0..10000 {
-        let service = service.clone();
-        assert_eq!(
-            service.lookup_ptr(ptr_record.to_string()),
-            record.to_string()
-        );
+        for _ in 0..10000 {
+            let service = service.clone();
+            assert_eq!(
+                service.lookup_ptr(ptr_record.to_string()).first().unwrap(),
+                &record.to_string()
+            );
+        }
     }
 
     eprintln!("Interleaved lookups of PTR and A records");
@@ -199,23 +240,39 @@ fn test_battery_single_domain() {
         // randomly switch order
         if rand::random::<bool>() {
             assert_eq!(
-                service.lookup_a(record.clone()).to_string(),
-                service.any_listen_ip(),
+                service
+                    .lookup_a(record.clone())
+                    .into_iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<String>>(),
+                service.listen_ips,
             );
 
             assert_eq!(
-                service.clone().lookup_ptr(ptr_record.to_string()),
-                record.to_string()
+                service
+                    .clone()
+                    .lookup_ptr(ptr_records.choose(&mut thread_rng()).unwrap().to_string())
+                    .first()
+                    .unwrap(),
+                &record.to_string()
             );
         } else {
             assert_eq!(
-                service.clone().lookup_ptr(ptr_record.to_string()),
-                record.to_string()
+                service
+                    .clone()
+                    .lookup_ptr(ptr_records.choose(&mut thread_rng()).unwrap().to_string())
+                    .first()
+                    .unwrap(),
+                &record.to_string()
             );
 
             assert_eq!(
-                service.lookup_a(record.clone()).to_string(),
-                service.any_listen_ip(),
+                service
+                    .lookup_a(record.clone())
+                    .into_iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<String>>(),
+                service.listen_ips,
             );
         }
     }
@@ -224,7 +281,8 @@ fn test_battery_single_domain() {
 #[test]
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
-    let service = Service::new(Some("basic"), None, None);
+    let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
+    let service = Service::new(Some("basic"), None, Some(ips.clone()));
 
     let record = format!("zt-{}.domain.", service.network().identity().clone());
 
@@ -236,17 +294,22 @@ fn test_battery_multi_domain_hosts_file() {
     )
     .unwrap();
 
-    hosts_map.insert(
-        IpAddr::from_str(&service.any_listen_ip()).unwrap(),
-        vec![record.into_name().unwrap()],
-    );
+    for ip in ips {
+        hosts_map.insert(
+            IpAddr::from_str(&ip).unwrap(),
+            vec![record.clone().into_name().unwrap()],
+        );
+    }
 
     let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
     for _ in 0..100000 {
         hosts.shuffle(&mut rand::thread_rng());
-        let host = hosts.first().unwrap();
-        let ip = service.lookup_a(host.to_string());
-        assert!(hosts_map.get(&ip.into()).unwrap().contains(host));
+        let host = *hosts.first().unwrap();
+        let ips = service.lookup_a(host.to_string());
+        assert!(hosts_map
+            .get(&IpAddr::from(*ips.first().unwrap()))
+            .unwrap()
+            .contains(host));
     }
 }
 
@@ -254,7 +317,11 @@ fn test_battery_multi_domain_hosts_file() {
 #[ignore]
 fn test_battery_single_domain_named() {
     let update_interval = Duration::new(1, 0);
-    let service = Service::new(None, Some(update_interval), None);
+    let service = Service::new(
+        None,
+        Some(update_interval),
+        Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
+    );
     let member_record = format!("zt-{}.domain.", service.network().identity().clone());
 
     let mut member = service
@@ -295,23 +362,32 @@ fn test_battery_single_domain_named() {
 
         for _ in 0..10000 {
             assert_eq!(
-                service.lookup_a(record.clone()).to_string(),
-                service.any_listen_ip(),
+                service
+                    .lookup_a(record.clone())
+                    .into_iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<String>>(),
+                service.listen_ips
             );
         }
     }
 
-    let ptr_record = IpAddr::from_str(&service.any_listen_ip())
-        .unwrap()
-        .into_name()
-        .unwrap();
+    let ptr_records: Vec<Name> = service
+        .listen_ips
+        .clone()
+        .into_iter()
+        .map(|ip| IpAddr::from_str(&ip).unwrap().into_name().unwrap())
+        .collect();
 
-    eprintln!("Looking up {}", ptr_record);
+    for ptr_record in ptr_records {
+        eprintln!("Looking up {}", ptr_record);
 
-    for _ in 0..10000 {
-        assert_eq!(
-            service.clone().lookup_ptr(ptr_record.to_string()),
-            named_record.to_string(),
-        );
+        for _ in 0..10000 {
+            let service = service.clone();
+            assert_eq!(
+                service.lookup_ptr(ptr_record.to_string()).first().unwrap(),
+                &named_record.to_string()
+            );
+        }
     }
 }
