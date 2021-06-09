@@ -74,7 +74,9 @@ fn start(
             update_central_dns(
                 runtime,
                 domain_name.clone(),
-                ips.first().unwrap().to_string(),
+                utils::parse_ip_from_cidr(ips.clone().into_iter()
+                    .find(|i| IpNetwork::from_str(i).expect("Could not parse CIDR").is_ipv4())
+                    .expect("Could not find a valid IPv4 network (currently, ipv6 resolvers are unsupported)")),
                 token.clone(),
                 network.clone(),
             )?;
