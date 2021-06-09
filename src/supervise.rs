@@ -10,6 +10,7 @@ const SYSTEMD_UNIT: &str = "
 [Unit]
 Description=zeronsd for network {network}
 Wants=zerotier-one.service
+After=zerotier-one.service
 
 [Service]
 Type=simple
