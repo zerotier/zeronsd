@@ -223,3 +223,34 @@ Are you a Windows user?
 Does this work out of the box?  
 Does nslookup behave properly?  
 Let us know... feedback and pull requests welcome =)
+
+## Serving non-ZeroTier records
+
+**NOTE** this portion of the document is largely intended for advanced users who want to get more out of `zeronsd`'s service.
+
+`zeronsd` will also serve non-zerotier records in two situations: It will forward `/etc/resolv.conf`'s nameservers on a TLD mismatch. This behavior is similar to `dnsmasq`, a popular DNS server on Linux.
+
+Additionally, to serve custom records you can supply the `-f` flag with a file in [hosts format](https://man7.org/linux/man-pages/man5/hosts.5.html) it will service records from that file under the provided TLD, _merged in_ with the zerotier nodes. Example below.
+
+**NOTE:** if you followed the steps above, you will want to `systemctl stop zeronsd-<network id>`, and `zeronsd unsupervise <network id>` your network, before continuing.
+
+Make a file called `hosts` and put this in it:
+
+```
+1.1.1.1 cloudflare-dns
+```
+
+Then, let's start a temporary server for now. We'll just use the `start` subcommand of `zeronsd`. This will run in the foreground, so start a new terminal or `&` it.
+
+```
+$ zeronsd start -t /var/lib/zerotier-one/token -d beyond.corp <network id>
+Welcome to ZeroNS!
+Your IP is 1.2.3.4
+```
+
+Finally, we can lookup `cloudflare-dns.beyond.corp` to find CloudFlare's DNS server really really fast!
+
+```
+$ host cloudflare-dns.beyond.corp 1.2.3.4
+cloudflare-dns.beyond.corp has address 1.1.1.1
+```
