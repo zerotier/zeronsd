@@ -5,7 +5,10 @@ use clap::clap_app;
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
 
-use crate::{authority::new_ptr_authority, utils::update_central_dns};
+use crate::{
+    authority::{init_trust_dns_authority, new_ptr_authority},
+    utils::update_central_dns,
+};
 
 mod authority;
 mod hosts;
@@ -83,7 +86,8 @@ fn start(
 
             let mut listen_ips = Vec::new();
             let mut ipmap = HashMap::new();
-            let mut ptrmap = HashMap::new();
+            let mut authority_map = HashMap::new();
+            let authority = init_trust_dns_authority(domain_name.clone());
 
             for cidr in ips.clone() {
                 let listen_ip = utils::parse_ip_from_cidr(cidr.clone());
@@ -91,7 +95,23 @@ fn start(
                 let cidr = IpNetwork::from_str(&cidr.clone())?;
                 if !ipmap.contains_key(&listen_ip) {
                     ipmap.insert(listen_ip, cidr);
-                    ptrmap.insert(cidr, new_ptr_authority(cidr)?);
+                }
+
+                if !authority_map.contains_key(&cidr) {
+                    let ptr_authority = new_ptr_authority(cidr)?;
+
+                    let ztauthority = utils::init_authority(
+                        ptr_authority.clone(),
+                        token.clone(),
+                        network.clone(),
+                        domain_name.clone(),
+                        hf.clone(),
+                        Duration::new(30, 0),
+                        authority.clone(),
+                    )?;
+
+                    runtime.spawn(ztauthority.clone().find_members());
+                    authority_map.insert(cidr, ztauthority);
                 }
             }
 
@@ -100,20 +120,11 @@ fn start(
                 let cidr = ipmap
                     .get(&ip)
                     .expect("Could not locate underlying network subnet");
-                let ptr_authority = ptrmap
+                let authority = authority_map
                     .get(cidr)
                     .expect("Could not locate PTR authority for subnet");
 
-                let server = utils::init_authority(
-                    runtime,
-                    ptr_authority.clone(),
-                    token.clone(),
-                    network.clone(),
-                    domain_name.clone(),
-                    hf.clone(),
-                    Duration::new(30, 0),
-                )?;
-
+                let server = crate::server::Server::new(authority.catalog(runtime)?);
                 runtime.spawn(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)));
             }
 

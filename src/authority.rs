@@ -153,6 +153,14 @@ fn configure_ptr(
     Ok(())
 }
 
+pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
+    Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
+        domain_name.clone(),
+        trust_dns_server::authority::ZoneType::Primary,
+        false,
+    ))))
+}
+
 pub(crate) struct ZTAuthority {
     ptr_authority: PtrAuthority,
     authority: Authority,
@@ -171,17 +179,14 @@ impl ZTAuthority {
         hosts_file: Option<String>,
         ptr_authority: PtrAuthority,
         update_interval: Duration,
+        authority: Authority,
     ) -> Result<Arc<Self>, anyhow::Error> {
         Ok(Arc::new(Self {
             update_interval,
             domain_name: domain_name.clone(),
             network,
             config,
-            authority: Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
-                domain_name.clone(),
-                trust_dns_server::authority::ZoneType::Primary,
-                false,
-            )))),
+            authority,
             ptr_authority,
             hosts: Box::new(parse_hosts(hosts_file.clone(), domain_name.clone())?),
         }))

@@ -29,6 +29,8 @@ use std::{
 
 use tokio::runtime::Runtime;
 
+use super::init_trust_dns_authority;
+
 #[derive(Clone)]
 struct Service {
     runtime: Arc<Mutex<Runtime>>,
@@ -81,7 +83,8 @@ fn create_listeners(
     let (s, r) = sync_channel(listen_cidrs.len());
 
     let mut ipmap = HashMap::new();
-    let mut ptrmap = HashMap::new();
+    let mut authority_map = HashMap::new();
+    let authority = init_trust_dns_authority(domain_or_default(None).unwrap());
 
     for cidr in listen_cidrs.clone() {
         let listen_ip = parse_ip_from_cidr(cidr.clone());
@@ -89,31 +92,43 @@ fn create_listeners(
         let cidr = IpNetwork::from_str(&cidr.clone()).unwrap();
         if !ipmap.contains_key(&listen_ip) {
             ipmap.insert(listen_ip, cidr);
-            ptrmap.insert(cidr, new_ptr_authority(cidr).unwrap());
+        }
+
+        if !authority_map.contains_key(&cidr) {
+            let ptr_authority = new_ptr_authority(cidr).unwrap();
+
+            let ztauthority = init_authority(
+                ptr_authority.clone(),
+                tn.token(),
+                tn.network.clone().id.unwrap(),
+                domain_or_default(None).unwrap(),
+                match hosts {
+                    Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
+                    None => None,
+                },
+                update_interval.unwrap_or(Duration::new(30, 0)),
+                authority.clone(),
+            )
+            .unwrap();
+
+            runtime
+                .lock()
+                .unwrap()
+                .spawn(ztauthority.clone().find_members());
+            authority_map.insert(cidr, ztauthority);
         }
     }
 
     for ip in listen_ips.clone() {
         let cidr = ipmap.get(&ip).unwrap();
-        let ptr_authority = ptrmap.get(cidr).unwrap();
-
-        let server = init_authority(
-            &mut runtime.lock().unwrap(),
-            ptr_authority.clone(),
-            tn.token(),
-            tn.network.clone().id.unwrap(),
-            domain_or_default(None).unwrap(),
-            match hosts {
-                Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
-                None => None,
-            },
-            update_interval.unwrap_or(Duration::new(1, 0)),
-        )
-        .unwrap();
+        let authority = authority_map.get(cidr).unwrap();
 
         let sync = s.clone();
 
-        runtime.lock().unwrap().spawn({
+        let rt = &mut runtime.lock().unwrap();
+        let server = crate::server::Server::new(authority.catalog(rt).unwrap());
+
+        rt.spawn({
             sync.send(()).unwrap();
             drop(sync);
             server.listen(
