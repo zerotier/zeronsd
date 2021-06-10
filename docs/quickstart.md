@@ -11,22 +11,22 @@ It was DNS.<br>
 
 ## Status
 
-* This is *very much* alpha software.
-* This may end up integrated into ZeroTier 2.0, but for now, it is segregated to allow us to iterate quickly.
-* Here be Dragons.
+- This is _very much_ alpha software.
+- This may end up integrated into ZeroTier 2.0, but for now, it is segregated to allow us to iterate quickly.
+- Here be Dragons.
 
 ## Conceptual Prerequisites
 
-* When ZeroTier joins a network, it creates a virtual network interface.
-* When ZeroTier joins mutiple networks, there will be multiple network interfaces.
-* When ZeroNSD starts, it binds to a ZeroTier network interface.
-* When ZeroTier is joined to multiple networks, it needs multiple ZeroNSDs, one for each interface.
+- When ZeroTier joins a network, it creates a virtual network interface.
+- When ZeroTier joins mutiple networks, there will be multiple network interfaces.
+- When ZeroNSD starts, it binds to a ZeroTier network interface.
+- When ZeroTier is joined to multiple networks, it needs multiple ZeroNSDs, one for each interface.
 
 This means:
 
-* ZeroNSD will be accessible from the node it is running on.
-* ZeroNSD will be accessible from other nodes on the ZeroTier network.
-* ZeroNSD will be isolated from other networks the node might be on.
+- ZeroNSD will be accessible from the node it is running on.
+- ZeroNSD will be accessible from other nodes on the ZeroTier network.
+- ZeroNSD will be isolated from other networks the node might be on.
 
 ## Technical Prerequisites
 
@@ -107,7 +107,9 @@ possible.
 
 ### Packages
 
-ZeroNSD publishes rpm, deb, and msi packages, available at https://github.com/zerotier/zeronsd/releases
+ZeroNSD publishes rpm, deb, and msi packages, available **[here](https://github.com/zerotier/zeronsd/releases)**.
+
+_The latest release is **not** reflected below. Go to the link above to get a link!_
 
 ```
 wget https://github.com/zerotier/zeronsd/releases/download/v0.1.4/zeronsd_0.1.4_amd64.deb
@@ -128,7 +130,7 @@ sudo /usr/bin/cargo install zeronsd --root /usr/local
 For each network you want to serve DNS to, do the following
 
 ```
-sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -d beyond.corp af78bf94364e2035
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -d beyond.corp af78bf94364e2035
 sudo systemctl start zeronsd-af78bf94364e2035
 sudo systemctl enable zeronsd-af78bf94364e2035
 ```
@@ -158,6 +160,7 @@ sudo lsof -i -n | grep ^zeronsd | grep UDP | awk '{ print $9 }' | cut -f1 -d:
 Query the DNS server directly with the dig command
 
 The Ubuntu machine can be queried with:
+
 ```
 dig +short @172.22.245.70 zt-3513e8b98d.beyond.corp
 172.22.245.70
@@ -166,6 +169,7 @@ dig +short @172.22.245.70 server.beyond.corp
 ```
 
 The OSX laptop can be queried with:
+
 ```
 dig +short @172.22.245.70 zt-eff05def90.beyond.corp
 172.22.245.70
@@ -206,12 +210,12 @@ To check out the system resolver settings, use: `scutil --dns`.
 The Ubuntu machine can be queried with
 
 `dns-sd -G v4 server.beyond.corp`  
-`dns-sd -G v4 zt-3513e8b98d.beyond.corp`  
+`dns-sd -G v4 zt-3513e8b98d.beyond.corp`
 
 The OSX machine be queried with
 
 `dns-sd -G v4 laptop.beyond.corp`  
-`dns-sd -G v4 zt-eff05def90.beyond.corp`  
+`dns-sd -G v4 zt-eff05def90.beyond.corp`
 
 ## Windows
 
@@ -219,3 +223,34 @@ Are you a Windows user?
 Does this work out of the box?  
 Does nslookup behave properly?  
 Let us know... feedback and pull requests welcome =)
+
+## Serving non-ZeroTier records
+
+**NOTE** this portion of the document is largely intended for advanced users who want to get more out of `zeronsd`'s service.
+
+`zeronsd` will also serve non-zerotier records in two situations: It will forward `/etc/resolv.conf`'s nameservers on a TLD mismatch. This behavior is similar to `dnsmasq`, a popular DNS server on Linux.
+
+Additionally, to serve custom records you can supply the `-f` flag with a file in [hosts format](https://man7.org/linux/man-pages/man5/hosts.5.html) it will service records from that file under the provided TLD, _merged in_ with the zerotier nodes. Example below.
+
+**NOTE:** if you followed the steps above, you will want to `systemctl stop zeronsd-<network id>`, and `zeronsd unsupervise <network id>` your network, before continuing.
+
+Make a file called `hosts` and put this in it:
+
+```
+1.1.1.1 cloudflare-dns
+```
+
+Then, let's start a temporary server for now. We'll just use the `start` subcommand of `zeronsd`. This will run in the foreground, so start a new terminal or `&` it.
+
+```
+$ zeronsd start -t /var/lib/zerotier-one/token -d beyond.corp <network id>
+Welcome to ZeroNS!
+Your IP is 1.2.3.4
+```
+
+Finally, we can lookup `cloudflare-dns.beyond.corp` to find CloudFlare's DNS server really really fast!
+
+```
+$ host cloudflare-dns.beyond.corp 1.2.3.4
+cloudflare-dns.beyond.corp has address 1.1.1.1
+```

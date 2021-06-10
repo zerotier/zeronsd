@@ -14,7 +14,7 @@ _Please note that zeronsd still does not properly utilize IPv6; we hope to have 
 
 ## Installation
 
-Before continuing, be reminded that zeronsd is **alpha software**. That said, if you'd like to get started quickly with zeronsd, [click here for a user-friendly guide](docs/quickstart.md)!
+Before continuing, be reminded that zeronsd is **beta software**. That said, if you'd like to get started quickly with zeronsd, [click here for a user-friendly guide](docs/quickstart.md)!
 
 Packages:
 
