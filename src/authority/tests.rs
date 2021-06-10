@@ -10,7 +10,7 @@ use trust_dns_resolver::{
 };
 
 use crate::{
-    authority::new_ptr_authority,
+    authority::{find_members, init_trust_dns_authority, new_ptr_authority},
     hosts::parse_hosts,
     integration_tests::{init_test_runtime, TestContext, TestNetwork},
     tests::HOSTS_DIR,
@@ -28,8 +28,6 @@ use std::{
 };
 
 use tokio::runtime::Runtime;
-
-use super::init_trust_dns_authority;
 
 #[derive(Clone)]
 struct Service {
@@ -63,10 +61,16 @@ impl Lookup for Resolver {
     }
 }
 
+enum HostsType {
+    Path(&'static str),
+    Fixture(&'static str),
+    None,
+}
+
 fn create_listeners(
     runtime: Arc<Mutex<Runtime>>,
     tn: &TestNetwork,
-    hosts: Option<&str>,
+    hosts: HostsType,
     update_interval: Option<Duration>,
 ) -> (Vec<String>, Vec<String>) {
     let listen_cidrs = runtime
@@ -91,31 +95,31 @@ fn create_listeners(
         listen_ips.push(listen_ip.clone());
         let cidr = IpNetwork::from_str(&cidr.clone()).unwrap();
         if !ipmap.contains_key(&listen_ip) {
-            ipmap.insert(listen_ip, cidr);
+            ipmap.insert(listen_ip, cidr.network());
         }
 
-        if !authority_map.contains_key(&cidr) {
+        if !authority_map.contains_key(&cidr.network()) {
             let ptr_authority = new_ptr_authority(cidr).unwrap();
 
             let ztauthority = init_authority(
-                ptr_authority.clone(),
+                ptr_authority,
                 tn.token(),
                 tn.network.clone().id.unwrap(),
                 domain_or_default(None).unwrap(),
                 match hosts {
-                    Some(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
-                    None => None,
+                    HostsType::Fixture(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
+                    HostsType::Path(hosts) => Some(hosts.to_string()),
+                    HostsType::None => None,
                 },
                 update_interval.unwrap_or(Duration::new(30, 0)),
                 authority.clone(),
-            )
-            .unwrap();
+            );
 
-            runtime
-                .lock()
-                .unwrap()
-                .spawn(ztauthority.clone().find_members());
-            authority_map.insert(cidr, ztauthority);
+            let arc_authority = Arc::new(tokio::sync::RwLock::new(ztauthority));
+            authority_map.insert(cidr.network(), arc_authority.to_owned());
+            let lock = runtime.lock().unwrap();
+            lock.spawn(find_members(arc_authority));
+            drop(lock);
         }
     }
 
@@ -126,15 +130,13 @@ fn create_listeners(
         let sync = s.clone();
 
         let rt = &mut runtime.lock().unwrap();
-        let server = crate::server::Server::new(authority.catalog(rt).unwrap());
+        let server = crate::server::Server::new(authority.to_owned());
 
         rt.spawn({
             sync.send(()).unwrap();
             drop(sync);
-            server.listen(
-                format!("{}:53", ip.clone()).to_owned(),
-                Duration::new(0, 1000),
-            )
+            eprintln!("Serving {}", ip.clone());
+            server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000))
         });
     }
 
@@ -164,8 +166,17 @@ fn create_resolvers(ips: Vec<String>) -> Vec<Arc<Resolver>> {
             trust_nx_responses: true,
         });
 
+        let mut opts = ResolverOpts::default();
+        opts.cache_size = 0;
+        opts.rotate = true;
+        opts.use_hosts_file = false;
+        opts.positive_min_ttl = Some(Duration::new(0, 0));
+        opts.positive_max_ttl = Some(Duration::new(0, 0));
+        opts.negative_min_ttl = Some(Duration::new(0, 0));
+        opts.negative_max_ttl = Some(Duration::new(0, 0));
+
         resolvers.push(Arc::new(
-            trust_dns_resolver::Resolver::new(resolver_config, ResolverOpts::default()).unwrap(),
+            trust_dns_resolver::Resolver::new(resolver_config, opts).unwrap(),
         ));
     }
 
@@ -173,7 +184,7 @@ fn create_resolvers(ips: Vec<String>) -> Vec<Arc<Resolver>> {
 }
 
 impl Service {
-    fn new(hosts: Option<&str>, update_interval: Option<Duration>, ips: Option<Vec<&str>>) -> Self {
+    fn new(hosts: HostsType, update_interval: Option<Duration>, ips: Option<Vec<&str>>) -> Self {
         let runtime = init_test_runtime();
 
         let tn = if let Some(ips) = ips {
@@ -241,9 +252,36 @@ impl Service {
 
 #[test]
 #[ignore]
+fn test_01_hosts_file_reloading() {
+    let hosts_path = "/tmp/zeronsd-test-hosts";
+    std::fs::write(hosts_path, "127.0.0.2 islay\n").unwrap();
+    let service = Service::new(HostsType::Path(hosts_path), Some(Duration::new(1, 0)), None);
+
+    assert_eq!(
+        service
+            .lookup_a("islay.domain.".to_string())
+            .first()
+            .unwrap(),
+        &Ipv4Addr::from_str("127.0.0.2").unwrap()
+    );
+
+    std::fs::write(hosts_path, "127.0.0.3 islay\n").unwrap();
+    sleep(Duration::new(3, 0)); // wait for bg update
+
+    assert_eq!(
+        service
+            .lookup_a("islay.domain.".to_string())
+            .first()
+            .unwrap(),
+        &Ipv4Addr::from_str("127.0.0.3").unwrap()
+    );
+}
+
+#[test]
+#[ignore]
 fn test_battery_single_domain() {
     let service = Service::new(
-        None,
+        HostsType::None,
         None,
         Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
     );
@@ -286,7 +324,7 @@ fn test_battery_single_domain() {
 
     eprintln!("Interleaved lookups of PTR and A records");
 
-    for _ in 0..100000 {
+    for _ in 0..10000 {
         // randomly switch order
         if rand::random::<bool>() {
             assert_eq!(
@@ -332,7 +370,7 @@ fn test_battery_single_domain() {
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
     let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let service = Service::new(Some("basic"), None, Some(ips.clone()));
+    let service = Service::new(HostsType::Fixture("basic"), None, Some(ips.clone()));
 
     let record = format!("zt-{}.domain.", service.network().identity().clone());
 
@@ -352,7 +390,7 @@ fn test_battery_multi_domain_hosts_file() {
     }
 
     let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-    for _ in 0..100000 {
+    for _ in 0..10000 {
         hosts.shuffle(&mut rand::thread_rng());
         let host = *hosts.first().unwrap();
         let ips = service.lookup_a(host.to_string());
@@ -368,7 +406,7 @@ fn test_battery_multi_domain_hosts_file() {
 fn test_battery_single_domain_named() {
     let update_interval = Duration::new(1, 0);
     let service = Service::new(
-        None,
+        HostsType::None,
         Some(update_interval),
         Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
     );

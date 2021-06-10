@@ -1,17 +1,19 @@
 use std::{
+    collections::HashMap,
     net::IpAddr,
     str::FromStr,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockWriteGuard},
     time::Duration,
 };
 
 use ipnetwork::IpNetwork;
-use tokio::runtime::Runtime;
+use tokio::sync::RwLockReadGuard;
 use trust_dns_resolver::{
     config::{NameServerConfigGroup, ResolverOpts},
-    proto::rr::dnssec::SupportedAlgorithms,
+    proto::rr::{dnssec::SupportedAlgorithms, RecordSet},
     IntoName,
 };
+
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
     client::rr::{Name, RData, Record, RecordType, RrKey},
@@ -25,6 +27,7 @@ use crate::{
     utils::{parse_member_name, ToHostname},
 };
 
+pub(crate) type TokioZTAuthority = Arc<tokio::sync::RwLock<ZTAuthority>>;
 pub(crate) type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 pub(crate) type PtrAuthority = Option<Authority>;
 
@@ -41,22 +44,54 @@ pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<PtrAuthority, anyhow::E
     })
 }
 
-fn prune_records(
-    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
-    written: Vec<Name>,
-    hosts: Box<HostsFile>,
-) -> Result<(), anyhow::Error> {
+pub(crate) async fn find_members(zt: TokioZTAuthority) {
+    let read = zt.read().await;
+    let mut interval = tokio::time::interval(read.update_interval.clone());
+    drop(read);
+
+    loop {
+        interval.tick().await;
+
+        zt.write()
+            .await
+            .configure_hosts()
+            .expect("Could not configure authority from hosts file");
+
+        match get_members(zt.read().await).await {
+            Ok(members) => match zt.write().await.configure_members(members) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("error configuring authority: {}", e)
+                }
+            },
+            Err(e) => {
+                eprintln!("error syncing members: {}", e)
+            }
+        }
+    }
+}
+
+async fn get_members(zt: RwLockReadGuard<'_, ZTAuthority>) -> Result<Vec<Member>, anyhow::Error> {
+    let config = zt.config.clone();
+    let network = zt.network.clone();
+
+    Ok(
+        zerotier_central_api::apis::network_member_api::get_network_member_list(&config, &network)
+            .await?,
+    )
+}
+
+fn prune_records(authority: Authority, written: Vec<Name>) -> Result<(), anyhow::Error> {
     let mut rrkey_list = Vec::new();
-    let rr = authority.records_mut();
+    let mut lock = authority
+        .write()
+        .expect("Could not acquire write lock on authority");
+
+    let rr = lock.records_mut();
 
     for (rrkey, _) in rr.clone() {
         let key = &rrkey.name().into_name()?;
-        if !written.contains(key)
-            && !hosts
-                .values()
-                .flatten()
-                .any(|v| v.to_string().eq(&key.to_string()))
-        {
+        if !written.contains(key) {
             rrkey_list.push(rrkey);
         }
     }
@@ -70,19 +105,53 @@ fn prune_records(
 }
 
 fn upsert_address(
-    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     fqdn: Name,
     rt: RecordType,
-    rdata: RData,
+    rdatas: Vec<RData>,
 ) {
-    let mut address = Record::with(fqdn.clone(), rt, 60);
-    address.set_rdata(rdata);
     let serial = authority.serial() + 1;
-    authority.upsert(address, serial);
+    let records = authority.records_mut();
+    let key = records
+        .into_iter()
+        .map(|(key, _)| key)
+        .find(|key| key.name().into_name().unwrap().eq(&fqdn));
+
+    if let Some(key) = key {
+        let key = key.clone();
+        records
+            .get_mut(&key)
+            .replace(&mut Arc::new(RecordSet::new(&fqdn.clone(), rt, serial)));
+    }
+
+    for rdata in rdatas {
+        if match rt {
+            RecordType::A => match rdata {
+                RData::A(_) => Some(()),
+                _ => None,
+            },
+            RecordType::AAAA => match rdata {
+                RData::AAAA(_) => Some(()),
+                _ => None,
+            },
+            RecordType::PTR => match rdata {
+                RData::PTR(_) => Some(()),
+                _ => None,
+            },
+            _ => None,
+        }
+        .is_some()
+        {
+            let mut address = Record::with(fqdn.clone(), rt, 60);
+            address.set_rdata(rdata.clone());
+            eprintln!("Adding new record {}: ({})", fqdn.clone(), rdata.clone());
+            authority.upsert(address, serial);
+        }
+    }
 }
 
 fn set_ptr_record(
-    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     ip_name: Name,
     canonical_name: Name,
 ) {
@@ -105,38 +174,40 @@ fn set_ptr_record(
         authority,
         ip_name.clone(),
         RecordType::PTR,
-        RData::PTR(canonical_name),
+        vec![RData::PTR(canonical_name)],
     );
 }
 
 fn set_ip_record(
-    authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     name: Name,
-    newip: IpAddr,
+    rt: RecordType,
+    newips: Vec<IpAddr>,
 ) {
-    eprintln!("Adding new record {}: ({})", name.clone(), &newip);
-
-    match newip {
-        IpAddr::V4(newip) => {
-            upsert_address(authority, name.clone(), RecordType::A, RData::A(newip));
-        }
-        IpAddr::V6(newip) => {
-            upsert_address(
-                authority,
-                name.clone(),
-                RecordType::AAAA,
-                RData::AAAA(newip),
-            );
-        }
-    }
+    upsert_address(
+        authority,
+        name.clone(),
+        rt,
+        newips
+            .into_iter()
+            .map(|i| match i {
+                IpAddr::V4(i) => RData::A(i),
+                IpAddr::V6(i) => RData::AAAA(i),
+            })
+            .collect(),
+    );
 }
 
 fn configure_ptr(
-    mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
+    authority: Authority,
     ip: IpAddr,
     canonical_name: Name,
 ) -> Result<(), anyhow::Error> {
-    match authority
+    let lock = &mut authority
+        .write()
+        .expect("Could not acquire authority write lock");
+
+    match lock
         .records()
         .get(&RrKey::new(ip.into_name()?.into(), RecordType::PTR))
     {
@@ -145,10 +216,10 @@ fn configure_ptr(
                 .records(false, SupportedAlgorithms::all())
                 .any(|rec| rec.rdata().eq(&RData::PTR(canonical_name.clone())))
             {
-                set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone());
+                set_ptr_record(lock, ip.into_name()?, canonical_name.clone());
             }
         }
-        None => set_ptr_record(&mut authority, ip.into_name()?, canonical_name.clone()),
+        None => set_ptr_record(lock, ip.into_name()?, canonical_name.clone()),
     }
     Ok(())
 }
@@ -161,13 +232,59 @@ pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
     ))))
 }
 
+pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, std::io::Error> {
+    let read = zt.read().await;
+
+    let mut catalog = Catalog::default();
+    catalog.upsert(read.domain_name.clone().into(), read.authority.box_clone());
+
+    if read.ptr_authority.is_some() {
+        let unwrapped = read.ptr_authority.clone().unwrap();
+        catalog.upsert(unwrapped.origin(), unwrapped.box_clone());
+    } else {
+        println!("PTR records are not supported on IPv6 networks (yet!)");
+    }
+
+    drop(read);
+
+    let resolvconf = trust_dns_resolver::config::ResolverConfig::default();
+    let mut nsconfig = NameServerConfigGroup::new();
+
+    for server in resolvconf.name_servers() {
+        nsconfig.push(server.clone());
+    }
+
+    let options = Some(ResolverOpts::default());
+    let config = &ForwardConfig {
+        name_servers: nsconfig.clone(),
+        options,
+    };
+
+    let forwarder = ForwardAuthority::try_from_config(
+        Name::root(),
+        trust_dns_server::authority::ZoneType::Primary,
+        config,
+    )
+    .await
+    .expect("Could not initialize forwarder");
+
+    catalog.upsert(
+        Name::root().into(),
+        Box::new(Arc::new(RwLock::new(forwarder))),
+    );
+
+    Ok(catalog)
+}
+
+#[derive(Clone)]
 pub(crate) struct ZTAuthority {
     ptr_authority: PtrAuthority,
     authority: Authority,
     domain_name: Name,
     network: String,
     config: Configuration,
-    hosts: Box<HostsFile>,
+    hosts_file: Option<String>,
+    hosts: Option<Box<HostsFile>>,
     update_interval: Duration,
 }
 
@@ -180,98 +297,73 @@ impl ZTAuthority {
         ptr_authority: PtrAuthority,
         update_interval: Duration,
         authority: Authority,
-    ) -> Result<Arc<Self>, anyhow::Error> {
-        Ok(Arc::new(Self {
+    ) -> Self {
+        Self {
             update_interval,
             domain_name: domain_name.clone(),
             network,
             config,
             authority,
             ptr_authority,
-            hosts: Box::new(parse_hosts(hosts_file.clone(), domain_name.clone())?),
-        }))
+            hosts_file,
+            hosts: None,
+        }
     }
 
-    async fn get_members(self: Arc<Self>) -> Result<Vec<Member>, anyhow::Error> {
-        let list = zerotier_central_api::apis::network_member_api::get_network_member_list(
-            &self.config,
-            &self.network,
-        )
-        .await?;
-        Ok(list)
-    }
+    fn match_or_insert(&self, name: Name, newips: Vec<IpAddr>) {
+        let rdatas: Vec<RData> = newips
+            .clone()
+            .into_iter()
+            .map(|ip| match ip {
+                IpAddr::V4(ip) => RData::A(ip),
+                IpAddr::V6(ip) => RData::AAAA(ip),
+            })
+            .collect();
 
-    pub(crate) async fn find_members(self: Arc<Self>) {
-        self.configure_hosts(
-            self.authority
-                .write()
-                .expect("Could not acquire write lock on authority"),
-        )
-        .expect("Could not configure authority from hosts file");
+        for rt in vec![RecordType::A, RecordType::AAAA] {
+            let lock = self
+                .authority
+                .read()
+                .expect("Could not get authority read lock");
+            let records = lock
+                .records()
+                .get(&RrKey::new(name.clone().into(), rt))
+                .clone();
 
-        loop {
-            match self.clone().get_members().await {
-                Ok(members) => match self.clone().configure(members) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        eprintln!("error configuring authority: {}", e)
+            match records {
+                Some(records) => {
+                    let records = records.records(false, SupportedAlgorithms::all());
+                    if records.is_empty()
+                        || !records.into_iter().all(|r| rdatas.contains(r.rdata()))
+                    {
+                        drop(lock);
+                        set_ip_record(
+                            &mut self.authority.write().expect("write lock"),
+                            name.clone(),
+                            rt,
+                            newips.clone(),
+                        );
                     }
-                },
-                Err(e) => {
-                    eprintln!("error syncing members: {}", e)
+                }
+                None => {
+                    drop(lock);
+                    set_ip_record(
+                        &mut self.authority.write().expect("write lock"),
+                        name.clone(),
+                        rt,
+                        newips.clone(),
+                    );
                 }
             }
-
-            tokio::time::sleep(self.update_interval).await;
         }
     }
 
-    pub(crate) fn configure(self: Arc<Self>, members: Vec<Member>) -> Result<(), anyhow::Error> {
-        self.configure_members(
-            self.authority
-                .write()
-                .expect("Could not acquire write lock on authority"),
-            self.ptr_authority.clone(),
-            members,
-        )
-    }
-
-    fn match_or_insert(
-        &self,
-        authority: &mut std::sync::RwLockWriteGuard<InMemoryAuthority>,
-        name: Name,
-        rt: RecordType,
-        newip: IpAddr,
-    ) {
-        match authority
-            .records()
-            .get(&RrKey::new(name.clone().into(), rt))
-        {
-            Some(records) => {
-                let rdata = match newip {
-                    IpAddr::V4(ip) => RData::A(ip),
-                    IpAddr::V6(ip) => RData::AAAA(ip),
-                };
-
-                if !records
-                    .records(false, SupportedAlgorithms::all())
-                    .any(|rec| rec.rdata().eq(&rdata))
-                {
-                    set_ip_record(authority, name, newip);
-                }
-            }
-            None => set_ip_record(authority, name, newip),
-        }
-    }
-
-    fn configure_members(
-        &self,
-        mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
-        ptr_authority: PtrAuthority,
-        members: Vec<Member>,
-    ) -> Result<(), anyhow::Error> {
+    fn configure_members(&mut self, members: Vec<Member>) -> Result<(), anyhow::Error> {
         let mut records = Vec::new();
-        let mut ptr_records = Vec::new();
+        if let Some(hosts) = self.hosts.to_owned() {
+            self.prune_hosts();
+            records.append(&mut hosts.values().flatten().map(|v| v.clone()).collect());
+        }
 
         for member in members {
             let member_name = format!(
@@ -290,123 +382,119 @@ impl ZTAuthority {
                 member_is_named = true;
             }
 
-            for ip in member
+            let ips: Vec<IpAddr> = member
                 .config
                 .expect("Member config does not exist")
                 .ip_assignments
                 .expect("IP assignments for member do not exist")
-            {
-                let ip = IpAddr::from_str(&ip).expect("Could not parse IP address");
-                records.push(fqdn.clone());
+                .into_iter()
+                .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
+                .collect();
 
-                if member_is_named {
-                    records.push(canonical_name.clone());
-                }
+            self.match_or_insert(fqdn.clone(), ips.clone());
 
-                match ip {
-                    IpAddr::V4(_) => {
-                        self.match_or_insert(&mut authority, fqdn.clone(), RecordType::A, ip);
-                        if member_is_named {
-                            self.match_or_insert(
-                                &mut authority,
-                                canonical_name.clone(),
-                                RecordType::A,
-                                ip,
-                            );
-                        }
-                    }
-                    IpAddr::V6(_) => {
-                        self.match_or_insert(&mut authority, fqdn.clone(), RecordType::AAAA, ip);
-                        if member_is_named {
-                            self.match_or_insert(
-                                &mut authority,
-                                canonical_name.clone(),
-                                RecordType::AAAA,
-                                ip,
-                            );
-                        }
-                    }
-                }
+            if member_is_named {
+                self.match_or_insert(canonical_name.clone(), ips.clone());
+            }
 
-                if let Some(local_ptr_authority) = ptr_authority.clone() {
-                    ptr_records.push(ip.into_name()?);
-                    configure_ptr(
-                        local_ptr_authority
-                            .write()
-                            .expect("Could not acquire PTR authority write lock"),
-                        ip,
-                        canonical_name.clone(),
-                    )?;
+            if let Some(local_ptr_authority) = self.ptr_authority.to_owned() {
+                for ip in ips.clone() {
+                    records.push(ip.into_name().expect("Could not coerce IP into name"));
+                    configure_ptr(local_ptr_authority.clone(), ip, canonical_name.clone())?;
                 }
             }
+
+            records.push(fqdn.clone());
+            records.push(canonical_name.clone());
         }
 
-        prune_records(&mut authority, records, self.hosts.clone())?;
+        prune_records(self.authority.to_owned(), records.clone())?;
 
-        if let Some(ptr_authority) = ptr_authority {
-            prune_records(
-                &mut ptr_authority
-                    .write()
-                    .expect("Could not acquire PTR authority write lock"),
-                ptr_records,
-                self.hosts.clone(),
-            )?;
+        if let Some(ptr_authority) = self.ptr_authority.to_owned() {
+            prune_records(ptr_authority, records.clone())?;
         }
 
         Ok(())
     }
 
-    fn configure_hosts(
-        &self,
-        mut authority: std::sync::RwLockWriteGuard<InMemoryAuthority>,
-    ) -> Result<(), anyhow::Error> {
-        for (ip, hostnames) in self.hosts.iter() {
+    fn configure_hosts(&mut self) -> Result<(), anyhow::Error> {
+        self.hosts = Some(Box::new(parse_hosts(
+            self.hosts_file.clone(),
+            self.domain_name.clone(),
+        )?));
+
+        for (ip, hostnames) in self.hosts.clone().unwrap().iter() {
             for hostname in hostnames {
-                set_ip_record(&mut authority, hostname.clone(), *ip);
+                self.match_or_insert(hostname.clone(), vec![ip.clone()]);
             }
         }
         Ok(())
     }
 
-    pub(crate) fn catalog(&self, runtime: &mut Runtime) -> Result<Catalog, std::io::Error> {
-        let mut catalog = Catalog::default();
-        catalog.upsert(self.domain_name.clone().into(), self.authority.box_clone());
-        if self.ptr_authority.is_some() {
-            let unwrapped = self.ptr_authority.clone().unwrap();
-            catalog.upsert(unwrapped.origin(), unwrapped.box_clone());
-        } else {
-            println!("PTR records are not supported on IPv6 networks (yet!)");
+    fn prune_hosts(&mut self) {
+        if self.hosts.is_none() {
+            return;
         }
 
-        let resolvconf = trust_dns_resolver::config::ResolverConfig::default();
-        let mut nsconfig = NameServerConfigGroup::new();
+        let mut lock = self.authority.write().expect("Pruning hosts write lock");
 
-        for server in resolvconf.name_servers() {
-            nsconfig.push(server.clone());
+        let serial = lock.serial();
+        let rr = lock.records_mut();
+
+        let mut hosts_map = HashMap::new();
+
+        for (ip, hosts) in self.hosts.to_owned().unwrap().into_iter() {
+            for host in hosts {
+                if !hosts_map.contains_key(&host) {
+                    hosts_map.insert(host.clone(), vec![]);
+                }
+
+                hosts_map.get_mut(&host).unwrap().push(ip);
+            }
         }
 
-        let options = Some(ResolverOpts::default());
-        let config = &ForwardConfig {
-            name_servers: nsconfig.clone(),
-            options,
-        };
+        for (host, ips) in hosts_map.into_iter() {
+            for (rrkey, rset) in rr.clone() {
+                let key = &rrkey.name().into_name().expect("could not parse name");
+                let records = rset.records(false, SupportedAlgorithms::all());
 
-        let forwarder = ForwardAuthority::try_from_config(
-            Name::root(),
-            trust_dns_server::authority::ZoneType::Primary,
-            config,
-        );
+                let rt = rset.record_type();
+                let rdatas: Vec<RData> = ips
+                    .clone()
+                    .into_iter()
+                    .filter_map(|i| match i {
+                        IpAddr::V4(ip) => {
+                            if rt == RecordType::A {
+                                Some(RData::A(ip))
+                            } else {
+                                None
+                            }
+                        }
+                        IpAddr::V6(ip) => {
+                            if rt == RecordType::AAAA {
+                                Some(RData::AAAA(ip))
+                            } else {
+                                None
+                            }
+                        }
+                    })
+                    .collect();
 
-        let forwarder = runtime
-            .block_on(forwarder)
-            .expect("Could not initiate forwarder service");
+                if key.eq(&host)
+                    && (records.is_empty()
+                        || !records.map(|r| r.rdata()).all(|rd| rdatas.contains(rd)))
+                {
+                    let mut new_rset = RecordSet::new(key, rt, serial + 1);
+                    for rdata in rdatas.clone() {
+                        new_rset.add_rdata(rdata);
+                    }
 
-        catalog.upsert(
-            Name::root().into(),
-            Box::new(Arc::new(RwLock::new(forwarder))),
-        );
-
-        Ok(catalog)
+                    eprintln!("Replacing host record for {} with {:?}", key, ips);
+                    rr.remove(&rrkey);
+                    rr.insert(rrkey, Arc::new(new_rset));
+                }
+            }
+        }
     }
 }
 
