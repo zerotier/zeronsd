@@ -1,12 +1,15 @@
-use std::{collections::HashMap, io::Write, str::FromStr, thread::sleep, time::Duration};
+use std::{
+    collections::HashMap, io::Write, str::FromStr, sync::Arc, thread::sleep, time::Duration,
+};
 
 use clap::clap_app;
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
+use tokio::sync::RwLock;
 
 use crate::{
-    authority::{init_trust_dns_authority, new_ptr_authority},
+    authority::{find_members, init_trust_dns_authority, new_ptr_authority},
     utils::update_central_dns,
 };
 
@@ -94,10 +97,10 @@ fn start(
                 listen_ips.push(listen_ip.clone());
                 let cidr = IpNetwork::from_str(&cidr.clone())?;
                 if !ipmap.contains_key(&listen_ip) {
-                    ipmap.insert(listen_ip, cidr);
+                    ipmap.insert(listen_ip, cidr.network());
                 }
 
-                if !authority_map.contains_key(&cidr) {
+                if !authority_map.contains_key(&cidr.network()) {
                     let ptr_authority = new_ptr_authority(cidr)?;
 
                     let ztauthority = utils::init_authority(
@@ -108,10 +111,12 @@ fn start(
                         hf.clone(),
                         Duration::new(30, 0),
                         authority.clone(),
-                    )?;
+                    );
 
-                    runtime.spawn(ztauthority.clone().find_members());
-                    authority_map.insert(cidr, ztauthority);
+                    let arc_authority = Arc::new(RwLock::new(ztauthority));
+
+                    authority_map.insert(cidr.network(), arc_authority.clone());
+                    runtime.spawn(find_members(arc_authority));
                 }
             }
 
@@ -124,7 +129,7 @@ fn start(
                     .get(cidr)
                     .expect("Could not locate PTR authority for subnet");
 
-                let server = crate::server::Server::new(authority.catalog(runtime)?);
+                let server = crate::server::Server::new(authority.to_owned());
                 runtime.spawn(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)));
             }
 

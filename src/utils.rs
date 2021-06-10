@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 
 use regex::Regex;
@@ -179,13 +178,11 @@ pub(crate) fn init_authority(
     hosts_file: Option<String>,
     update_interval: Duration,
     authority: Authority,
-) -> Result<Arc<ZTAuthority>, anyhow::Error> {
-    let config = central_config(token);
-
+) -> ZTAuthority {
     ZTAuthority::new(
         domain_name.clone(),
         network.clone(),
-        config.clone(),
+        central_config(token),
         hosts_file,
         ptr_authority,
         update_interval,
