@@ -141,6 +141,10 @@ fn start(
 
             return Ok(runtime.block_on(wait()));
         }
+
+        return Err(anyhow!(
+            "No listening IPs for your interface; assign one in ZeroTier Central."
+        ));
     }
 
     return Err(anyhow!("no network ID"));
