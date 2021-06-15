@@ -85,8 +85,8 @@ sudo chmod 600 /var/lib/zerotier-one/token
 zerotier-systemd-manager publishes rpm and deb packages available at https://github.com/zerotier/zerotier-systemd-manager/releases
 
 ```
-wget https://github.com/zerotier/zerotier-systemd-manager/releases/download/v0.1.4/zerotier-systemd-manager_0.1.4_linux_amd64.deb
-sudo dpkg -i dpkg -i zerotier-systemd-manager_0.1.4_linux_amd64.deb
+wget https://github.com/zerotier/zerotier-systemd-manager/releases/download/v0.1.9/zerotier-systemd-manager_0.1.9_linux_amd64.deb
+sudo dpkg -i zerotier-systemd-manager_0.1.9_linux_amd64.deb
 ```
 
 Finally, restart all the ZeroTier services.
@@ -94,9 +94,8 @@ Finally, restart all the ZeroTier services.
 ```
 sudo systemctl daemon-reload
 sudo systemctl restart zerotier-one
-sudo systemctl enable  zerotier-systemd-manager.timer
-sudo systemctl enable  zerotier-systemd-manager.service
-sudo systemctl restart zerotier-systemd-manager.service
+sudo systemctl enable zerotier-systemd-manager.timer
+sudo systemctl start zerotier-systemd-manager.timer
 ```
 
 ## Install ZeroNSD
@@ -112,8 +111,8 @@ ZeroNSD publishes rpm, deb, and msi packages, available **[here](https://github.
 _The latest release is **not** reflected below. Go to the link above to get a link!_
 
 ```
-wget https://github.com/zerotier/zeronsd/releases/download/v0.1.4/zeronsd_0.1.4_amd64.deb
-sudo dpkg -i zeronsd_0.1.4_amd64.deb
+wget https://github.com/zerotier/zeronsd/releases/download/v0.1.6/zeronsd_0.1.6_amd64.deb
+sudo dpkg -i zeronsd_0.1.6_amd64.deb
 ```
 
 ### Cargo
@@ -243,7 +242,7 @@ Make a file called `hosts` and put this in it:
 Then, let's start a temporary server for now. We'll just use the `start` subcommand of `zeronsd`. This will run in the foreground, so start a new terminal or `&` it.
 
 ```
-$ zeronsd start -t /var/lib/zerotier-one/token -d beyond.corp <network id>
+$ zeronsd start -t /var/lib/zerotier-one/token -f ./hosts -d beyond.corp <network id>
 Welcome to ZeroNS!
 Your IP is 1.2.3.4
 ```
