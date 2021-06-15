@@ -286,6 +286,7 @@ pub(crate) struct ZTAuthority {
     hosts_file: Option<String>,
     hosts: Option<Box<HostsFile>>,
     update_interval: Duration,
+    wildcard_everything: bool,
 }
 
 impl ZTAuthority {
@@ -307,7 +308,12 @@ impl ZTAuthority {
             ptr_authority,
             hosts_file,
             hosts: None,
+            wildcard_everything: false,
         }
+    }
+
+    pub(crate) fn wildcard_everything(&mut self) {
+        self.wildcard_everything = true;
     }
 
     fn match_or_insert(&self, name: Name, newips: Vec<IpAddr>) {
@@ -376,9 +382,11 @@ impl ZTAuthority {
             // tweaked in central. see below.
             let mut canonical_name = fqdn.clone();
             let mut member_is_named = false;
+            let mut ptr_name = fqdn.clone();
 
             if let Some(name) = parse_member_name(member.name.clone(), self.domain_name.clone()) {
-                canonical_name = name;
+                canonical_name = name.clone();
+                ptr_name = name;
                 member_is_named = true;
             }
 
@@ -391,16 +399,29 @@ impl ZTAuthority {
                 .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
                 .collect();
 
+            let wildcard = Name::from_str("*")?;
+
             self.match_or_insert(fqdn.clone(), ips.clone());
+
+            if self.wildcard_everything {
+                let wildcard = wildcard.clone().append_name(&fqdn).into_wildcard();
+                records.push(wildcard.clone());
+                self.match_or_insert(wildcard, ips.clone());
+            }
 
             if member_is_named {
                 self.match_or_insert(canonical_name.clone(), ips.clone());
+                if self.wildcard_everything {
+                    let wildcard = wildcard.append_name(&canonical_name).into_wildcard();
+                    records.push(wildcard.clone());
+                    self.match_or_insert(wildcard, ips.clone())
+                }
             }
 
             if let Some(local_ptr_authority) = self.ptr_authority.to_owned() {
                 for ip in ips.clone() {
                     records.push(ip.into_name().expect("Could not coerce IP into name"));
-                    configure_ptr(local_ptr_authority.clone(), ip, canonical_name.clone())?;
+                    configure_ptr(local_ptr_authority.clone(), ip, ptr_name.clone())?;
                 }
             }
 
