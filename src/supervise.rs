@@ -9,7 +9,7 @@ const SYSTEMD_SYSTEM_DIR: &str = "/lib/systemd/system";
 const SYSTEMD_UNIT: &str = "
 [Unit]
 Description=zeronsd for network {network}
-Wants=zerotier-one.service
+Requires=zerotier-one.service
 After=zerotier-one.service
 
 [Service]

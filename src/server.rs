@@ -1,6 +1,10 @@
 use std::time::Duration;
-use tokio::net::{TcpListener, UdpSocket};
+use tokio::{
+    net::{TcpListener, UdpSocket},
+    time::sleep,
+};
 
+use trust_dns_resolver::proto::error::ProtoError;
 use trust_dns_server::server::ServerFuture;
 
 use crate::authority::{init_catalog, TokioZTAuthority};
@@ -18,15 +22,25 @@ impl Server {
         self,
         listen_addr: String,
         tcp_timeout: Duration,
-    ) -> Result<(), anyhow::Error> {
-        let tcp = TcpListener::bind(&listen_addr).await?;
-        let udp = UdpSocket::bind(&listen_addr).await?;
-        let mut sf = ServerFuture::new(init_catalog(self.zt).await?);
+    ) -> Result<(), ProtoError> {
+        loop {
+            let tcp = TcpListener::bind(&listen_addr).await?;
+            let udp = UdpSocket::bind(&listen_addr).await?;
+            let mut sf = ServerFuture::new(init_catalog(self.zt.clone()).await?);
 
-        sf.register_socket(udp);
-        sf.register_listener(tcp, tcp_timeout);
+            sf.register_socket(udp);
+            sf.register_listener(tcp, tcp_timeout);
 
-        sf.block_until_done().await?;
-        Ok(())
+            match sf.block_until_done().await {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    eprintln!(
+                        "Error received: {}. Will attempt to restart listener in one second",
+                        e
+                    );
+                    sleep(Duration::new(1, 0)).await;
+                }
+            }
+        }
     }
 }
