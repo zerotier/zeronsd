@@ -1,5 +1,8 @@
 use std::time::Duration;
-use tokio::net::{TcpListener, UdpSocket};
+use tokio::{
+    net::{TcpListener, UdpSocket},
+    time::sleep,
+};
 
 use trust_dns_resolver::proto::error::ProtoError;
 use trust_dns_server::server::ServerFuture;
@@ -30,7 +33,13 @@ impl Server {
 
             match sf.block_until_done().await {
                 Ok(_) => return Ok(()),
-                Err(e) => eprintln!("Error received: {}. Will attempt to restart listener", e),
+                Err(e) => {
+                    eprintln!(
+                        "Error received: {}. Will attempt to restart listener in one second",
+                        e
+                    );
+                    sleep(Duration::new(1, 0)).await;
+                }
             }
         }
     }
