@@ -111,8 +111,8 @@ ZeroNSD publishes rpm, deb, and msi packages, available **[here](https://github.
 _The latest release is **not** reflected below. Go to the link above to get a link!_
 
 ```
-wget https://github.com/zerotier/zeronsd/releases/download/v0.1.6/zeronsd_0.1.6_amd64.deb
-sudo dpkg -i zeronsd_0.1.6_amd64.deb
+wget https://github.com/zerotier/zeronsd/releases/download/v0.1.7/zeronsd_0.1.7_amd64.deb
+sudo dpkg -i zeronsd_0.1.7_amd64.deb
 ```
 
 ### Cargo
