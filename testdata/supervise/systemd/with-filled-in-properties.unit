@@ -1,7 +1,7 @@
 
 [Unit]
 Description=zeronsd for network 1234567891011121
-Wants=zerotier-one.service
+Requires=zerotier-one.service
 After=zerotier-one.service
 
 [Service]
