@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::anyhow;
+use log::info;
 use serde::Serialize;
 use tinytemplate::TinyTemplate;
 use trust_dns_resolver::Name;
@@ -183,7 +184,7 @@ impl<'a> Properties {
                 }
             };
 
-            println!(
+            info!(
                 "Service definition written to {}.\nDon't forget to `systemctl daemon-reload` and `systemctl enable zeronsd-{}`",
                 service_path.to_str().expect("Could not coerce service path to string"),
                 self.network,

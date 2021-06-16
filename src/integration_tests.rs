@@ -1,4 +1,5 @@
 use crate::utils::{authtoken_path, central_config, get_listen_ips, init_runtime};
+use log::warn;
 use std::{
     sync::{Arc, Mutex},
     thread::sleep,
@@ -123,6 +124,19 @@ impl MemberConfigUtil for MemberConfig {
         self.active_bridge = None;
         self.identity = Some(identity);
     }
+}
+
+pub(crate) fn init_test_logger() {
+    stderrlog::new()
+        .verbosity(
+            std::env::var("VERBOSITY")
+                .unwrap_or(String::new())
+                .parse()
+                .unwrap_or(0),
+        )
+        .timestamp(stderrlog::Timestamp::Second)
+        .init()
+        .unwrap_or(())
 }
 
 #[derive(Clone)]
@@ -252,7 +266,7 @@ impl TestNetwork {
             sleep(Duration::new(1, 0));
             count += 1;
             if count >= 5 {
-                eprintln!("5 attempts: While joining network: {:?}", e);
+                warn!("5 attempts: While joining network: {:?}", e);
                 count = 0;
             }
         }
@@ -300,6 +314,7 @@ impl Drop for TestNetwork {
 #[test]
 #[ignore]
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
+    init_test_logger();
     let tn = TestNetwork::new(
         init_test_runtime(),
         "basic-ipv4",

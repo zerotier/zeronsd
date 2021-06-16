@@ -6,6 +6,7 @@ use clap::clap_app;
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
+use log::{error, info};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -82,7 +83,7 @@ fn start(
 
         let token = token.unwrap();
 
-        println!("Welcome to ZeroNS!");
+        info!("Welcome to ZeroNS!");
 
         let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &network))?;
 
@@ -135,7 +136,8 @@ fn start(
             }
 
             for ip in listen_ips {
-                println!("Your IP for this network: {}", ip);
+                info!("Your IP for this network: {}", ip);
+
                 let cidr = ipmap
                     .get(&ip)
                     .expect("Could not locate underlying network subnet");
@@ -176,6 +178,7 @@ fn main() -> Result<(), anyhow::Error> {
             (@arg secret_file: -s --secret +takes_value "Path to authtoken.secret (usually detected)")
             (@arg token_file: -t --token +takes_value "Path to a file containing the ZeroTier Central token")
             (@arg wildcard: -w --wildcard "Wildcard all names in Central to point at the respective member's IP address(es)")
+            (@arg verbose: -v +multiple "Verbose logging (repeat -v for more verbosity")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
         (@subcommand supervise =>
@@ -201,7 +204,14 @@ fn main() -> Result<(), anyhow::Error> {
         None => return write_help(app),
     };
 
-    match cmd {
+    stderrlog::new()
+        .module(String::from("zeronsd"))
+        .verbosity((args.occurrences_of("verbose") + 2) as usize)
+        .timestamp(stderrlog::Timestamp::Off)
+        .init()
+        .unwrap();
+
+    let result = match cmd {
         "start" => start(
             args.value_of("domain"),
             args.value_of("NETWORK_ID"),
@@ -209,7 +219,7 @@ fn main() -> Result<(), anyhow::Error> {
             args.value_of("secret_file"),
             args.value_of("token_file"),
             args.is_present("wildcard"),
-        )?,
+        ),
         "supervise" => supervise(
             args.value_of("domain"),
             args.value_of("NETWORK_ID"),
@@ -217,8 +227,8 @@ fn main() -> Result<(), anyhow::Error> {
             args.value_of("secret_file"),
             args.value_of("token_file"),
             args.is_present("wildcard"),
-        )?,
-        "unsupervise" => unsupervise(args.value_of("NETWORK_ID"))?,
+        ),
+        "unsupervise" => unsupervise(args.value_of("NETWORK_ID")),
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();
@@ -228,6 +238,10 @@ fn main() -> Result<(), anyhow::Error> {
             writeln!(lock)?;
             return Ok(());
         }
+    };
+
+    if result.is_err() {
+        error!("{}", result.unwrap_err())
     }
 
     Ok(())

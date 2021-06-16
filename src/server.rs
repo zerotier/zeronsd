@@ -1,3 +1,4 @@
+use log::warn;
 use std::time::Duration;
 use tokio::{
     net::{TcpListener, UdpSocket},
@@ -34,7 +35,7 @@ impl Server {
             match sf.block_until_done().await {
                 Ok(_) => return Ok(()),
                 Err(e) => {
-                    eprintln!(
+                    warn!(
                         "Error received: {}. Will attempt to restart listener in one second",
                         e
                     );

@@ -61,11 +61,11 @@ pub(crate) async fn find_members(zt: TokioZTAuthority) {
             Ok(members) => match zt.write().await.configure_members(members) {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("error configuring authority: {}", e)
+                    error!("error configuring authority: {}", e)
                 }
             },
             Err(e) => {
-                eprintln!("error syncing members: {}", e)
+                error!("error syncing members: {}", e)
             }
         }
     }
@@ -97,7 +97,7 @@ fn prune_records(authority: Authority, written: Vec<Name>) -> Result<(), anyhow:
     }
 
     for rrkey in rrkey_list {
-        eprintln!("Removing expired record {}", rrkey.name());
+        warn!("Removing expired record {}", rrkey.name());
         rr.remove(&rrkey);
     }
 
@@ -144,7 +144,7 @@ fn upsert_address(
         {
             let mut address = Record::with(fqdn.clone(), rt, 60);
             address.set_rdata(rdata.clone());
-            eprintln!("Adding new record {}: ({})", fqdn.clone(), rdata.clone());
+            info!("Adding new record {}: ({})", fqdn.clone(), rdata.clone());
             authority.upsert(address, serial);
         }
     }
@@ -155,7 +155,7 @@ fn set_ptr_record(
     ip_name: Name,
     canonical_name: Name,
 ) {
-    eprintln!(
+    warn!(
         "Replacing PTR record {}: ({})",
         ip_name.clone(),
         canonical_name
@@ -242,7 +242,7 @@ pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, std::i
         let unwrapped = read.ptr_authority.clone().unwrap();
         catalog.upsert(unwrapped.origin(), unwrapped.box_clone());
     } else {
-        println!("PTR records are not supported on IPv6 networks (yet!)");
+        warn!("PTR records are not supported on IPv6 networks (yet!)");
     }
 
     drop(read);
@@ -584,7 +584,7 @@ impl ZTAuthority {
                         new_rset.add_rdata(rdata);
                     }
 
-                    eprintln!("Replacing host record for {} with {:?}", key, ips);
+                    warn!("Replacing host record for {} with {:?}", key, ips);
                     rr.remove(&rrkey);
                     rr.insert(rrkey, Arc::new(new_rset));
                 }

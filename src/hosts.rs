@@ -1,4 +1,5 @@
-use std::{collections::HashMap, io::Write, net::IpAddr, str::FromStr};
+use log::warn;
+use std::{collections::HashMap, net::IpAddr, str::FromStr};
 use trust_dns_server::client::rr::Name;
 
 use crate::utils::ToHostname;
@@ -45,7 +46,7 @@ pub(crate) fn parse_hosts(
                             let fqdn = match host.to_fqdn(domain_name.clone()) {
                                 Ok(fqdn) => Some(fqdn),
                                 Err(e) => {
-                                    eprintln!("Invalid host {}: {:?}", host, e);
+                                    warn!("Invalid host {}: {:?}", host, e);
                                     None
                                 }
                             };
@@ -58,7 +59,7 @@ pub(crate) fn parse_hosts(
                         input.insert(parsed_ip, v);
                     }
                     Err(e) => {
-                        writeln!(std::io::stderr().lock(), "Couldn't parse {}: {}", ip, e)?;
+                        warn!("Couldn't parse {}: {}", ip, e);
                     }
                 }
             }
