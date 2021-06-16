@@ -6,7 +6,7 @@ After=zerotier-one.service
 
 [Service]
 Type=simple
-ExecStart=zeronsd start -t /proc/cpuinfo -s /var/lib/zerotier-one/authtoken.secret -f /etc/hosts -d zerotier 1234567891011121
+ExecStart=zeronsd start -t /proc/cpuinfo -w -s /var/lib/zerotier-one/authtoken.secret -f /etc/hosts -d zerotier 1234567891011121
 TimeoutStopSec=30
 
 [Install]

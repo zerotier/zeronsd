@@ -34,6 +34,7 @@ struct Service {
     runtime: Arc<Mutex<Runtime>>,
     tn: Arc<TestNetwork>,
     resolvers: Arc<Vec<Arc<Resolver>>>,
+    update_interval: Option<Duration>,
     pub listen_ips: Vec<String>,
     pub listen_cidrs: Vec<String>,
 }
@@ -72,6 +73,7 @@ fn create_listeners(
     tn: &TestNetwork,
     hosts: HostsType,
     update_interval: Option<Duration>,
+    wildcard_everything: bool,
 ) -> (Vec<String>, Vec<String>) {
     let listen_cidrs = runtime
         .lock()
@@ -101,7 +103,7 @@ fn create_listeners(
         if !authority_map.contains_key(&cidr.network()) {
             let ptr_authority = new_ptr_authority(cidr).unwrap();
 
-            let ztauthority = init_authority(
+            let mut ztauthority = init_authority(
                 ptr_authority,
                 tn.token(),
                 tn.network.clone().id.unwrap(),
@@ -114,6 +116,10 @@ fn create_listeners(
                 update_interval.unwrap_or(Duration::new(30, 0)),
                 authority.clone(),
             );
+
+            if wildcard_everything {
+                ztauthority.wildcard_everything();
+            }
 
             let arc_authority = Arc::new(tokio::sync::RwLock::new(ztauthority));
             authority_map.insert(cidr.network(), arc_authority.to_owned());
@@ -183,11 +189,51 @@ fn create_resolvers(ips: Vec<String>) -> Vec<Arc<Resolver>> {
     resolvers
 }
 
+pub(crate) struct ServiceConfig {
+    hosts: HostsType,
+    update_interval: Option<Duration>,
+    ips: Option<Vec<&'static str>>,
+    wildcard_everything: bool,
+}
+
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self {
+            hosts: HostsType::None,
+            update_interval: None,
+            ips: None,
+            wildcard_everything: false,
+        }
+    }
+}
+
+impl ServiceConfig {
+    fn hosts(mut self, h: HostsType) -> Self {
+        self.hosts = h;
+        self
+    }
+
+    fn update_interval(mut self, u: Option<Duration>) -> Self {
+        self.update_interval = u;
+        self
+    }
+
+    fn ips(mut self, ips: Option<Vec<&'static str>>) -> Self {
+        self.ips = ips;
+        self
+    }
+
+    fn wildcard_everything(mut self, w: bool) -> Self {
+        self.wildcard_everything = w;
+        self
+    }
+}
+
 impl Service {
-    fn new(hosts: HostsType, update_interval: Option<Duration>, ips: Option<Vec<&str>>) -> Self {
+    fn new(sc: ServiceConfig) -> Self {
         let runtime = init_test_runtime();
 
-        let tn = if let Some(ips) = ips {
+        let tn = if let Some(ips) = sc.ips {
             TestNetwork::new_multi_ip(
                 runtime.clone(),
                 "basic-ipv4",
@@ -199,8 +245,13 @@ impl Service {
             TestNetwork::new(runtime.clone(), "basic-ipv4", &mut TestContext::default()).unwrap()
         };
 
-        let (listen_cidrs, listen_ips) =
-            create_listeners(runtime.clone(), &tn, hosts, update_interval);
+        let (listen_cidrs, listen_ips) = create_listeners(
+            runtime.clone(),
+            &tn,
+            sc.hosts,
+            sc.update_interval,
+            sc.wildcard_everything,
+        );
 
         Self {
             runtime,
@@ -208,17 +259,21 @@ impl Service {
             listen_ips: listen_ips.clone(),
             listen_cidrs,
             resolvers: Arc::new(create_resolvers(listen_ips)),
+            update_interval: sc.update_interval,
         }
     }
 
-    #[allow(dead_code)]
-    pub fn any_listen_ip(&self) -> String {
-        self.listen_ips
-            .clone()
-            .into_iter()
-            .choose(&mut rand::thread_rng())
-            .unwrap()
-            .clone()
+    pub fn any_listen_ip(&self) -> Ipv4Addr {
+        Ipv4Addr::from_str(
+            &self
+                .listen_ips
+                .clone()
+                .into_iter()
+                .choose(&mut rand::thread_rng())
+                .unwrap()
+                .clone(),
+        )
+        .unwrap()
     }
 
     pub fn runtime(&self) -> Arc<Mutex<Runtime>> {
@@ -248,14 +303,94 @@ impl Service {
     pub fn lookup_ptr(self, record: String) -> Vec<String> {
         self.any_resolver().lookup_ptr(record)
     }
+
+    pub fn member_record(&self) -> String {
+        format!("zt-{}.domain.", self.network().identity().clone())
+    }
+
+    pub fn change_name(&self, name: &'static str) {
+        let mut member = self
+            .runtime()
+            .lock()
+            .unwrap()
+            .block_on(
+                zerotier_central_api::apis::network_member_api::get_network_member(
+                    &self.network().central(),
+                    &self.network().network.clone().id.unwrap(),
+                    &self.network().identity(),
+                ),
+            )
+            .unwrap();
+
+        member.name = Some(name.to_string());
+
+        self.runtime()
+            .lock()
+            .unwrap()
+            .block_on(
+                zerotier_central_api::apis::network_member_api::update_network_member(
+                    &self.network().central(),
+                    &self.network().network.clone().id.unwrap(),
+                    &self.network().identity(),
+                    member,
+                ),
+            )
+            .unwrap();
+
+        if self.update_interval.is_some() {
+            thread::sleep(self.update_interval.unwrap()); // wait for it to update
+        }
+    }
 }
 
 #[test]
 #[ignore]
-fn test_01_hosts_file_reloading() {
+fn test_wildcard_ipv4_central() {
+    let service = Service::new(
+        ServiceConfig::default()
+            .update_interval(Some(Duration::new(1, 0)))
+            .wildcard_everything(true),
+    );
+
+    let member_record = service.member_record();
+    let named_record = Name::from_str("islay.domain.").unwrap();
+
+    service.change_name("islay");
+
+    assert_eq!(
+        service.lookup_a(named_record.to_string()).first().unwrap(),
+        &service.any_listen_ip(),
+    );
+
+    assert_eq!(
+        service.lookup_a(member_record.to_string()).first().unwrap(),
+        &service.any_listen_ip(),
+    );
+
+    for host in vec!["one", "ten", "zt-foo", "another-record"] {
+        for rec in vec![named_record.to_string(), member_record.clone()] {
+            let lookup = Name::from_str(&host)
+                .unwrap()
+                .append_domain(&Name::from_str(&rec).unwrap())
+                .to_string();
+            assert_eq!(
+                service.lookup_a(lookup).first().unwrap(),
+                &service.any_listen_ip()
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn test_hosts_file_reloading() {
     let hosts_path = "/tmp/zeronsd-test-hosts";
     std::fs::write(hosts_path, "127.0.0.2 islay\n").unwrap();
-    let service = Service::new(HostsType::Path(hosts_path), Some(Duration::new(1, 0)), None);
+    let service = Service::new(
+        ServiceConfig::default()
+            .hosts(HostsType::Path(hosts_path))
+            .update_interval(Some(Duration::new(1, 0))),
+    );
 
     assert_eq!(
         service
@@ -280,13 +415,13 @@ fn test_01_hosts_file_reloading() {
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
-    let service = Service::new(
-        HostsType::None,
-        None,
-        Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
-    );
+    let service = Service::new(ServiceConfig::default().ips(Some(vec![
+        "172.16.240.2",
+        "172.16.240.3",
+        "172.16.240.4",
+    ])));
 
-    let record = format!("zt-{}.domain.", service.network().identity().clone());
+    let record = service.member_record();
 
     eprintln!("Looking up {}", record);
     let mut listen_ips = service.listen_ips.clone();
@@ -370,9 +505,13 @@ fn test_battery_single_domain() {
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
     let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let service = Service::new(HostsType::Fixture("basic"), None, Some(ips.clone()));
+    let service = Service::new(
+        ServiceConfig::default()
+            .hosts(HostsType::Fixture("basic"))
+            .ips(Some(ips.clone())),
+    );
 
-    let record = format!("zt-{}.domain.", service.network().identity().clone());
+    let record = service.member_record();
 
     eprintln!("Looking up random domains");
 
@@ -406,42 +545,13 @@ fn test_battery_multi_domain_hosts_file() {
 fn test_battery_single_domain_named() {
     let update_interval = Duration::new(1, 0);
     let service = Service::new(
-        HostsType::None,
-        Some(update_interval),
-        Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
+        ServiceConfig::default()
+            .update_interval(Some(update_interval))
+            .ips(Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"])),
     );
-    let member_record = format!("zt-{}.domain.", service.network().identity().clone());
+    let member_record = service.member_record();
 
-    let mut member = service
-        .runtime()
-        .lock()
-        .unwrap()
-        .block_on(
-            zerotier_central_api::apis::network_member_api::get_network_member(
-                &service.network().central(),
-                &service.network().network.clone().id.unwrap(),
-                &service.network().identity(),
-            ),
-        )
-        .unwrap();
-
-    member.name = Some("islay".to_string());
-
-    service
-        .runtime()
-        .lock()
-        .unwrap()
-        .block_on(
-            zerotier_central_api::apis::network_member_api::update_network_member(
-                &service.network().central(),
-                &service.network().network.clone().id.unwrap(),
-                &service.network().identity(),
-                member,
-            ),
-        )
-        .unwrap();
-
-    thread::sleep(update_interval); // wait for it to update
+    service.change_name("islay");
 
     let named_record = "islay.domain.".to_string();
 

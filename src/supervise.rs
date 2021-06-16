@@ -14,7 +14,7 @@ After=zerotier-one.service
 
 [Service]
 Type=simple
-ExecStart={binpath} start -t {token} {{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
+ExecStart={binpath} start -t {token} {{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
 TimeoutStopSec=30
 
 [Install]
@@ -29,11 +29,13 @@ pub struct Properties {
     pub hosts_file: Option<String>,
     pub authtoken: Option<String>,
     pub token: String,
+    pub wildcard_names: bool,
 }
 
 impl Default for Properties {
     fn default() -> Self {
         Self {
+            wildcard_names: false,
             binpath: String::from("zeronsd"),
             domain: None,
             network: String::new(),
@@ -51,8 +53,10 @@ impl<'a> Properties {
         hosts_file: Option<&'a str>,
         authtoken: Option<&'a str>,
         token: Option<&'a str>,
+        wildcard_names: bool,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
+            wildcard_names,
             binpath: String::from(std::env::current_exe()?.to_string_lossy()),
             // make this garbage a macro later
             domain: match domain {

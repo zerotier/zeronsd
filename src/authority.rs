@@ -276,6 +276,130 @@ pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, std::i
     Ok(catalog)
 }
 
+pub(crate) struct ZTRecord {
+    fqdn: Name,
+    canonical_name: Option<Name>,
+    ptr_name: Name,
+    ips: Vec<IpAddr>,
+    wildcard_everything: bool,
+}
+
+impl ZTRecord {
+    pub(crate) fn new(
+        member: &Member,
+        domain_name: Name,
+        wildcard_everything: bool,
+    ) -> Result<Self, anyhow::Error> {
+        let member_name = format!(
+            "zt-{}",
+            member
+                .clone()
+                .node_id
+                .expect("Node ID for member does not exist")
+        );
+
+        let fqdn = member_name.clone().to_fqdn(domain_name.clone())?;
+
+        // this is default the zt-<member id> but can switch to a named name if
+        // tweaked in central. see below.
+        let mut canonical_name = None;
+        let mut ptr_name = fqdn.clone();
+
+        if let Some(name) = parse_member_name(member.name.clone(), domain_name.clone()) {
+            canonical_name = Some(name.clone());
+            ptr_name = name;
+        }
+
+        let ips: Vec<IpAddr> = member
+            .clone()
+            .config
+            .expect("Member config does not exist")
+            .ip_assignments
+            .expect("IP assignments for member do not exist")
+            .into_iter()
+            .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
+            .collect();
+
+        Ok(Self {
+            wildcard_everything,
+            fqdn,
+            canonical_name,
+            ptr_name,
+            ips,
+        })
+    }
+
+    pub(crate) fn insert(&self, records: &mut Vec<Name>) {
+        records.push(self.fqdn.clone());
+
+        for ip in self.ips.clone() {
+            records.push(ip.into_name().expect("Could not coerce IP into name"));
+        }
+
+        if self.canonical_name.is_some() {
+            records.push(self.canonical_name.clone().unwrap());
+            if self.wildcard_everything {
+                records.push(self.get_canonical_wildcard().unwrap())
+            }
+        }
+
+        if self.wildcard_everything {
+            records.push(self.get_wildcard())
+        }
+    }
+
+    pub(crate) fn get_wildcard(&self) -> Name {
+        Name::from_str("*")
+            .unwrap()
+            .append_name(&self.fqdn)
+            .into_wildcard()
+    }
+
+    pub(crate) fn get_canonical_wildcard(&self) -> Option<Name> {
+        if self.canonical_name.is_none() {
+            return None;
+        }
+
+        Some(
+            Name::from_str("*")
+                .unwrap()
+                .append_name(&self.canonical_name.clone().unwrap())
+                .into_wildcard(),
+        )
+    }
+
+    pub(crate) fn insert_member(&self, authority: &ZTAuthority) -> Result<(), anyhow::Error> {
+        authority.match_or_insert(self.fqdn.clone(), self.ips.clone());
+
+        if self.wildcard_everything {
+            authority.match_or_insert(self.get_wildcard(), self.ips.clone());
+        }
+
+        if self.canonical_name.is_some() {
+            authority.match_or_insert(self.canonical_name.clone().unwrap(), self.ips.clone());
+            if self.wildcard_everything {
+                authority.match_or_insert(self.get_canonical_wildcard().unwrap(), self.ips.clone())
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn insert_member_ptr(
+        &self,
+        authority: &PtrAuthority,
+        records: &mut Vec<Name>,
+    ) -> Result<(), anyhow::Error> {
+        if authority.is_some() {
+            for ip in self.ips.clone() {
+                records.push(ip.into_name().expect("Could not coerce IP into name"));
+                configure_ptr(authority.clone().unwrap(), ip, self.ptr_name.clone())?;
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ZTAuthority {
     ptr_authority: PtrAuthority,
@@ -286,6 +410,7 @@ pub(crate) struct ZTAuthority {
     hosts_file: Option<String>,
     hosts: Option<Box<HostsFile>>,
     update_interval: Duration,
+    wildcard_everything: bool,
 }
 
 impl ZTAuthority {
@@ -307,7 +432,12 @@ impl ZTAuthority {
             ptr_authority,
             hosts_file,
             hosts: None,
+            wildcard_everything: false,
         }
+    }
+
+    pub(crate) fn wildcard_everything(&mut self) {
+        self.wildcard_everything = true;
     }
 
     fn match_or_insert(&self, name: Name, newips: Vec<IpAddr>) {
@@ -366,46 +496,11 @@ impl ZTAuthority {
         }
 
         for member in members {
-            let member_name = format!(
-                "zt-{}",
-                member.node_id.expect("Node ID for member does not exist")
-            );
-            let fqdn = member_name.to_fqdn(self.domain_name.clone())?;
-
-            // this is default the zt-<member id> but can switch to a named name if
-            // tweaked in central. see below.
-            let mut canonical_name = fqdn.clone();
-            let mut member_is_named = false;
-
-            if let Some(name) = parse_member_name(member.name.clone(), self.domain_name.clone()) {
-                canonical_name = name;
-                member_is_named = true;
-            }
-
-            let ips: Vec<IpAddr> = member
-                .config
-                .expect("Member config does not exist")
-                .ip_assignments
-                .expect("IP assignments for member do not exist")
-                .into_iter()
-                .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
-                .collect();
-
-            self.match_or_insert(fqdn.clone(), ips.clone());
-
-            if member_is_named {
-                self.match_or_insert(canonical_name.clone(), ips.clone());
-            }
-
-            if let Some(local_ptr_authority) = self.ptr_authority.to_owned() {
-                for ip in ips.clone() {
-                    records.push(ip.into_name().expect("Could not coerce IP into name"));
-                    configure_ptr(local_ptr_authority.clone(), ip, canonical_name.clone())?;
-                }
-            }
-
-            records.push(fqdn.clone());
-            records.push(canonical_name.clone());
+            let record =
+                ZTRecord::new(&member, self.domain_name.clone(), self.wildcard_everything)?;
+            record.insert_member(self)?;
+            record.insert_member_ptr(&self.ptr_authority, &mut records)?;
+            record.insert(&mut records);
         }
 
         prune_records(self.authority.to_owned(), records.clone())?;
