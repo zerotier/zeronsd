@@ -7,10 +7,11 @@ use std::{
 };
 
 use ipnetwork::IpNetwork;
+use log::{error, info, warn};
 use tokio::sync::RwLockReadGuard;
 use trust_dns_resolver::{
     config::{NameServerConfigGroup, ResolverOpts},
-    proto::rr::{dnssec::SupportedAlgorithms, RecordSet},
+    proto::rr::{dnssec::SupportedAlgorithms, rdata::SOA, RecordSet},
     IntoName,
 };
 
@@ -33,13 +34,22 @@ pub(crate) type PtrAuthority = Option<Authority>;
 
 pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<PtrAuthority, anyhow::Error> {
     Ok(match ip {
-        IpNetwork::V4(ip) => Some(Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
-            ip.network()
+        IpNetwork::V4(ip) => {
+            let domain_name = ip
+                .network()
                 .into_name()?
-                .trim_to((ip.prefix() as usize / 8) + 2),
-            trust_dns_server::authority::ZoneType::Primary,
-            false,
-        ))))),
+                // round off the subnet, account for in-addr.arpa.
+                .trim_to(8 - (ip.prefix() as usize / 8) * 8 / 8);
+            let mut authority = InMemoryAuthority::empty(
+                domain_name.clone(),
+                trust_dns_server::authority::ZoneType::Primary,
+                false,
+            );
+
+            set_soa(&mut authority, domain_name);
+
+            Some(Box::new(Arc::new(RwLock::new(authority))))
+        }
         IpNetwork::V6(_) => None,
     })
 }
@@ -224,12 +234,33 @@ fn configure_ptr(
     Ok(())
 }
 
+pub(crate) fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
+    let mut soa = Record::new();
+    soa.set_name(domain_name.clone());
+    soa.set_rr_type(RecordType::SOA);
+    soa.set_rdata(RData::SOA(SOA::new(
+        domain_name.clone(),
+        Name::from_str("administrator")
+            .unwrap()
+            .append_domain(&domain_name.clone()),
+        authority.serial() + 1,
+        30,
+        0,
+        -1,
+        0,
+    )));
+    authority.upsert(soa, authority.serial() + 1);
+}
+
 pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
-    Box::new(Arc::new(RwLock::new(InMemoryAuthority::empty(
+    let mut authority = InMemoryAuthority::empty(
         domain_name.clone(),
         trust_dns_server::authority::ZoneType::Primary,
         false,
-    ))))
+    );
+
+    set_soa(&mut authority, domain_name.clone());
+    Box::new(Arc::new(RwLock::new(authority)))
 }
 
 pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, std::io::Error> {
@@ -489,7 +520,7 @@ impl ZTAuthority {
     }
 
     fn configure_members(&mut self, members: Vec<Member>) -> Result<(), anyhow::Error> {
-        let mut records = Vec::new();
+        let mut records = vec![self.domain_name.clone()];
         if let Some(hosts) = self.hosts.to_owned() {
             self.prune_hosts();
             records.append(&mut hosts.values().flatten().map(|v| v.clone()).collect());
