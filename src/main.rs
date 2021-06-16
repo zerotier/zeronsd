@@ -33,7 +33,7 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
 }
 
 fn unsupervise(network: Option<&str>) -> Result<(), anyhow::Error> {
-    supervise::Properties::new(None, network, None, None, None)?.uninstall_supervisor()
+    supervise::Properties::new(None, network, None, None, None, false)?.uninstall_supervisor()
 }
 
 fn supervise(
@@ -42,8 +42,17 @@ fn supervise(
     hosts_file: Option<&str>,
     authtoken: Option<&str>,
     token: Option<&str>,
+    wildcard_names: bool,
 ) -> Result<(), anyhow::Error> {
-    supervise::Properties::new(domain, network, hosts_file, authtoken, token)?.install_supervisor()
+    supervise::Properties::new(
+        domain,
+        network,
+        hosts_file,
+        authtoken,
+        token,
+        wildcard_names,
+    )?
+    .install_supervisor()
 }
 
 fn start(
@@ -175,6 +184,7 @@ fn main() -> Result<(), anyhow::Error> {
             (@arg file: -f --file +takes_value "An additional lists of hosts in /etc/hosts format")
             (@arg secret_file: -s --secret +takes_value "Path to authtoken.secret (usually detected)")
             (@arg token_file: -t --token +takes_value +required "Path to a file containing the ZeroTier Central token; this file must not be moved")
+            (@arg wildcard: -w --wildcard "Wildcard all names in Central to point at the respective member's IP address(es)")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
         (@subcommand unsupervise =>
@@ -206,6 +216,7 @@ fn main() -> Result<(), anyhow::Error> {
             args.value_of("file"),
             args.value_of("secret_file"),
             args.value_of("token_file"),
+            args.is_present("wildcard"),
         )?,
         "unsupervise" => unsupervise(args.value_of("NETWORK_ID"))?,
         _ => {
