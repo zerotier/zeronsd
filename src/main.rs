@@ -166,7 +166,7 @@ fn main() -> Result<(), anyhow::Error> {
             (@arg file: -f --file +takes_value "An additional lists of hosts in /etc/hosts format")
             (@arg secret_file: -s --secret +takes_value "Path to authtoken.secret (usually detected)")
             (@arg token_file: -t --token +takes_value "Path to a file containing the ZeroTier Central token")
-            (@arg wildcard_names: -w --wildcard-names "Wildcard all names in Central to point at the respective member's IP address(es)")
+            (@arg wildcard: -w --wildcard "Wildcard all names in Central to point at the respective member's IP address(es)")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
         (@subcommand supervise =>
@@ -198,7 +198,7 @@ fn main() -> Result<(), anyhow::Error> {
             args.value_of("file"),
             args.value_of("secret_file"),
             args.value_of("token_file"),
-            args.is_present("wildcard_names"),
+            args.is_present("wildcard"),
         )?,
         "supervise" => supervise(
             args.value_of("domain"),
