@@ -189,16 +189,51 @@ fn create_resolvers(ips: Vec<String>) -> Vec<Arc<Resolver>> {
     resolvers
 }
 
+pub(crate) struct ServiceConfig {
+    hosts: HostsType,
+    update_interval: Option<Duration>,
+    ips: Option<Vec<&'static str>>,
+    wildcard_everything: bool,
+}
+
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self {
+            hosts: HostsType::None,
+            update_interval: None,
+            ips: None,
+            wildcard_everything: false,
+        }
+    }
+}
+
+impl ServiceConfig {
+    fn hosts(mut self, h: HostsType) -> Self {
+        self.hosts = h;
+        self
+    }
+
+    fn update_interval(mut self, u: Option<Duration>) -> Self {
+        self.update_interval = u;
+        self
+    }
+
+    fn ips(mut self, ips: Option<Vec<&'static str>>) -> Self {
+        self.ips = ips;
+        self
+    }
+
+    fn wildcard_everything(mut self, w: bool) -> Self {
+        self.wildcard_everything = w;
+        self
+    }
+}
+
 impl Service {
-    fn new(
-        hosts: HostsType,
-        update_interval: Option<Duration>,
-        ips: Option<Vec<&str>>,
-        wildcard_everything: bool,
-    ) -> Self {
+    fn new(sc: ServiceConfig) -> Self {
         let runtime = init_test_runtime();
 
-        let tn = if let Some(ips) = ips {
+        let tn = if let Some(ips) = sc.ips {
             TestNetwork::new_multi_ip(
                 runtime.clone(),
                 "basic-ipv4",
@@ -213,9 +248,9 @@ impl Service {
         let (listen_cidrs, listen_ips) = create_listeners(
             runtime.clone(),
             &tn,
-            hosts,
-            update_interval,
-            wildcard_everything,
+            sc.hosts,
+            sc.update_interval,
+            sc.wildcard_everything,
         );
 
         Self {
@@ -224,7 +259,7 @@ impl Service {
             listen_ips: listen_ips.clone(),
             listen_cidrs,
             resolvers: Arc::new(create_resolvers(listen_ips)),
-            update_interval,
+            update_interval: sc.update_interval,
         }
     }
 
@@ -311,7 +346,11 @@ impl Service {
 #[test]
 #[ignore]
 fn test_wildcard_ipv4_central() {
-    let service = Service::new(HostsType::None, Some(Duration::new(1, 0)), None, true);
+    let service = Service::new(
+        ServiceConfig::default()
+            .update_interval(Some(Duration::new(1, 0)))
+            .wildcard_everything(true),
+    );
 
     let member_record = service.member_record();
     let named_record = Name::from_str("islay.domain.").unwrap();
@@ -348,10 +387,9 @@ fn test_hosts_file_reloading() {
     let hosts_path = "/tmp/zeronsd-test-hosts";
     std::fs::write(hosts_path, "127.0.0.2 islay\n").unwrap();
     let service = Service::new(
-        HostsType::Path(hosts_path),
-        Some(Duration::new(1, 0)),
-        None,
-        false,
+        ServiceConfig::default()
+            .hosts(HostsType::Path(hosts_path))
+            .update_interval(Some(Duration::new(1, 0))),
     );
 
     assert_eq!(
@@ -377,12 +415,11 @@ fn test_hosts_file_reloading() {
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
-    let service = Service::new(
-        HostsType::None,
-        None,
-        Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
-        false,
-    );
+    let service = Service::new(ServiceConfig::default().ips(Some(vec![
+        "172.16.240.2",
+        "172.16.240.3",
+        "172.16.240.4",
+    ])));
 
     let record = service.member_record();
 
@@ -468,7 +505,11 @@ fn test_battery_single_domain() {
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
     let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let service = Service::new(HostsType::Fixture("basic"), None, Some(ips.clone()), false);
+    let service = Service::new(
+        ServiceConfig::default()
+            .hosts(HostsType::Fixture("basic"))
+            .ips(Some(ips.clone())),
+    );
 
     let record = service.member_record();
 
@@ -504,10 +545,9 @@ fn test_battery_multi_domain_hosts_file() {
 fn test_battery_single_domain_named() {
     let update_interval = Duration::new(1, 0);
     let service = Service::new(
-        HostsType::None,
-        Some(update_interval),
-        Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"]),
-        false,
+        ServiceConfig::default()
+            .update_interval(Some(update_interval))
+            .ips(Some(vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"])),
     );
     let member_record = service.member_record();
 
