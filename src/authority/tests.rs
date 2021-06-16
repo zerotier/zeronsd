@@ -1,4 +1,5 @@
 use ipnetwork::IpNetwork;
+use log::info;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
     thread_rng,
@@ -12,7 +13,7 @@ use trust_dns_resolver::{
 use crate::{
     authority::{find_members, init_trust_dns_authority, new_ptr_authority},
     hosts::parse_hosts,
-    integration_tests::{init_test_runtime, TestContext, TestNetwork},
+    integration_tests::{init_test_logger, init_test_runtime, TestContext, TestNetwork},
     tests::HOSTS_DIR,
     utils::{
         authtoken_path, domain_or_default, get_listen_ips, init_authority, parse_ip_from_cidr,
@@ -141,7 +142,7 @@ fn create_listeners(
         rt.spawn({
             sync.send(()).unwrap();
             drop(sync);
-            eprintln!("Serving {}", ip.clone());
+            info!("Serving {}", ip.clone());
             server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000))
         });
     }
@@ -346,6 +347,7 @@ impl Service {
 #[test]
 #[ignore]
 fn test_wildcard_ipv4_central() {
+    init_test_logger();
     let service = Service::new(
         ServiceConfig::default()
             .update_interval(Some(Duration::new(1, 0)))
@@ -384,6 +386,7 @@ fn test_wildcard_ipv4_central() {
 #[test]
 #[ignore]
 fn test_hosts_file_reloading() {
+    init_test_logger();
     let hosts_path = "/tmp/zeronsd-test-hosts";
     std::fs::write(hosts_path, "127.0.0.2 islay\n").unwrap();
     let service = Service::new(
@@ -415,6 +418,7 @@ fn test_hosts_file_reloading() {
 #[test]
 #[ignore]
 fn test_battery_single_domain() {
+    init_test_logger();
     let service = Service::new(ServiceConfig::default().ips(Some(vec![
         "172.16.240.2",
         "172.16.240.3",
@@ -423,7 +427,7 @@ fn test_battery_single_domain() {
 
     let record = service.member_record();
 
-    eprintln!("Looking up {}", record);
+    info!("Looking up {}", record);
     let mut listen_ips = service.listen_ips.clone();
     listen_ips.sort();
 
@@ -446,7 +450,7 @@ fn test_battery_single_domain() {
         .collect();
 
     for ptr_record in ptr_records.clone() {
-        eprintln!("Looking up {}", ptr_record);
+        info!("Looking up {}", ptr_record);
 
         for _ in 0..10000 {
             let service = service.clone();
@@ -457,7 +461,7 @@ fn test_battery_single_domain() {
         }
     }
 
-    eprintln!("Interleaved lookups of PTR and A records");
+    info!("Interleaved lookups of PTR and A records");
 
     for _ in 0..10000 {
         // randomly switch order
@@ -504,6 +508,7 @@ fn test_battery_single_domain() {
 #[test]
 #[ignore]
 fn test_battery_multi_domain_hosts_file() {
+    init_test_logger();
     let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
     let service = Service::new(
         ServiceConfig::default()
@@ -513,7 +518,7 @@ fn test_battery_multi_domain_hosts_file() {
 
     let record = service.member_record();
 
-    eprintln!("Looking up random domains");
+    info!("Looking up random domains");
 
     let mut hosts_map = parse_hosts(
         Some(format!("{}/basic", HOSTS_DIR)),
@@ -543,6 +548,7 @@ fn test_battery_multi_domain_hosts_file() {
 #[test]
 #[ignore]
 fn test_battery_single_domain_named() {
+    init_test_logger();
     let update_interval = Duration::new(1, 0);
     let service = Service::new(
         ServiceConfig::default()
@@ -556,7 +562,7 @@ fn test_battery_single_domain_named() {
     let named_record = "islay.domain.".to_string();
 
     for record in vec![member_record, named_record.clone()] {
-        eprintln!("Looking up {}", record);
+        info!("Looking up {}", record);
 
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
@@ -580,7 +586,7 @@ fn test_battery_single_domain_named() {
         .collect();
 
     for ptr_record in ptr_records {
-        eprintln!("Looking up {}", ptr_record);
+        info!("Looking up {}", ptr_record);
 
         for _ in 0..10000 {
             let service = service.clone();

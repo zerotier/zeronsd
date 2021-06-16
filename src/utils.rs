@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use log::warn;
 use regex::Regex;
 use tokio::runtime::Runtime;
 use trust_dns_resolver::IntoName;
@@ -99,7 +100,7 @@ pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Opti
             match name.to_fqdn(domain_name) {
                 Ok(record) => return Some(record),
                 Err(e) => {
-                    eprintln!("Record {} not entered into catalog: {:?}", name, e);
+                    warn!("Record {} not entered into catalog: {:?}", name, e);
                     return None;
                 }
             };
@@ -133,10 +134,6 @@ pub(crate) async fn get_listen_ips(
 
     Err(anyhow!("No listen IPs available on this network"))
 }
-
-/*
- * FIXME this and init_authority need an overhaul
- */
 
 pub(crate) fn update_central_dns(
     runtime: &mut Runtime,

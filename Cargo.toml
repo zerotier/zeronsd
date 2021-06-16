@@ -29,6 +29,8 @@ serde_json = ">= 0"
 tinytemplate = ">= 0"
 rand = ">= 0"
 num_cpus = ">=0"
+log = ">=0"
+stderrlog = ">=0"
 
 [package.metadata.deb]
 copyright = "ZeroTier, Inc"
