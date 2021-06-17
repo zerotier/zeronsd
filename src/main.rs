@@ -33,37 +33,22 @@ fn write_help(app: clap::App) -> Result<(), anyhow::Error> {
     return Ok(());
 }
 
-fn unsupervise(network: Option<&str>) -> Result<(), anyhow::Error> {
-    supervise::Properties::new(None, network, None, None, None, false)?.uninstall_supervisor()
+fn unsupervise(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
+    supervise::Properties::from(args).uninstall_supervisor()
 }
 
-fn supervise(
-    domain: Option<&str>,
-    network: Option<&str>,
-    hosts_file: Option<&str>,
-    authtoken: Option<&str>,
-    token: Option<&str>,
-    wildcard_names: bool,
-) -> Result<(), anyhow::Error> {
-    supervise::Properties::new(
-        domain,
-        network,
-        hosts_file,
-        authtoken,
-        token,
-        wildcard_names,
-    )?
-    .install_supervisor()
+fn supervise(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
+    supervise::Properties::from(args).install_supervisor()
 }
 
-fn start(
-    domain: Option<&str>,
-    network: Option<&str>,
-    hosts_file: Option<&str>,
-    authtoken: Option<&str>,
-    token: Option<&str>,
-    wildcard_names: bool,
-) -> Result<(), anyhow::Error> {
+fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
+    let domain = args.value_of("domain");
+    let authtoken = args.value_of("secret_file");
+    let network = args.value_of("NETWORK_ID");
+    let hosts_file = args.value_of("file");
+    let token = args.value_of("token_file");
+    let wildcard_names = args.is_present("wildcard");
+
     let domain_name = utils::domain_or_default(domain)?;
     let authtoken = utils::authtoken_path(authtoken);
     let runtime = &mut utils::init_runtime();
@@ -212,23 +197,9 @@ fn main() -> Result<(), anyhow::Error> {
         .unwrap();
 
     let result = match cmd {
-        "start" => start(
-            args.value_of("domain"),
-            args.value_of("NETWORK_ID"),
-            args.value_of("file"),
-            args.value_of("secret_file"),
-            args.value_of("token_file"),
-            args.is_present("wildcard"),
-        ),
-        "supervise" => supervise(
-            args.value_of("domain"),
-            args.value_of("NETWORK_ID"),
-            args.value_of("file"),
-            args.value_of("secret_file"),
-            args.value_of("token_file"),
-            args.is_present("wildcard"),
-        ),
-        "unsupervise" => unsupervise(args.value_of("NETWORK_ID")),
+        "start" => start(args),
+        "supervise" => supervise(args),
+        "unsupervise" => unsupervise(args),
         _ => {
             let stderr = std::io::stderr();
             let mut lock = stderr.lock();

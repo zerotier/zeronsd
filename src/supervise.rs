@@ -33,11 +33,25 @@ pub struct Properties {
     pub wildcard_names: bool,
 }
 
+impl From<&clap::ArgMatches<'_>> for Properties {
+    fn from(args: &clap::ArgMatches<'_>) -> Self {
+        Self::new(
+            args.value_of("domain"),
+            args.value_of("NETWORK_ID"),
+            args.value_of("file").clone(),
+            args.value_of("secret_file"),
+            args.value_of("token_file"),
+            args.is_present("wildcard"),
+        )
+        .unwrap()
+    }
+}
+
 impl Default for Properties {
     fn default() -> Self {
         Self {
             wildcard_names: false,
-            binpath: String::from("zeronsd"),
+            binpath: "zeronsd".to_string(),
             domain: None,
             network: String::new(),
             hosts_file: None,
@@ -49,11 +63,11 @@ impl Default for Properties {
 
 impl<'a> Properties {
     pub fn new(
-        domain: Option<&'a str>,
-        network: Option<&'a str>,
-        hosts_file: Option<&'a str>,
-        authtoken: Option<&'a str>,
-        token: Option<&'a str>,
+        domain: Option<&'_ str>,
+        network: Option<&'_ str>,
+        hosts_file: Option<&'_ str>,
+        authtoken: Option<&'_ str>,
+        token: Option<&'_ str>,
         wildcard_names: bool,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
