@@ -6,8 +6,11 @@ use serde::Serialize;
 use tinytemplate::TinyTemplate;
 use trust_dns_resolver::Name;
 
-const SYSTEMD_SYSTEM_DIR: &str = "/lib/systemd/system";
-const SYSTEMD_UNIT: &str = "
+#[cfg(target_os = "linux")]
+const SUPERVISE_SYSTEM_DIR: &str = "/lib/systemd/system";
+
+#[cfg(target_os = "linux")]
+const SERVICE_TEMPLATE: &str = "
 [Unit]
 Description=zeronsd for network {network}
 Requires=zerotier-one.service
@@ -21,6 +24,53 @@ TimeoutStopSec=30
 [Install]
 WantedBy=default.target
 ";
+
+#[cfg(target_os = "macos")]
+const SUPERVISE_SYSTEM_DIR: &str = "/Library/LaunchDaemons/";
+#[cfg(target_os = "macos")]
+const SERVICE_TEMPLATE: &str = r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key> <string>com.zerotier.nsd.{network}</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>{binpath}</string>
+      <string>start</string>
+      <string>-t</string>
+      <string>{token}</string>
+      {{ if wildcard_names }}
+      <string>-w</string>
+      {{endif}}
+      {{ if authtoken }}
+      <string>-s</string>
+      <string>{authtoken}</string>
+      {{endif}}
+      {{ if hosts_file }}
+      <string>-f</string>
+      <string>{hosts_file}</string>
+      {{ endif }}
+      {{ if domain }}
+      <string>-d</string>
+      <string>{domain}</string>
+      {{ endif }}
+      <string>{network}</string>
+    </array>
+
+    <key>UserName</key> <string>root</string>
+
+    <key>RunAtLoad</key> <true/>
+
+    <key>KeepAlive</key> <true/>
+
+    <key>StandardErrorPath</key> <string>/var/log/zerotier/nsd/{network}.err</string>
+    <key>StandardOutPath</key> <string>/var/log/zerotier/nsd/{network}.log</string>
+
+  </dict>
+    </plist>
+"#;
 
 #[derive(Serialize)]
 pub struct Properties {
@@ -161,28 +211,34 @@ impl<'a> Properties {
         Ok(())
     }
 
-    pub fn systemd_template(&self) -> Result<String, anyhow::Error> {
+    pub fn supervise_template(&self) -> Result<String, anyhow::Error> {
         let mut t = TinyTemplate::new();
-        t.add_template("systemd", SYSTEMD_UNIT)?;
-        match t.render("systemd", self) {
+        t.add_template("supervise", SERVICE_TEMPLATE)?;
+        match t.render("supervise", self) {
             Ok(x) => Ok(x),
             Err(e) => Err(anyhow!(e)),
         }
     }
 
+    #[cfg(target_os = "linux")]
     fn service_name(&self) -> String {
         format!("zeronsd-{}.service", self.network)
     }
 
+    #[cfg(target_os = "macos")]
+    fn service_name(&self) -> String {
+        format!("com.zerotier.nsd.{}.plist", self.network)
+    }
+
     fn service_path(&self) -> PathBuf {
-        PathBuf::from(SYSTEMD_SYSTEM_DIR).join(self.service_name())
+        PathBuf::from(SUPERVISE_SYSTEM_DIR).join(self.service_name())
     }
 
     pub fn install_supervisor(&mut self) -> Result<(), anyhow::Error> {
         self.validate()?;
 
         if cfg!(target_os = "linux") {
-            let template = self.systemd_template()?;
+            let template = self.supervise_template()?;
             let service_path = self.service_path();
 
             match std::fs::write(service_path.clone(), template) {
@@ -203,6 +259,28 @@ impl<'a> Properties {
                 service_path.to_str().expect("Could not coerce service path to string"),
                 self.network,
             );
+        } else if cfg!(target_os = "macos") {
+            let template = self.supervise_template()?;
+            let service_path = self.service_path();
+
+            match std::fs::write(service_path.clone(), template) {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Could not write the template {}; are you root? ({})",
+                        service_path
+                            .to_str()
+                            .expect("Could not coerce service path to string"),
+                        e,
+                    ))
+                }
+            };
+
+            info!(
+                "Service definition written to {}.\nTo start the service, run:\nsudo launchctl load {}",
+                service_path.to_str().expect("Could not coerce service path to string"),
+                service_path.to_str().expect("Could not coerce service path to string")
+            );
         } else {
             return Err(anyhow!("Your platform is not supported for this command"));
         }
@@ -212,17 +290,39 @@ impl<'a> Properties {
     pub fn uninstall_supervisor(&self) -> Result<(), anyhow::Error> {
         if cfg!(target_os = "linux") {
             match std::fs::remove_file(self.service_path()) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(anyhow!(
-                    "Could not uninstall supervisor unit file ({}): {}",
-                    self.service_path()
-                        .to_str()
-                        .expect("Could not coerce service path to string"),
-                    e
-                )),
-            }
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Could not uninstall supervisor unit file ({}): {}",
+                        self.service_path()
+                            .to_str()
+                            .expect("Could not coerce service path to string"),
+                        e,
+                    ))
+                }
+            };
+        } else if cfg!(target_os = "macos") {
+            match std::fs::remove_file(self.service_path()) {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Could not uninstall supervisor unit file ({}): {}",
+                        self.service_path()
+                            .to_str()
+                            .expect("Could not coerce service path to string"),
+                        e,
+                    ))
+                }
+            };
+
+            info!(
+                "Service definition removed from {}.\nDon't forget to stop it:\nsudo launchctl remove {}",
+                self.service_path().to_str().expect("Could not coerce service path to string"),
+                self.service_name().replace(".plist", "")
+            );
         } else {
-            Err(anyhow!("Your platform is not supported for this command"))
+            return Err(anyhow!("Your platform is not supported for this command"));
         }
+        Ok(())
     }
 }
