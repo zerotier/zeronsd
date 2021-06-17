@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     authority::{find_members, init_trust_dns_authority, new_ptr_authority},
-    utils::update_central_dns,
+    utils::{central_config, central_token, update_central_dns},
 };
 
 mod authority;
@@ -54,22 +54,16 @@ fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
     let runtime = &mut utils::init_runtime();
 
     if let Some(network) = network {
-        let token = utils::central_token(token);
+        let token = central_config(central_token(token)?);
         let network = String::from(network);
-        let hf = if let Some(hf) = hosts_file {
+
+        let hosts_file = if let Some(hf) = hosts_file {
             Some(hf.to_string())
         } else {
             None
         };
 
-        if token.is_none() {
-            return Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"));
-        }
-
-        let token = token.unwrap();
-
         info!("Welcome to ZeroNS!");
-
         let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &network))?;
 
         if ips.len() > 0 {
@@ -104,7 +98,7 @@ fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
                         token.clone(),
                         network.clone(),
                         domain_name.clone(),
-                        hf.clone(),
+                        hosts_file.clone(),
                         Duration::new(30, 0),
                         authority.clone(),
                     );
