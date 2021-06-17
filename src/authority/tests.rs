@@ -106,7 +106,7 @@ fn create_listeners(
 
             let mut ztauthority = init_authority(
                 ptr_authority,
-                tn.token(),
+                tn.central(),
                 tn.network.clone().id.unwrap(),
                 domain_or_default(None).unwrap(),
                 match hosts {

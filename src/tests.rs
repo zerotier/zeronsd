@@ -98,14 +98,13 @@ fn test_domain_or_default() {
 fn test_central_token() {
     use crate::utils::central_token;
 
-    assert!(central_token(None).is_none());
+    assert!(central_token(None).is_err());
     std::env::set_var("ZEROTIER_CENTRAL_TOKEN", "abcdef");
-    assert!(central_token(None).is_some());
     assert_eq!(central_token(None).unwrap(), "abcdef");
 
     let hosts = std::fs::read_to_string("/etc/hosts").unwrap();
     let token = central_token(Some("/etc/hosts"));
-    assert!(token.is_some());
+    assert!(token.is_ok());
     assert_eq!(token.unwrap(), hosts.trim());
 }
 
@@ -113,7 +112,7 @@ fn test_central_token() {
 #[should_panic]
 fn test_central_token_panic() {
     use crate::utils::central_token;
-    central_token(Some("/nonexistent"));
+    central_token(Some("/nonexistent")).unwrap();
 }
 
 #[test]

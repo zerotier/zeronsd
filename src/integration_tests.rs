@@ -283,10 +283,6 @@ impl TestNetwork {
         Ok(())
     }
 
-    pub fn token(&self) -> String {
-        self.context.token.clone()
-    }
-
     pub fn identity(&self) -> String {
         self.context.identity.clone()
     }
