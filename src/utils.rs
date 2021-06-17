@@ -44,23 +44,21 @@ pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> String {
         .to_string()
 }
 
-pub(crate) fn central_token(arg: Option<&str>) -> Option<String> {
+pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> {
     if arg.is_some() {
-        return Some(
-            std::fs::read_to_string(arg.unwrap())
-                .expect("Could not load token file")
-                .trim()
-                .to_string(),
-        );
+        return Ok(std::fs::read_to_string(arg.unwrap())
+            .expect("Could not load token file")
+            .trim()
+            .to_string());
     }
 
     if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
         if token.len() > 0 {
-            return Some(token);
+            return Ok(token);
         }
     }
 
-    None
+    return Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"));
 }
 
 pub(crate) fn authtoken_path(arg: Option<&str>) -> String {
@@ -139,11 +137,9 @@ pub(crate) fn update_central_dns(
     runtime: &mut Runtime,
     domain_name: Name,
     ip: String,
-    token: String,
+    config: Configuration,
     network: String,
 ) -> Result<(), anyhow::Error> {
-    let config = central_config(token);
-
     let mut zt_network = runtime.block_on(
         zerotier_central_api::apis::network_api::get_network_by_id(&config, &network),
     )?;
@@ -169,7 +165,7 @@ pub(crate) fn update_central_dns(
 
 pub(crate) fn init_authority(
     ptr_authority: PtrAuthority,
-    token: String,
+    token: Configuration,
     network: String,
     domain_name: Name,
     hosts_file: Option<String>,
@@ -179,7 +175,7 @@ pub(crate) fn init_authority(
     ZTAuthority::new(
         domain_name.clone(),
         network.clone(),
-        central_config(token),
+        token,
         hosts_file,
         ptr_authority,
         update_interval,
