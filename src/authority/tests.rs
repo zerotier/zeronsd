@@ -11,13 +11,11 @@ use trust_dns_resolver::{
 };
 
 use crate::{
-    authority::{find_members, init_trust_dns_authority, new_ptr_authority},
+    authority::{find_members, init_trust_dns_authority, new_ptr_authority, ZTAuthority},
     hosts::parse_hosts,
     integration_tests::{init_test_logger, init_test_runtime, TestContext, TestNetwork},
     tests::HOSTS_DIR,
-    utils::{
-        authtoken_path, domain_or_default, get_listen_ips, init_authority, parse_ip_from_cidr,
-    },
+    utils::{authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr},
 };
 use std::{
     collections::HashMap,
@@ -101,43 +99,40 @@ fn create_listeners(
             ipmap.insert(listen_ip, cidr.network());
         }
 
-        if !authority_map.contains_key(&cidr.network()) {
+        if !authority_map.contains_key(&cidr) {
             let ptr_authority = new_ptr_authority(cidr).unwrap();
-
-            let mut ztauthority = init_authority(
-                ptr_authority,
-                tn.central(),
-                tn.network.clone().id.unwrap(),
-                domain_or_default(None).unwrap(),
-                match hosts {
-                    HostsType::Fixture(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
-                    HostsType::Path(hosts) => Some(hosts.to_string()),
-                    HostsType::None => None,
-                },
-                update_interval.unwrap_or(Duration::new(30, 0)),
-                authority.clone(),
-            );
-
-            if wildcard_everything {
-                ztauthority.wildcard_everything();
-            }
-
-            let arc_authority = Arc::new(tokio::sync::RwLock::new(ztauthority));
-            authority_map.insert(cidr.network(), arc_authority.to_owned());
-            let lock = runtime.lock().unwrap();
-            lock.spawn(find_members(arc_authority));
-            drop(lock);
+            authority_map.insert(cidr, ptr_authority.to_owned());
         }
     }
 
-    for ip in listen_ips.clone() {
-        let cidr = ipmap.get(&ip).unwrap();
-        let authority = authority_map.get(cidr).unwrap();
+    let mut ztauthority = ZTAuthority::new(
+        domain_or_default(None).unwrap(),
+        tn.network.clone().id.unwrap(),
+        tn.central(),
+        match hosts {
+            HostsType::Fixture(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
+            HostsType::Path(hosts) => Some(hosts.to_string()),
+            HostsType::None => None,
+        },
+        authority_map,
+        update_interval.unwrap_or(Duration::new(30, 0)),
+        authority.clone(),
+    );
 
+    if wildcard_everything {
+        ztauthority.wildcard_everything();
+    }
+
+    let arc_authority = Arc::new(tokio::sync::RwLock::new(ztauthority));
+    let lock = runtime.lock().unwrap();
+    lock.spawn(find_members(arc_authority.clone()));
+    drop(lock);
+
+    for ip in listen_ips.clone() {
         let sync = s.clone();
 
         let rt = &mut runtime.lock().unwrap();
-        let server = crate::server::Server::new(authority.to_owned());
+        let server = crate::server::Server::new(arc_authority.to_owned());
 
         rt.spawn({
             sync.send(()).unwrap();

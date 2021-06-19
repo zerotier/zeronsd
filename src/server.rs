@@ -5,7 +5,6 @@ use tokio::{
     time::sleep,
 };
 
-use trust_dns_resolver::proto::error::ProtoError;
 use trust_dns_server::server::ServerFuture;
 
 use crate::authority::{init_catalog, TokioZTAuthority};
@@ -23,7 +22,7 @@ impl Server {
         self,
         listen_addr: String,
         tcp_timeout: Duration,
-    ) -> Result<(), ProtoError> {
+    ) -> Result<(), anyhow::Error> {
         loop {
             let tcp = TcpListener::bind(&listen_addr).await?;
             let udp = UdpSocket::bind(&listen_addr).await?;
