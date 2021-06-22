@@ -7,9 +7,9 @@
 
 use std::{
     collections::HashMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     str::FromStr,
-    sync::{mpsc::sync_channel, Arc, Mutex},
+    sync::{Arc, Mutex},
     thread::sleep,
     time::Duration,
 };
@@ -17,7 +17,7 @@ use std::{
 use ipnetwork::IpNetwork;
 use log::info;
 use rand::prelude::{IteratorRandom, SliceRandom};
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, sync::RwLock};
 use trust_dns_resolver::{
     config::{NameServerConfig, ResolverConfig, ResolverOpts},
     proto::rr::RecordType,
@@ -25,6 +25,7 @@ use trust_dns_resolver::{
 };
 
 use crate::{
+    addresses::Calculator,
     authority::{find_members, init_trust_dns_authority, new_ptr_authority, ZTAuthority},
     integration_tests::{init_test_runtime, TestContext, TestNetwork},
     tests::HOSTS_DIR,
@@ -37,12 +38,13 @@ pub(crate) struct Service {
     tn: Arc<TestNetwork>,
     resolvers: Arc<Vec<Arc<Resolver>>>,
     update_interval: Option<Duration>,
-    pub listen_ips: Vec<String>,
+    pub listen_ips: Vec<SocketAddr>,
     pub listen_cidrs: Vec<String>,
 }
 
 pub(crate) trait Lookup {
     fn lookup_a(&self, record: String) -> Vec<Ipv4Addr>;
+    fn lookup_aaaa(&self, record: String) -> Vec<Ipv6Addr>;
     fn lookup_ptr(&self, record: String) -> Vec<String>;
 }
 
@@ -52,6 +54,15 @@ impl Lookup for Resolver {
             .unwrap()
             .record_iter()
             .map(|r| r.rdata().clone().into_a().unwrap())
+            .collect()
+    }
+
+    fn lookup_aaaa(&self, record: String) -> Vec<Ipv6Addr> {
+        self.ipv6_lookup(record)
+            .unwrap()
+            .as_lookup()
+            .record_iter()
+            .map(|r| r.rdata().clone().into_aaaa().unwrap())
             .collect()
     }
 
@@ -76,7 +87,7 @@ fn create_listeners(
     hosts: HostsType,
     update_interval: Option<Duration>,
     wildcard_everything: bool,
-) -> (Vec<String>, Vec<String>) {
+) -> (Vec<String>, Vec<SocketAddr>) {
     let listen_cidrs = runtime
         .lock()
         .unwrap()
@@ -88,15 +99,14 @@ fn create_listeners(
 
     let mut listen_ips = Vec::new();
 
-    let (s, r) = sync_channel(listen_cidrs.len());
-
     let mut ipmap = HashMap::new();
     let mut authority_map = HashMap::new();
     let authority = init_trust_dns_authority(domain_or_default(None).unwrap());
 
     for cidr in listen_cidrs.clone() {
         let listen_ip = parse_ip_from_cidr(cidr.clone());
-        listen_ips.push(listen_ip.clone());
+        let socket_addr = SocketAddr::new(listen_ip.clone(), 53);
+        listen_ips.push(socket_addr);
         let cidr = IpNetwork::from_str(&cidr.clone()).unwrap();
         if !ipmap.contains_key(&listen_ip) {
             ipmap.insert(listen_ip, cidr.network());
@@ -104,9 +114,21 @@ fn create_listeners(
 
         if !authority_map.contains_key(&cidr) {
             let ptr_authority = new_ptr_authority(cidr).unwrap();
-            authority_map.insert(cidr, ptr_authority.to_owned());
+            authority_map.insert(cidr, ptr_authority.clone());
         }
     }
+
+    if let Some(v6assign) = tn.network.config.clone().unwrap().v6_assign_mode {
+        if v6assign.rfc4193.unwrap_or(false) {
+            let cidr = tn.network.clone().rfc4193().unwrap();
+            if !authority_map.contains_key(&cidr) {
+                let ptr_authority = new_ptr_authority(cidr).unwrap();
+                authority_map.insert(cidr, ptr_authority);
+            }
+        }
+    }
+
+    let update_interval = update_interval.unwrap_or(Duration::new(2, 0));
 
     let mut ztauthority = ZTAuthority::new(
         domain_or_default(None).unwrap(),
@@ -118,7 +140,7 @@ fn create_listeners(
             HostsType::None => None,
         },
         authority_map,
-        update_interval.unwrap_or(Duration::new(30, 0)),
+        update_interval,
         authority.clone(),
     );
 
@@ -126,46 +148,29 @@ fn create_listeners(
         ztauthority.wildcard_everything();
     }
 
-    let arc_authority = Arc::new(tokio::sync::RwLock::new(ztauthority));
+    let arc_authority = Arc::new(RwLock::new(ztauthority));
     let lock = runtime.lock().unwrap();
     lock.spawn(find_members(arc_authority.clone()));
-    drop(lock);
+
+    lock.block_on(async { tokio::time::sleep(Duration::new(5, 0)).await });
 
     for ip in listen_ips.clone() {
-        let sync = s.clone();
-
-        let rt = &mut runtime.lock().unwrap();
         let server = crate::server::Server::new(arc_authority.to_owned());
-
-        rt.spawn({
-            sync.send(()).unwrap();
-            drop(sync);
-            info!("Serving {}", ip.clone());
-            server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000))
-        });
+        info!("Serving {}", ip.clone());
+        lock.spawn(server.listen(ip, Duration::new(0, 1000)));
     }
 
-    drop(s);
-
-    loop {
-        if r.recv().is_err() {
-            break;
-        }
-    }
-
-    sleep(Duration::new(2, 0)); // FIXME this sleep should not be necessary
-
-    (listen_cidrs, listen_ips.clone())
+    (listen_cidrs, listen_ips)
 }
 
-fn create_resolvers(ips: Vec<String>) -> Vec<Arc<Resolver>> {
+fn create_resolvers(sockets: Vec<SocketAddr>) -> Vec<Arc<Resolver>> {
     let mut resolvers = Vec::new();
 
-    for ip in ips {
+    for socket in sockets {
         let mut resolver_config = ResolverConfig::new();
         resolver_config.add_search(domain_or_default(None).unwrap());
         resolver_config.add_name_server(NameServerConfig {
-            socket_addr: SocketAddr::new(IpAddr::from_str(&ip).unwrap(), 53),
+            socket_addr: socket,
             protocol: trust_dns_resolver::config::Protocol::Udp,
             tls_dns_name: None,
             trust_nx_responses: true,
@@ -193,11 +198,13 @@ pub(crate) struct ServiceConfig {
     update_interval: Option<Duration>,
     ips: Option<Vec<&'static str>>,
     wildcard_everything: bool,
+    network_filename: Option<&'static str>,
 }
 
 impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
+            network_filename: None,
             hosts: HostsType::None,
             update_interval: None,
             ips: None,
@@ -207,6 +214,11 @@ impl Default for ServiceConfig {
 }
 
 impl ServiceConfig {
+    pub(crate) fn network_filename(mut self, n: &'static str) -> Self {
+        self.network_filename = Some(n);
+        self
+    }
+
     pub(crate) fn hosts(mut self, h: HostsType) -> Self {
         self.hosts = h;
         self
@@ -232,16 +244,22 @@ impl Service {
     pub(crate) fn new(sc: ServiceConfig) -> Self {
         let runtime = init_test_runtime();
 
+        let network_filename = sc.network_filename.unwrap_or("basic-ipv4");
         let tn = if let Some(ips) = sc.ips {
             TestNetwork::new_multi_ip(
                 runtime.clone(),
-                "basic-ipv4",
+                network_filename,
                 &mut TestContext::default(),
                 ips,
             )
             .unwrap()
         } else {
-            TestNetwork::new(runtime.clone(), "basic-ipv4", &mut TestContext::default()).unwrap()
+            TestNetwork::new(
+                runtime.clone(),
+                network_filename,
+                &mut TestContext::default(),
+            )
+            .unwrap()
         };
 
         let (listen_cidrs, listen_ips) = create_listeners(
@@ -255,24 +273,21 @@ impl Service {
         Self {
             runtime,
             tn: Arc::new(tn),
-            listen_ips: listen_ips.clone(),
+            resolvers: Arc::new(create_resolvers(listen_ips.clone())),
+            listen_ips,
             listen_cidrs,
-            resolvers: Arc::new(create_resolvers(listen_ips)),
             update_interval: sc.update_interval,
         }
     }
 
-    pub fn any_listen_ip(&self) -> Ipv4Addr {
-        Ipv4Addr::from_str(
-            &self
-                .listen_ips
-                .clone()
-                .into_iter()
-                .choose(&mut rand::thread_rng())
-                .unwrap()
-                .clone(),
-        )
-        .unwrap()
+    pub fn any_listen_ip(self) -> IpAddr {
+        self.listen_ips
+            .clone()
+            .into_iter()
+            .choose(&mut rand::thread_rng())
+            .unwrap()
+            .clone()
+            .ip()
     }
 
     pub fn runtime(&self) -> Arc<Mutex<Runtime>> {
@@ -293,14 +308,6 @@ impl Service {
             .to_owned()
             .unwrap()
             .clone()
-    }
-
-    pub fn lookup_a(&self, record: String) -> Vec<Ipv4Addr> {
-        self.any_resolver().lookup_a(record)
-    }
-
-    pub fn lookup_ptr(self, record: String) -> Vec<String> {
-        self.any_resolver().lookup_ptr(record)
     }
 
     pub fn member_record(&self) -> String {
@@ -339,5 +346,23 @@ impl Service {
         if self.update_interval.is_some() {
             sleep(self.update_interval.unwrap()); // wait for it to update
         }
+    }
+
+    pub fn test_network(&self) -> Arc<TestNetwork> {
+        self.tn.clone()
+    }
+}
+
+impl Lookup for Service {
+    fn lookup_a(&self, record: String) -> Vec<Ipv4Addr> {
+        self.any_resolver().lookup_a(record)
+    }
+
+    fn lookup_aaaa(&self, record: String) -> Vec<Ipv6Addr> {
+        self.any_resolver().lookup_aaaa(record)
+    }
+
+    fn lookup_ptr(&self, record: String) -> Vec<String> {
+        self.any_resolver().lookup_ptr(record)
     }
 }

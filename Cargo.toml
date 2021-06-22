@@ -33,6 +33,9 @@ log = ">=0"
 stderrlog = ">=0"
 hex = ">=0"
 
+[features]
+integration-tests = []
+
 [package.metadata.deb]
 copyright = "ZeroTier, Inc"
 

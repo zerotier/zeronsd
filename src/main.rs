@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap, io::Write, str::FromStr, sync::Arc, thread::sleep, time::Duration,
+    collections::HashMap, io::Write, net::SocketAddr, str::FromStr, sync::Arc, thread::sleep,
+    time::Duration,
 };
 
 use clap::clap_app;
@@ -22,7 +23,7 @@ mod server;
 mod supervise;
 mod utils;
 
-#[cfg(test)]
+#[cfg(all(feature = "integration-tests", test))]
 mod integration_tests;
 #[cfg(test)]
 mod tests;
@@ -139,7 +140,7 @@ fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
                 info!("Your IP for this network: {}", ip);
 
                 let server = crate::server::Server::new(arc_authority.to_owned());
-                runtime.spawn(server.listen(format!("{}:53", ip.clone()), Duration::new(0, 1000)));
+                runtime.spawn(server.listen(SocketAddr::new(ip, 53), Duration::new(0, 1000)));
             }
 
             async fn wait() {

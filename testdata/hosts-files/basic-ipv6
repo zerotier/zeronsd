@@ -1,0 +1,6 @@
+::1		localhost
+127.0.0.1 localhost
+127.0.1.1 islay.localdomain islay
+feed:cafe::1 islay.localdomain islay
+fd6a:b565:387a:6d77:1599:937d:2246:5c2b islay-ipv6
+fd6a:b565:387a:6d77:1599:937d:2246:5c2c islay-ipv6-2

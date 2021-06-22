@@ -543,6 +543,15 @@ impl ZTAuthority {
                 .get(&RrKey::new(name.clone().into(), rt))
                 .clone();
 
+            let ips = newips
+                .clone()
+                .into_iter()
+                .filter(|i| match i {
+                    IpAddr::V4(_) => rt == RecordType::A,
+                    IpAddr::V6(_) => rt == RecordType::AAAA,
+                })
+                .collect();
+
             match records {
                 Some(records) => {
                     let records = records.records(false, SupportedAlgorithms::all());
@@ -554,7 +563,7 @@ impl ZTAuthority {
                             &mut self.authority.write().expect("write lock"),
                             name.clone(),
                             rt,
-                            newips.clone(),
+                            ips,
                         );
                     }
                 }
@@ -564,7 +573,7 @@ impl ZTAuthority {
                         &mut self.authority.write().expect("write lock"),
                         name.clone(),
                         rt,
-                        newips.clone(),
+                        ips,
                     );
                 }
             }
@@ -707,7 +716,7 @@ impl ZTAuthority {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(feature = "integration-tests", test))]
 mod service;
-#[cfg(test)]
+#[cfg(all(feature = "integration-tests", test))]
 mod tests;

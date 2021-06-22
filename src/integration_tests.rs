@@ -1,4 +1,7 @@
-use crate::utils::{authtoken_path, central_config, get_listen_ips, init_runtime};
+use crate::{
+    addresses::Calculator,
+    utils::{authtoken_path, central_config, get_listen_ips, init_runtime},
+};
 use log::warn;
 use std::{
     sync::{Arc, Mutex},
@@ -189,6 +192,7 @@ pub(crate) struct TestNetwork {
     pub network: Network,
     runtime: Arc<Mutex<Runtime>>,
     context: TestContext,
+    member: Member,
 }
 
 impl TestNetwork {
@@ -229,13 +233,14 @@ impl TestNetwork {
                     &tc.central,
                     &network.clone().id.unwrap(),
                     &tc.identity,
-                    member,
+                    member.clone(),
                 ),
             )
             .unwrap();
 
         let s = Self {
             network,
+            member,
             runtime: runtime.clone(),
             context: tc.clone(),
         };
@@ -290,6 +295,10 @@ impl TestNetwork {
     pub fn central(&self) -> Configuration {
         self.context.central.clone()
     }
+
+    pub fn member(&self) -> Member {
+        self.member.clone()
+    }
 }
 
 impl Drop for TestNetwork {
@@ -308,7 +317,6 @@ impl Drop for TestNetwork {
 }
 
 #[test]
-#[ignore]
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     init_test_logger();
     let tn = TestNetwork::new(
@@ -344,6 +352,33 @@ fn test_get_listen_ip() -> Result<(), anyhow::Error> {
         &authtoken_path(None),
         &tn.network.clone().id.unwrap(),
     ))?;
+
+    assert_eq!(listen_ips.sort(), ips.sort());
+    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+
+    let tn =
+        TestNetwork::new(runtime.clone(), "rfc4193-only", &mut TestContext::default()).unwrap();
+
+    let mut listen_ips = runtime.lock().unwrap().block_on(get_listen_ips(
+        &authtoken_path(None),
+        &tn.network.clone().id.unwrap(),
+    ))?;
+
+    let mut ips = vec![tn.member.clone().rfc4193()?.ip().to_string()];
+
+    assert_eq!(listen_ips.sort(), ips.sort());
+    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+
+    drop(tn);
+
+    let tn = TestNetwork::new(runtime.clone(), "6plane-only", &mut TestContext::default()).unwrap();
+
+    let mut listen_ips = runtime.lock().unwrap().block_on(get_listen_ips(
+        &authtoken_path(None),
+        &tn.network.clone().id.unwrap(),
+    ))?;
+
+    let mut ips = vec![tn.member.clone().sixplane()?.ip().to_string()];
 
     assert_eq!(listen_ips.sort(), ips.sort());
     eprintln!("My listen IPs are {}", listen_ips.join(", "));

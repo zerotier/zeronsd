@@ -1,5 +1,6 @@
-use std::str::FromStr;
+use std::{net::IpAddr, str::FromStr};
 
+use ipnetwork::IpNetwork;
 use log::warn;
 use regex::Regex;
 use tokio::runtime::Runtime;
@@ -32,12 +33,10 @@ pub(crate) fn init_runtime() -> Runtime {
         .expect("failed to initialize tokio")
 }
 
-pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> String {
-    ip_with_cidr
-        .splitn(2, "/")
-        .next()
+pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> IpAddr {
+    IpNetwork::from_str(&ip_with_cidr)
         .expect("Could not parse IP from CIDR")
-        .to_string()
+        .ip()
 }
 
 pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> {
