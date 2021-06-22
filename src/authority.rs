@@ -708,4 +708,6 @@ impl ZTAuthority {
 }
 
 #[cfg(test)]
+mod service;
+#[cfg(test)]
 mod tests;
