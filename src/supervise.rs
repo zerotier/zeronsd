@@ -6,6 +6,11 @@ use serde::Serialize;
 use tinytemplate::TinyTemplate;
 use trust_dns_resolver::Name;
 
+#[cfg(target_os = "windows")]
+const SUPERVISE_SYSTEM_DIR: &str = "";
+#[cfg(target_os = "windows")]
+const SERVICE_TEMPLATE: &str = "";
+
 #[cfg(target_os = "linux")]
 const SUPERVISE_SYSTEM_DIR: &str = "/lib/systemd/system";
 
@@ -218,6 +223,11 @@ impl<'a> Properties {
             Ok(x) => Ok(x),
             Err(e) => Err(anyhow!(e)),
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn service_name(&self) -> String {
+        return String::new();
     }
 
     #[cfg(target_os = "linux")]
