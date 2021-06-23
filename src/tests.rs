@@ -1,3 +1,5 @@
+use std::{net::IpAddr, str::FromStr};
+
 use crate::utils::{domain_or_default, ToHostname};
 
 pub const HOSTS_DIR: &str = "testdata/hosts-files";
@@ -61,7 +63,7 @@ fn test_parse_ip_from_cidr() {
     for (cidr, ip) in results {
         assert_eq!(
             parse_ip_from_cidr(String::from(cidr)),
-            String::from(ip),
+            IpAddr::from_str(ip).unwrap(),
             "{}",
             cidr
         );

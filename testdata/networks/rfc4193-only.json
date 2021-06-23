@@ -1,0 +1,14 @@
+{
+  "config": {
+    "name": "rfc4193-only-default",
+    "v4AssignMode": {
+      "zt": false
+    },
+    "v6AssignMode": {
+      "rfc4193": true,
+      "6plane": false,
+      "zt": false
+    },
+    "private": true
+  }
+}

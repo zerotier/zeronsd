@@ -1,5 +1,6 @@
-use std::{str::FromStr, time::Duration};
+use std::{net::IpAddr, str::FromStr};
 
+use ipnetwork::IpNetwork;
 use log::warn;
 use regex::Regex;
 use tokio::runtime::Runtime;
@@ -8,10 +9,6 @@ use trust_dns_server::client::rr::Name;
 use zerotier_central_api::apis::configuration::Configuration;
 
 use anyhow::anyhow;
-
-use crate::authority::Authority;
-use crate::authority::PtrAuthority;
-use crate::authority::ZTAuthority;
 
 pub(crate) const DOMAIN_NAME: &str = "domain.";
 pub(crate) const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -36,12 +33,10 @@ pub(crate) fn init_runtime() -> Runtime {
         .expect("failed to initialize tokio")
 }
 
-pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> String {
-    ip_with_cidr
-        .splitn(2, "/")
-        .next()
+pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> IpAddr {
+    IpNetwork::from_str(&ip_with_cidr)
         .expect("Could not parse IP from CIDR")
-        .to_string()
+        .ip()
 }
 
 pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> {
@@ -136,7 +131,7 @@ pub(crate) async fn get_listen_ips(
 pub(crate) fn update_central_dns(
     runtime: &mut Runtime,
     domain_name: Name,
-    ip: String,
+    ips: Vec<String>,
     config: Configuration,
     network: String,
 ) -> Result<(), anyhow::Error> {
@@ -149,7 +144,7 @@ pub(crate) fn update_central_dns(
 
     let dns = Some(Box::new(zerotier_central_api::models::NetworkConfigDns {
         domain: Some(domain_name.to_string()),
-        servers: Some(Vec::from([String::from(ip.clone())])),
+        servers: Some(ips),
     }));
 
     if let Some(mut zt_network_config) = zt_network.config.to_owned() {
@@ -161,26 +156,6 @@ pub(crate) fn update_central_dns(
     }
 
     Ok(())
-}
-
-pub(crate) fn init_authority(
-    ptr_authority: PtrAuthority,
-    token: Configuration,
-    network: String,
-    domain_name: Name,
-    hosts_file: Option<String>,
-    update_interval: Duration,
-    authority: Authority,
-) -> ZTAuthority {
-    ZTAuthority::new(
-        domain_name.clone(),
-        network.clone(),
-        token,
-        hosts_file,
-        ptr_authority,
-        update_interval,
-        authority,
-    )
 }
 
 fn translation_table() -> Vec<(Regex, &'static str)> {

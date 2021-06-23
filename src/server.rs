@@ -1,11 +1,10 @@
 use log::warn;
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 use tokio::{
     net::{TcpListener, UdpSocket},
     time::sleep,
 };
 
-use trust_dns_resolver::proto::error::ProtoError;
 use trust_dns_server::server::ServerFuture;
 
 use crate::authority::{init_catalog, TokioZTAuthority};
@@ -21,12 +20,12 @@ impl Server {
 
     pub(crate) async fn listen(
         self,
-        listen_addr: String,
+        listen_addr: SocketAddr,
         tcp_timeout: Duration,
-    ) -> Result<(), ProtoError> {
+    ) -> Result<(), anyhow::Error> {
         loop {
-            let tcp = TcpListener::bind(&listen_addr).await?;
-            let udp = UdpSocket::bind(&listen_addr).await?;
+            let tcp = TcpListener::bind(listen_addr).await?;
+            let udp = UdpSocket::bind(listen_addr).await?;
             let mut sf = ServerFuture::new(init_catalog(self.zt.clone()).await?);
 
             sf.register_socket(udp);
