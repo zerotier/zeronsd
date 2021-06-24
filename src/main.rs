@@ -172,7 +172,7 @@ fn main() -> Result<(), anyhow::Error> {
             (@arg secret_file: -s --secret +takes_value "Path to authtoken.secret (usually detected)")
             (@arg token_file: -t --token +takes_value "Path to a file containing the ZeroTier Central token")
             (@arg wildcard: -w --wildcard "Wildcard all names in Central to point at the respective member's IP address(es)")
-            (@arg verbose: -v +multiple "Verbose logging (repeat -v for more verbosity")
+            (@arg verbose: -v +multiple "Verbose logging (repeat -v for more verbosity)")
             (@arg NETWORK_ID: +required "Network ID to query")
         )
         (@subcommand supervise =>
