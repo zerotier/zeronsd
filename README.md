@@ -5,11 +5,11 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
 - Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
 - Tells Central to point all clients that have the "Manage DNS" settings turned **on** to resolve to it.
-- Finally, sets a provided TLD (`.domain` is the default), as well as configuring `A` (IPv4) and AAAA (IPv6) records for:
-  - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4 addresses for them.
+- Finally, sets a provided TLD (`.domain` is the default), as well as configuring `A` (IPv4) and `AAAA` (IPv6) records for:
+  - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4 & IPv6 addresses for them.
   - Names: _if_ the names are compatible with DNS names, they will be converted as such: to `<name>.<tld>`.
     - Please note that **collisions are possible** and that it's _up to the admin to prevent them_.
-  - It additionally includes PTR records for members, in all scenarios other than 6plane. Be advised at this time, PTR record resolution does not usually work well on OS X and Windows.
+  - It additionally includes PTR records for members, in all scenarios other than 6plane.
   - _Wildcard everything mode_: this mode (enabled by passing the `-w` flag) enables wildcards for all names under the TLD; for example `my-site.zt-<memberid>.<tld>` will resolve to the member's IP, and named hosts work the same way.
 
 ## Installation
