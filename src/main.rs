@@ -73,7 +73,9 @@ fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
             update_central_dns(
                 runtime,
                 domain_name.clone(),
-                ips.clone(),
+                ips.iter()
+                    .map(|i| utils::parse_ip_from_cidr(i.clone()).to_string())
+                    .collect(),
                 token.clone(),
                 network_id.clone(),
             )?;
