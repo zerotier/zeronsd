@@ -129,7 +129,7 @@ sudo /usr/bin/cargo install zeronsd --root /usr/local
 For each network you want to serve DNS to, do the following (replace `af78bf94364e2035` with *your* network ID)
 
 ```
-sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -w -d beyond.corp af78bf94364e2035
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -w -d beyond.corp af78bf94364e2035
 sudo systemctl start zeronsd-af78bf94364e2035
 sudo systemctl enable zeronsd-af78bf94364e2035
 ```
