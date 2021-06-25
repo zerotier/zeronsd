@@ -11,9 +11,9 @@ It was DNS.<br>
 
 ## Status
 
-- This is _very much_ alpha software.
-- This may end up integrated into ZeroTier 2.0, but for now, it is segregated to allow us to iterate quickly.
-- Here be Dragons.
+- This feature is still in beta.
+- This will soon be integrated into ZeroTier 2.0, but for now, it is segregated to allow us to iterate quickly.
+- Here be Dragons (still).
 
 ## Conceptual Prerequisites
 
@@ -63,7 +63,7 @@ Authorize the node to the network by clicking the "Auth" button in the
 
 ![Authorize the Member](https://i.imgur.com/fQTai9l.png)
 
-## Provision a Central Token
+## Provision an API Token from ZeroTier Central
 
 Before we begin, we will need to log into [my.zerotier.com](https://my.zerotier.com) and create an API
 token under the [Account](https://my.zerotier.com/account)
@@ -117,7 +117,7 @@ sudo dpkg -i zeronsd_0.1.7_amd64.deb
 
 ### Cargo
 
-If we don't have packages for your platform, you can install it with cargo.
+If we don't have packages for your platform, you can still install it with cargo.
 
 ```
 sudo /usr/bin/apt-get -y install net-tools librust-openssl-dev pkg-config cargo
@@ -126,17 +126,17 @@ sudo /usr/bin/cargo install zeronsd --root /usr/local
 
 ## Serve DNS
 
-For each network you want to serve DNS to, do the following
+For each network you want to serve DNS to, do the following (replace `af78bf94364e2035` with *your* network ID)
 
 ```
-sudo zeronsd supervise -t /var/lib/zerotier-one/token -d beyond.corp af78bf94364e2035
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -w -d beyond.corp af78bf94364e2035
 sudo systemctl start zeronsd-af78bf94364e2035
 sudo systemctl enable zeronsd-af78bf94364e2035
 ```
 
 ## Verify functionality
 
-You should be able to ping the laptop via it's DNS name.
+You should be able to ping the laptop via it's DNS name (or any preceding subdomain, since we've set the wildcard flag)
 
 ```
 notroot@ubuntu:~$ ping laptop.beyond.corp
@@ -144,6 +144,23 @@ PING laptop.beyond.corp (172.22.192.177) 56(84) bytes of data.
 64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=1 ttl=64 time=50.1 ms
 64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=2 ttl=64 time=49.5 ms
 64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=3 ttl=64 time=48.6 ms
+```
+or
+```
+notroot@ubuntu:~$ ping laptop.beyond.corp
+PING travel.laptop.beyond.corp (172.22.192.177) 56(84) bytes of data.
+64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=1 ttl=64 time=50.1 ms
+64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=2 ttl=64 time=49.5 ms
+64 bytes from 172.22.192.177 (172.22.192.177): icmp_seq=3 ttl=64 time=48.6 ms
+```
+
+## Update flag settings
+
+In order to change the settings (such as the TLD), do the following (replace `af78bf94364e2035` with *your* network ID)
+```
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -w -d beyond.corp af78bf94364e2035
+sudo systemctl daemon-reload
+sudo systemctl enable zeronsd-af78bf94364e2035
 ```
 
 Most Linux distributions, by default, do not have per-interface DNS
