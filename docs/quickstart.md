@@ -158,7 +158,7 @@ PING travel.laptop.beyond.corp (172.22.192.177) 56(84) bytes of data.
 
 In order to change the settings (such as the TLD), do the following (replace `af78bf94364e2035` with *your* network ID)
 ```
-sudo zeronsd supervise -t /var/lib/zerotier-one/token -f /etc/hosts -w -d beyond.corp af78bf94364e2035
+sudo zeronsd supervise -t /var/lib/zerotier-one/token -w -d beyond.corp af78bf94364e2035
 sudo systemctl daemon-reload
 sudo systemctl enable zeronsd-af78bf94364e2035
 ```
