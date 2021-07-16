@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ $# -eq 0 ]; then
-    echo "Please provide the output directory"
-    echo "Like: get-zeronsd-host-names.sh ~/.config/zeronsd"
-    exit 1
+
+# use $HOME/hosts/ as the directory, unless user specifies something else
+if [ $# -eq 0 ];
+then
+    OUTDIR="$HOME/.hosts"
+else
+    OUTDIR=$1
 fi
-
-
-OUTDIR=$1
 
 # Get list of Network IDs that have DNS enabled
 NWIDS=$(zerotier-cli listnetworks -j | jq -r ".[] | select(.dns.servers?) | .id")
+
+mkdir -p $OUTDIR
+
+# clear hosts from old, unjoined zerotier networks
+# rm -f $OUTDIR/hosts*
 
 for NWID in $NWIDS
 do
