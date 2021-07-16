@@ -49,7 +49,7 @@ Try this: https://blog.sanctum.geek.nz/bash-hostname-completion/
 ## Problems
 - This will get progressively slower with the size of your networks.
 - You must be joined to the zerotier network with the dns server (and on Mac have allowDNS enabled) . You'll get "host not found".
-- The DNS server must be up.
+- All of the DNS servers must be up, or the script will take a long time.
 - sourcing .zshrc appends and doesn't clear the list of hosts. You need to close the shell and open a new one.
 
 ## Run nmap manually, without the script, if needed
