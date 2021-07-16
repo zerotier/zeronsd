@@ -11,7 +11,7 @@ fi
 OUTDIR=$1
 
 # Get list of Network IDs that have DNS enabled
-NWIDS=$(zerotier-cli listnetworks -j | jq -r ".[] | select(.allowDNS == true) | .id")
+NWIDS=$(zerotier-cli listnetworks -j | jq -r ".[] | select(.dns.servers?) | .id")
 
 for NWID in $NWIDS
 do
