@@ -20,7 +20,7 @@ use trust_dns_resolver::{
 
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
-    client::rr::{Name, RData, Record, RecordType, RrKey},
+    client::rr::{LowerName, Name, RData, Record, RecordType, RrKey},
     store::forwarder::ForwardAuthority,
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
@@ -162,17 +162,9 @@ fn upsert_address(
 ) {
     let serial = authority.serial() + 1;
     let records = authority.records_mut();
-    let key = records
-        .into_iter()
-        .map(|(key, _)| key)
-        .find(|key| key.name().into_name().unwrap().eq(&fqdn));
+    let key = RrKey::new(LowerName::from(fqdn.clone()), rt);
 
-    if let Some(key) = key {
-        let key = key.clone();
-        records
-            .get_mut(&key)
-            .replace(&mut Arc::new(RecordSet::new(&fqdn.clone(), rt, serial)));
-    }
+    records.remove(&key);
 
     for rdata in rdatas {
         if match rt {
@@ -228,7 +220,7 @@ fn set_ptr_record(
     );
 }
 
-fn set_ip_record(
+fn replace_ip_record(
     authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     name: Name,
     rt: RecordType,
@@ -538,12 +530,13 @@ impl ZTAuthority {
                 .authority
                 .read()
                 .expect("Could not get authority read lock");
-            let records = lock
+
+            let rs = lock
                 .records()
                 .get(&RrKey::new(name.clone().into(), rt))
                 .clone();
 
-            let ips = newips
+            let ips: Vec<IpAddr> = newips
                 .clone()
                 .into_iter()
                 .filter(|i| match i {
@@ -552,29 +545,33 @@ impl ZTAuthority {
                 })
                 .collect();
 
-            match records {
-                Some(records) => {
-                    let records = records.records(false, SupportedAlgorithms::all());
+            match rs {
+                Some(rs) => {
+                    let records = rs.records(false, SupportedAlgorithms::all());
                     if records.is_empty()
                         || !records.into_iter().all(|r| rdatas.contains(r.rdata()))
                     {
                         drop(lock);
-                        set_ip_record(
+                        if !ips.is_empty() {
+                            replace_ip_record(
+                                &mut self.authority.write().expect("write lock"),
+                                name.clone(),
+                                rt,
+                                ips,
+                            );
+                        }
+                    }
+                }
+                None => {
+                    drop(lock);
+                    if !ips.is_empty() {
+                        replace_ip_record(
                             &mut self.authority.write().expect("write lock"),
                             name.clone(),
                             rt,
                             ips,
                         );
                     }
-                }
-                None => {
-                    drop(lock);
-                    set_ip_record(
-                        &mut self.authority.write().expect("write lock"),
-                        name.clone(),
-                        rt,
-                        ips,
-                    );
                 }
             }
         }
