@@ -164,7 +164,6 @@ fn upsert_address(
     let records = authority.records_mut();
     let key = RrKey::new(LowerName::from(fqdn.clone()), rt);
 
-    let mut inner = RecordSet::new(&fqdn.clone(), rt, serial);
     records.remove(&key);
 
     for rdata in rdatas {
@@ -188,11 +187,9 @@ fn upsert_address(
             let mut address = Record::with(fqdn.clone(), rt, 60);
             address.set_rdata(rdata.clone());
             info!("Adding new record {}: ({})", fqdn.clone(), rdata.clone());
-            inner.insert(address, serial);
+            authority.upsert(address, serial);
         }
     }
-
-    records.insert(key, Arc::new(inner));
 }
 
 fn set_ptr_record(
@@ -533,12 +530,13 @@ impl ZTAuthority {
                 .authority
                 .read()
                 .expect("Could not get authority read lock");
-            let records = lock
+
+            let rs = lock
                 .records()
                 .get(&RrKey::new(name.clone().into(), rt))
                 .clone();
 
-            let ips = newips
+            let ips: Vec<IpAddr> = newips
                 .clone()
                 .into_iter()
                 .filter(|i| match i {
@@ -547,13 +545,26 @@ impl ZTAuthority {
                 })
                 .collect();
 
-            match records {
-                Some(records) => {
-                    let records = records.records(false, SupportedAlgorithms::all());
+            match rs {
+                Some(rs) => {
+                    let records = rs.records(false, SupportedAlgorithms::all());
                     if records.is_empty()
                         || !records.into_iter().all(|r| rdatas.contains(r.rdata()))
                     {
                         drop(lock);
+                        if !ips.is_empty() {
+                            replace_ip_record(
+                                &mut self.authority.write().expect("write lock"),
+                                name.clone(),
+                                rt,
+                                ips,
+                            );
+                        }
+                    }
+                }
+                None => {
+                    drop(lock);
+                    if !ips.is_empty() {
                         replace_ip_record(
                             &mut self.authority.write().expect("write lock"),
                             name.clone(),
@@ -561,15 +572,6 @@ impl ZTAuthority {
                             ips,
                         );
                     }
-                }
-                None => {
-                    drop(lock);
-                    replace_ip_record(
-                        &mut self.authority.write().expect("write lock"),
-                        name.clone(),
-                        rt,
-                        ips,
-                    );
                 }
             }
         }
