@@ -20,7 +20,7 @@ use trust_dns_resolver::{
 
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
-    client::rr::{Name, RData, Record, RecordType, RrKey},
+    client::rr::{LowerName, Name, RData, Record, RecordType, RrKey},
     store::forwarder::ForwardAuthority,
     store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
 };
@@ -162,17 +162,10 @@ fn upsert_address(
 ) {
     let serial = authority.serial() + 1;
     let records = authority.records_mut();
-    let key = records
-        .into_iter()
-        .map(|(key, _)| key)
-        .find(|key| key.name().into_name().unwrap().eq(&fqdn));
+    let key = RrKey::new(LowerName::from(fqdn.clone()), rt);
 
-    if let Some(key) = key {
-        let key = key.clone();
-        records
-            .get_mut(&key)
-            .replace(&mut Arc::new(RecordSet::new(&fqdn.clone(), rt, serial)));
-    }
+    let mut inner = RecordSet::new(&fqdn.clone(), rt, serial);
+    records.remove(&key);
 
     for rdata in rdatas {
         if match rt {
@@ -195,9 +188,11 @@ fn upsert_address(
             let mut address = Record::with(fqdn.clone(), rt, 60);
             address.set_rdata(rdata.clone());
             info!("Adding new record {}: ({})", fqdn.clone(), rdata.clone());
-            authority.upsert(address, serial);
+            inner.insert(address, serial);
         }
     }
+
+    records.insert(key, Arc::new(inner));
 }
 
 fn set_ptr_record(
@@ -228,7 +223,7 @@ fn set_ptr_record(
     );
 }
 
-fn set_ip_record(
+fn replace_ip_record(
     authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     name: Name,
     rt: RecordType,
@@ -559,7 +554,7 @@ impl ZTAuthority {
                         || !records.into_iter().all(|r| rdatas.contains(r.rdata()))
                     {
                         drop(lock);
-                        set_ip_record(
+                        replace_ip_record(
                             &mut self.authority.write().expect("write lock"),
                             name.clone(),
                             rt,
@@ -569,7 +564,7 @@ impl ZTAuthority {
                 }
                 None => {
                     drop(lock);
-                    set_ip_record(
+                    replace_ip_record(
                         &mut self.authority.write().expect("write lock"),
                         name.clone(),
                         rt,
