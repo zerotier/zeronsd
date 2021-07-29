@@ -22,8 +22,8 @@ ipnetwork = ">= 0"
 trust-dns-resolver = "0.20.2"
 trust-dns-server = { version = "0.20.2", features = ["trust-dns-resolver"] } 
 tokio = { version = "1", features = ["full"] }
-zerotier-central-api = { path = "./zerotier-central-api", version = "1.0.0" }
-zerotier-one-api = { path = "./zerotier-one-api", version = "1.0.0" }
+zerotier-central-api = "1.0.1"
+zerotier-one-api = "1.0.3"
 serde = ">= 0"
 serde_json = ">= 0"
 tinytemplate = ">= 0"

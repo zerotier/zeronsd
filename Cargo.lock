@@ -1594,7 +1594,9 @@ dependencies = [
 
 [[package]]
 name = "zerotier-central-api"
-version = "1.0.0"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f9ad7cde7551da3edda2ec8395aea555c6f6b37b697d761c5c200891f0e708"
 dependencies = [
  "reqwest",
  "serde",
@@ -1605,7 +1607,9 @@ dependencies = [
 
 [[package]]
 name = "zerotier-one-api"
-version = "1.0.1"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eab6fdfdc88b968de571a08e536946a237957252a19aa9edb7ca5c81f3ff6d57"
 dependencies = [
  "reqwest",
  "serde",
