@@ -52,7 +52,7 @@ the remainder of this document, please replace the example network `af78bf94364e
 ```
 notroot@ubuntu:~$ curl -s https://install.zerotier.com | sudo bash
 notroot@ubuntu:~$ sudo zerotier-cli join af78bf94364e2035
-notroot@ubuntu:~$ sudo zerotier-cli  set af78bf94364e2035 allowDNS=1
+notroot@ubuntu:~$ sudo zerotier-cli set af78bf94364e2035 allowDNS=1
 ```
 
 ## Authorize the Nodes
