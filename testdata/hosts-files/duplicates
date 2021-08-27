@@ -1,0 +1,5 @@
+10.147.20.216  hostname1
+10.147.20.216  hostname2.corp
+127.0.0.1	localhost
+::1		localhost
+127.0.1.1	islay.localdomain	islay

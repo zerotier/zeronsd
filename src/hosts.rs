@@ -56,7 +56,11 @@ pub(crate) fn parse_hosts(
                             }
                         }
 
-                        input.insert(parsed_ip, v);
+                        if input.contains_key(&parsed_ip) {
+                            input.get_mut(&parsed_ip).unwrap().append(&mut v);
+                        } else {
+                            input.insert(parsed_ip, v);
+                        }
                     }
                     Err(e) => {
                         warn!("Couldn't parse {}: {}", ip, e);

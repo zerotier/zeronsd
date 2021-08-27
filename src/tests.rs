@@ -293,6 +293,7 @@ fn test_parse_hosts() {
         .map(|p| p.unwrap())
     {
         if path.metadata().unwrap().is_file() {
+            eprintln!("Testing: {}", path.path().display());
             let res = parse_hosts(Some(path.path().display().to_string()), domain.clone());
             assert!(res.is_ok(), "{}", path.path().display());
 
@@ -332,4 +333,35 @@ fn test_parse_hosts() {
             }
         }
     }
+}
+
+#[test]
+fn test_parse_hosts_duplicate() {
+    use crate::hosts::parse_hosts;
+    use trust_dns_resolver::Name;
+
+    let domain = Name::from_str("zombocom").unwrap();
+
+    let res = parse_hosts(
+        Some("testdata/hosts-files/duplicates".to_string()),
+        domain.clone(),
+    );
+
+    assert!(res.is_ok());
+
+    let table = res.unwrap();
+    let result = table.get(&IpAddr::from_str("10.147.20.216").unwrap());
+    assert!(result.is_some());
+    let result = result.unwrap();
+
+    assert!(result.contains(
+        &Name::from_str("hostname1")
+            .unwrap()
+            .append_domain(&domain.clone())
+    ));
+    assert!(result.contains(
+        &Name::from_str("hostname2.corp")
+            .unwrap()
+            .append_domain(&domain)
+    ));
 }
