@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x -euo pipefail
+set -euo pipefail
 
 if [ "x$1" = "x" ]
 then
