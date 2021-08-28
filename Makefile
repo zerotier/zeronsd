@@ -46,7 +46,7 @@ clean:
 	@echo
 	@echo Running sudo to clean your target directory
 	@echo
-	sudo rm -rf target zerotier-central-api/target zerotier-one-api/target 
+	sudo rm -rf target
 	cargo clean
 
 test-packages: clean

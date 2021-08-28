@@ -1,6 +1,6 @@
 [package]
 name = "zeronsd"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Erik Hollensbe <linux@hollensbe.org>", "Adam Ierymenko <adam.ierymenko@zerotier.com>"]
 description = "Unicast DNS resolver for ZeroTier networks"
 homepage = "https://github.com/zerotier/zeronsd"
