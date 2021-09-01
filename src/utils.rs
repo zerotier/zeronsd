@@ -117,15 +117,24 @@ pub(crate) async fn get_listen_ips(
     configuration.user_agent = Some(version());
     configuration.api_key = Some(api_key);
 
-    let listen =
-        zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await?;
-    if let Some(assigned) = listen.assigned_addresses {
-        if assigned.len() > 0 {
-            return Ok(assigned);
+    match zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await {
+        Err(error) => {
+            match error {
+                zerotier_one_api::apis::Error::ResponseError(_) => Err(anyhow!("Are you joined to {}?", network_id)),
+                zerotier_one_api::apis::Error::Reqwest(_) => Err(anyhow!("Can't connect to zerotier-one at {:}. Is it installed and running?", configuration.base_path)),
+                // TODO ERROR - error in response: status code 403 Forbidden (wrong authtoken)
+                other_error => Err(anyhow!(other_error)),
+            }
+        },
+        Ok(listen) => {
+            if let Some(assigned) = listen.assigned_addresses {
+                if assigned.len() > 0 {
+                    return Ok(assigned);
+                }
+            }
+            Err(anyhow!("No listen IPs available on this network"))
         }
     }
-
-    Err(anyhow!("No listen IPs available on this network"))
 }
 
 pub(crate) fn update_central_dns(
