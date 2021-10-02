@@ -1,3 +1,4 @@
+/// various IP calculation systems and some encode/decode functions
 use std::net::{IpAddr, Ipv6Addr};
 
 use hex::FromHexError;

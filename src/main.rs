@@ -23,6 +23,7 @@ mod server;
 mod supervise;
 mod utils;
 
+// integration tests are setup a little weird; basically `cargo test --feature integration-tests`
 #[cfg(all(feature = "integration-tests", test))]
 mod integration_tests;
 #[cfg(test)]
@@ -45,11 +46,17 @@ fn supervise(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
 }
 
 fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
+    // the tld or multilevel domain from the root. -d option.
     let domain = args.value_of("domain");
+    // authtoken.secret
     let authtoken = args.value_of("secret_file");
+    // the variable network identifier to join zeronsd to
     let network_id = args.value_of("NETWORK_ID");
+    // hosts file, if any
     let hosts_file = args.value_of("file");
+    // token file to communicate with central.
     let token = args.value_of("token_file");
+    // prepend wildcard zones to all names
     let wildcard_names = args.is_present("wildcard");
 
     let domain_name = utils::domain_or_default(domain)?;
@@ -69,6 +76,7 @@ fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
         info!("Welcome to ZeroNS!");
         let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &network_id))?;
 
+        // more or less the setup for the "main loop"
         if ips.len() > 0 {
             update_central_dns(
                 runtime,
@@ -120,6 +128,7 @@ fn start(args: &clap::ArgMatches<'_>) -> Result<(), anyhow::Error> {
                 }
             }
 
+            // ZTAuthority more or less is the mainloop. Setup continues below.
             let mut ztauthority = ZTAuthority::new(
                 domain_name.clone(),
                 network_id.clone(),

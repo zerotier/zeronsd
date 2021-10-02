@@ -71,6 +71,7 @@ impl ToWildcard for Name {
 }
 
 pub(crate) type TokioZTAuthority = Arc<tokio::sync::RwLock<ZTAuthority>>;
+// Authority is lock managed, and kept on the heap. Be mindful when modifying through the Arc.
 pub(crate) type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 pub(crate) type PtrAuthorityMap = HashMap<IpNetwork, Authority>;
 
@@ -88,6 +89,9 @@ pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Erro
     Ok(Box::new(Arc::new(RwLock::new(authority))))
 }
 
+// find_members waits for the update_interval time, then populates the authority based on the
+// members list. This call is fairly high level; most of the other calls are called by it
+// indirectly.
 pub(crate) async fn find_members(zt: TokioZTAuthority) {
     let read = zt.read().await;
     let mut interval = tokio::time::interval(read.update_interval.clone());
@@ -115,6 +119,8 @@ pub(crate) async fn find_members(zt: TokioZTAuthority) {
     }
 }
 
+// get_members is a convenience method for the openapi calls required to get member and network
+// information. It could be named better.
 async fn get_members(
     zt: RwLockReadGuard<'_, ZTAuthority>,
 ) -> Result<(Network, Vec<Member>), anyhow::Error> {
@@ -131,6 +137,8 @@ async fn get_members(
     Ok((network, members))
 }
 
+// prune_records walks the authority and a tracked list of the most recent writes. Then, it
+// subtracts the items in the authority that are not in the tracked list.
 fn prune_records(authority: Authority, written: Vec<Name>) -> Result<(), anyhow::Error> {
     let mut rrkey_list = Vec::new();
     let mut lock = authority
@@ -154,6 +162,8 @@ fn prune_records(authority: Authority, written: Vec<Name>) -> Result<(), anyhow:
     Ok(())
 }
 
+// upsert_address is a convenience function to transform and insert any record, v4, v6, and ptr
+// variants.
 fn upsert_address(
     authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     fqdn: Name,
@@ -192,6 +202,7 @@ fn upsert_address(
     }
 }
 
+// set_ptr_record transforms member information into a ptr record.
 fn set_ptr_record(
     authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     ip_name: Name,
@@ -220,6 +231,7 @@ fn set_ptr_record(
     );
 }
 
+// replace_ip_record replaces an IP record of either v4 or v6 type.
 fn replace_ip_record(
     authority: &mut RwLockWriteGuard<InMemoryAuthority>,
     name: Name,
@@ -240,6 +252,7 @@ fn replace_ip_record(
     );
 }
 
+// configure_ptr is a frontend for set_ptr_record that acquires locks and other stuff.
 fn configure_ptr(
     authority: Authority,
     ip: Name,
@@ -266,6 +279,7 @@ fn configure_ptr(
     Ok(())
 }
 
+// set_soa should only be called once per authority; it configures the SOA record for the zone.
 pub(crate) fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
     let mut soa = Record::new();
     soa.set_name(domain_name.clone());
@@ -284,6 +298,7 @@ pub(crate) fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
     authority.upsert(soa, authority.serial() + 1);
 }
 
+// init_trust_dns_authority is a really ugly constructor.
 pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
     let mut authority = InMemoryAuthority::empty(
         domain_name.clone(),
@@ -295,6 +310,8 @@ pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
     Box::new(Arc::new(RwLock::new(authority)))
 }
 
+// init_catalog: also a really ugly constructor, but in this case initializes the whole trust-dns
+// subsystem.
 pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow::Error> {
     let read = zt.read().await;
 
@@ -335,6 +352,8 @@ pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow
     Ok(catalog)
 }
 
+// ZTRecord is the encapsulation of a single record; Members are usually transformed into this
+// struct.
 pub(crate) struct ZTRecord {
     fqdn: Name,
     canonical_name: Option<Name>,
@@ -400,6 +419,7 @@ impl ZTRecord {
         })
     }
 
+    // insert_records is hopefully well-named.
     pub(crate) fn insert_records(&self, records: &mut Vec<Name>) {
         records.push(self.fqdn.clone());
 
@@ -419,6 +439,7 @@ impl ZTRecord {
         }
     }
 
+    // get_canonical_wildcard is a function to combine canonical_name (named members) and wildcard functionality.
     pub(crate) fn get_canonical_wildcard(&self) -> Option<Name> {
         if self.canonical_name.is_none() {
             return None;
@@ -427,6 +448,8 @@ impl ZTRecord {
         Some(self.canonical_name.clone().unwrap().to_wildcard(0))
     }
 
+    // insert_authority is not very well named, but performs the function of inserting a ZTRecord
+    // into a ZTAuthority.
     pub(crate) fn insert_authority(&self, authority: &ZTAuthority) -> Result<(), anyhow::Error> {
         authority.match_or_insert(self.fqdn.clone(), self.ips.clone());
 
@@ -444,6 +467,7 @@ impl ZTRecord {
         Ok(())
     }
 
+    // insert_member_ptr is a lot like insert_authority, but for PTRs.
     pub(crate) fn insert_member_ptr(
         &self,
         authority_map: PtrAuthorityMap,
@@ -475,6 +499,7 @@ impl ZTRecord {
     }
 }
 
+// ZTAuthority is the customized trust-dns authority.
 #[derive(Clone)]
 pub(crate) struct ZTAuthority {
     ptr_authority_map: PtrAuthorityMap,
@@ -515,6 +540,8 @@ impl ZTAuthority {
         self.wildcard_everything = true;
     }
 
+    // match_or_insert avoids duplicate names by finding them first and removing them. Contrast
+    // it makes heavy use of replace_ip_record to perform this function.
     fn match_or_insert(&self, name: Name, newips: Vec<IpAddr>) {
         let rdatas: Vec<RData> = newips
             .clone()
@@ -531,11 +558,13 @@ impl ZTAuthority {
                 .read()
                 .expect("Could not get authority read lock");
 
+            // for the record type, fetch the named record.
             let rs = lock
                 .records()
                 .get(&RrKey::new(name.clone().into(), rt))
                 .clone();
 
+            // gather all the ips (v6 too) for the record.
             let ips: Vec<IpAddr> = newips
                 .clone()
                 .into_iter()
@@ -577,6 +606,8 @@ impl ZTAuthority {
         }
     }
 
+    // configure_members merges the hosts lists and members list with allll the network options to
+    // basically mutate the authority into shape.
     fn configure_members(
         &mut self,
         network: Network,
@@ -632,6 +663,7 @@ impl ZTAuthority {
         Ok(())
     }
 
+    // configure_hosts is for /etc/hosts format management
     fn configure_hosts(&mut self) -> Result<(), anyhow::Error> {
         self.hosts = Some(Box::new(parse_hosts(
             self.hosts_file.clone(),
@@ -646,6 +678,7 @@ impl ZTAuthority {
         Ok(())
     }
 
+    // prune_hosts removes the hosts after a /etc/hosts update is detected
     fn prune_hosts(&mut self) {
         if self.hosts.is_none() {
             return;
