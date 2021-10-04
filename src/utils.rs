@@ -10,13 +10,17 @@ use zerotier_central_api::apis::configuration::Configuration;
 
 use anyhow::anyhow;
 
+// default domain parameter. FIXME change to home.arpa.
 pub(crate) const DOMAIN_NAME: &str = "domain.";
+// zeronsd version calculated from Cargo.toml
 pub(crate) const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
+// this really needs to be replaced with lazy_static! magic
 fn version() -> String {
     "zeronsd ".to_string() + VERSION_STRING
 }
 
+// this provides the production configuration for talking to central through the openapi libraries.
 pub(crate) fn central_config(token: String) -> Configuration {
     let mut config = Configuration::default();
     config.user_agent = Some(version());
@@ -24,6 +28,8 @@ pub(crate) fn central_config(token: String) -> Configuration {
     return config;
 }
 
+// create a tokio runtime. We don't use the macros (they are hard to use) so this is the closest
+// we'll get to being able to get a runtime easily.
 pub(crate) fn init_runtime() -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -33,12 +39,14 @@ pub(crate) fn init_runtime() -> Runtime {
         .expect("failed to initialize tokio")
 }
 
+// extracts the ip from the CIDR. 10.0.0.1/32 becomes 10.0.0.1
 pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> IpAddr {
     IpNetwork::from_str(&ip_with_cidr)
         .expect("Could not parse IP from CIDR")
         .ip()
 }
 
+// load and prepare the central API token
 pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> {
     if arg.is_some() {
         return Ok(std::fs::read_to_string(arg.unwrap())
@@ -56,6 +64,7 @@ pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> 
     return Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"));
 }
 
+// determine the path of the authtoken.secret
 pub(crate) fn authtoken_path(arg: Option<&str>) -> String {
     if let Some(arg) = arg {
         return String::from(arg);
@@ -74,6 +83,7 @@ pub(crate) fn authtoken_path(arg: Option<&str>) -> String {
     }
 }
 
+// use the default tld if none is supplied.
 pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
     if let Some(tld) = tld {
         if tld.len() > 0 {
@@ -86,6 +96,7 @@ pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error
     Ok(Name::from_str(DOMAIN_NAME)?)
 }
 
+// parse_member_name ensures member names are DNS compliant
 pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name> {
     if let Some(name) = name {
         let name = name.trim();
@@ -103,6 +114,8 @@ pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Opti
     None
 }
 
+// get_listen_ips returns the IPs that the network is providing to the instance running zeronsd.
+// 4193 and 6plane are handled up the stack.
 pub(crate) async fn get_listen_ips(
     authtoken_path: &str,
     network_id: &str,
@@ -120,12 +133,17 @@ pub(crate) async fn get_listen_ips(
     match zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await {
         Err(error) => {
             match error {
-                zerotier_one_api::apis::Error::ResponseError(_) => Err(anyhow!("Are you joined to {}?", network_id)),
-                zerotier_one_api::apis::Error::Reqwest(_) => Err(anyhow!("Can't connect to zerotier-one at {:}. Is it installed and running?", configuration.base_path)),
+                zerotier_one_api::apis::Error::ResponseError(_) => {
+                    Err(anyhow!("Are you joined to {}?", network_id))
+                }
+                zerotier_one_api::apis::Error::Reqwest(_) => Err(anyhow!(
+                    "Can't connect to zerotier-one at {:}. Is it installed and running?",
+                    configuration.base_path
+                )),
                 // TODO ERROR - error in response: status code 403 Forbidden (wrong authtoken)
                 other_error => Err(anyhow!(other_error)),
             }
-        },
+        }
         Ok(listen) => {
             if let Some(assigned) = listen.assigned_addresses {
                 if assigned.len() > 0 {
@@ -137,6 +155,7 @@ pub(crate) async fn get_listen_ips(
     }
 }
 
+// update_central_dns pushes the search records
 pub(crate) fn update_central_dns(
     runtime: &mut Runtime,
     domain_name: Name,
@@ -167,6 +186,8 @@ pub(crate) fn update_central_dns(
     Ok(())
 }
 
+// translation_table should also be lazy_static and provides a small match set to find and correct
+// problems with member namesl.
 fn translation_table() -> Vec<(Regex, &'static str)> {
     vec![
         (Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
@@ -190,6 +211,7 @@ impl ToHostname for &str {
 }
 
 impl ToHostname for String {
+    // to_hostname turns member names into trust-dns compatible dns names.
     fn to_hostname(self) -> Result<Name, anyhow::Error> {
         let mut s = self.clone().trim().to_string();
         for (regex, replacement) in translation_table() {

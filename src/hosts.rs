@@ -1,3 +1,4 @@
+/// functionality to deal with the handling of /etc/hosts formatted files
 use log::warn;
 use std::{collections::HashMap, net::IpAddr, str::FromStr};
 use trust_dns_server::client::rr::Name;
@@ -9,6 +10,8 @@ pub(crate) type HostsFile = HashMap<IpAddr, Vec<Name>>;
 const WHITESPACE_SPLIT: &str = r"\s+";
 const COMMENT_MATCH: &str = r"^\s*#";
 
+/// Parses an /etc/hosts-formatted file into a mapping of ip -> [name]. Used to populate the
+/// authority.
 pub(crate) fn parse_hosts(
     hosts_file: Option<String>,
     domain_name: Name,
@@ -28,20 +31,27 @@ pub(crate) fn parse_hosts(
             continue;
         }
 
+        // after whitespace is ruled out as the only thing on the line, the line is split by ..
+        // whitespace and the parts iterated.
         let mut ary = whitespace.split(line);
 
         // the first item will be the ip
         match ary.next() {
             Some(ip) => {
+                // technically we're still matching the head of the line at this point. if it's a
+                // comment, bail.
                 if comment.is_match(ip) {
                     continue;
                 }
 
+                // ensure we have an IP, again, this is still the first field.
                 match IpAddr::from_str(ip) {
                     Ok(parsed_ip) => {
+                        // now that we have the ip, it's all names now.
                         let mut v: Vec<Name> = Vec::new();
 
-                        // continue to iterate over the hosts
+                        // continue to iterate over the hosts. If we encounter a comment, stop
+                        // processing.
                         for host in ary.take_while(|h| !comment.is_match(h)) {
                             let fqdn = match host.to_fqdn(domain_name.clone()) {
                                 Ok(fqdn) => Some(fqdn),
@@ -56,6 +66,8 @@ pub(crate) fn parse_hosts(
                             }
                         }
 
+                        // if we have a valid ip in the collection already, append, don't clobber
+                        // it.
                         if input.contains_key(&parsed_ip) {
                             input.get_mut(&parsed_ip).unwrap().append(&mut v);
                         } else {

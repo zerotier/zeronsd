@@ -1,3 +1,4 @@
+/// testing stuff; gated by feature flags. Does full round-trip processing of DNS results.
 use crate::{
     addresses::Calculator,
     utils::{authtoken_path, central_config, get_listen_ips, init_runtime},
@@ -29,6 +30,7 @@ fn randstring(len: u8) -> String {
         .join("")
 }
 
+// extract a network definiton from testdata. templates in a new name.
 fn network_definition(
     name: String,
 ) -> Result<serde_json::Map<String, serde_json::Value>, anyhow::Error> {
@@ -49,6 +51,7 @@ fn network_definition(
     Ok(res)
 }
 
+// returns the public identity of this instance of zerotier
 pub(crate) async fn get_identity(
     configuration: &zerotier_one_api::apis::configuration::Configuration,
 ) -> Result<String, anyhow::Error> {
@@ -63,10 +66,12 @@ pub(crate) async fn get_identity(
         .to_owned())
 }
 
+// unpack the authtoken based on what we're passed
 pub(crate) fn get_authtoken(or: Option<&str>) -> Result<String, anyhow::Error> {
     Ok(std::fs::read_to_string(authtoken_path(or))?)
 }
 
+// zerotier_config returns the openapi configuration required to talk to the local ztone instance
 pub(crate) fn zerotier_config(
     authtoken: String,
 ) -> zerotier_one_api::apis::configuration::Configuration {
@@ -79,16 +84,20 @@ pub(crate) fn zerotier_config(
     zerotier
 }
 
+// TestRuntime is a tokio runtime made for testing.
 pub(crate) type TestRuntime = Arc<Mutex<Runtime>>;
 
 pub(crate) fn init_test_runtime() -> TestRuntime {
     Arc::new(Mutex::new(init_runtime()))
 }
 
+// monkeypatches to Member
 pub(crate) trait MemberUtil {
+    // set some member defaults for testing
     fn set_defaults(&mut self, network_id: String, identity: String);
 }
 
+// monkeypatches to MemberConfig
 pub(crate) trait MemberConfigUtil {
     fn set_ip_assignments(&mut self, ips: Vec<&str>);
     fn set_defaults(&mut self, identity: String);
@@ -142,6 +151,7 @@ pub(crate) fn init_test_logger() {
         .unwrap_or(())
 }
 
+// TestContext provides all the stuff we need to talk to run tests smoothly
 #[derive(Clone)]
 pub(crate) struct TestContext {
     member_config: Option<Box<MemberConfig>>,
@@ -187,6 +197,8 @@ impl Default for TestContext {
     }
 }
 
+// TestNetwork creates a testnetwork in central and joins it. When this data is destroyed/dropped
+// it will remove the network and leave it like nothing ever happened.
 #[derive(Clone)]
 pub(crate) struct TestNetwork {
     pub network: Network,
@@ -196,6 +208,7 @@ pub(crate) struct TestNetwork {
 }
 
 impl TestNetwork {
+    // new_multi_ip covers situations where zeronsd is using more than one listening ip.
     pub fn new_multi_ip(
         runtime: TestRuntime,
         network_def: &str,
@@ -209,6 +222,7 @@ impl TestNetwork {
         Self::new(runtime, network_def, tc)
     }
 
+    // constructor.
     pub fn new(
         runtime: TestRuntime,
         network_def: &str,
@@ -249,6 +263,7 @@ impl TestNetwork {
         Ok(s)
     }
 
+    // join zerotier-one to the test network
     pub fn join(&self) -> Result<(), anyhow::Error> {
         let network = zerotier_one_api::models::Network::new();
         self.runtime.lock().unwrap().block_on(
@@ -278,6 +293,7 @@ impl TestNetwork {
         Ok(())
     }
 
+    // leave the test network
     pub fn leave(&self) -> Result<(), anyhow::Error> {
         self.runtime.lock().unwrap().block_on(
             zerotier_one_api::apis::network_api::delete_network(
@@ -301,6 +317,8 @@ impl TestNetwork {
     }
 }
 
+// drop just removes the network from central and leaves it. it tries to recover, not get more
+// angry, in the face of errors.
 impl Drop for TestNetwork {
     fn drop(&mut self) {
         let opt = self.network.id.clone();

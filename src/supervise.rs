@@ -1,3 +1,6 @@
+/// code to tickle various supervisors to enable the `zeronsd supervise` command.
+/// this code is hard to read but fundamentally launchd and systemd are controlled through a
+/// library called `tinytemplate` and of course serde.
 use std::path::PathBuf;
 
 use anyhow::anyhow;
