@@ -3,3 +3,4 @@ target
 */target
 test-token.txt
 .token
+Dockerfile.*
