@@ -1,0 +1,15 @@
+FROM alpine:latest
+
+COPY . /zeronsd
+WORKDIR /zeronsd
+
+RUN apk add rust
+RUN apk add cargo
+RUN apk add openssl
+RUN apk add openssl-dev
+
+RUN cargo install --path .
+
+ENV PATH /root/.cargo/bin
+
+ENTRYPOINT zeronsd
