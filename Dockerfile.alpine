@@ -1,3 +1,11 @@
+# to run:
+#
+# docker run --net host -it \
+#   -v /var/lib/zerotier-one/authtoken.secret:/authtoken.secret \
+#   -v <token file>:/token.txt \
+#   zeronsd:alpine start -s /authtoken.secret -t /token.txt \
+#   <network id>
+
 FROM alpine:latest
 
 COPY . /zeronsd
@@ -12,4 +20,4 @@ RUN cargo install --path .
 
 ENV PATH /root/.cargo/bin
 
-ENTRYPOINT zeronsd
+ENTRYPOINT ["zeronsd"]
