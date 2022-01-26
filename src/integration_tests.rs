@@ -157,9 +157,7 @@ pub(crate) struct TestContext {
     member_config: Option<Box<MemberConfig>>,
     identity: String,
     zerotier: zerotier_one_api::apis::configuration::Configuration,
-    token: String,
     central: Configuration,
-    authtoken: String,
 }
 
 impl TestContext {
@@ -190,9 +188,7 @@ impl Default for TestContext {
             member_config: None,
             identity,
             zerotier,
-            token,
             central,
-            authtoken: authtoken.clone(),
         }
     }
 }
