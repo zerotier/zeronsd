@@ -39,7 +39,6 @@ pub(crate) struct Service {
     resolvers: Arc<Vec<Arc<Resolver>>>,
     update_interval: Option<Duration>,
     pub listen_ips: Vec<SocketAddr>,
-    pub listen_cidrs: Vec<String>,
 }
 
 pub(crate) trait Lookup {
@@ -87,7 +86,7 @@ fn create_listeners(
     hosts: HostsType,
     update_interval: Option<Duration>,
     wildcard_everything: bool,
-) -> (Vec<String>, Vec<SocketAddr>) {
+) -> Vec<SocketAddr> {
     let listen_cidrs = runtime
         .lock()
         .unwrap()
@@ -160,7 +159,7 @@ fn create_listeners(
         lock.spawn(server.listen(ip, Duration::new(0, 1000)));
     }
 
-    (listen_cidrs, listen_ips)
+    listen_ips
 }
 
 fn create_resolvers(sockets: Vec<SocketAddr>) -> Vec<Arc<Resolver>> {
@@ -262,7 +261,7 @@ impl Service {
             .unwrap()
         };
 
-        let (listen_cidrs, listen_ips) = create_listeners(
+        let listen_ips = create_listeners(
             runtime.clone(),
             &tn,
             sc.hosts,
@@ -275,7 +274,6 @@ impl Service {
             tn: Arc::new(tn),
             resolvers: Arc::new(create_resolvers(listen_ips.clone())),
             listen_ips,
-            listen_cidrs,
             update_interval: sc.update_interval,
         }
     }
