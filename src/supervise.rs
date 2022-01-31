@@ -366,7 +366,7 @@ impl<'a> Properties {
 
             let systemd_help = format!("Don't forget to `systemctl daemon-reload`, `systemctl enable zeronsd-{}` and `systemctl start zeronsd-{}`.", self.network, self.network);
             let alpine_help = format!(
-                "Don't to `rc-update add zeronsd-{}` and `rc-service zeronsd-{} start`",
+                "Don't forget to `rc-update add zeronsd-{}` and `rc-service zeronsd-{} start`",
                 self.network, self.network
             );
 
