@@ -10,6 +10,9 @@ use serde::Serialize;
 use tinytemplate::TinyTemplate;
 use trust_dns_resolver::Name;
 
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::PermissionsExt;
+
 #[cfg(target_os = "windows")]
 const SUPERVISE_SYSTEM_DIR: &str = "";
 #[cfg(target_os = "windows")]
@@ -312,9 +315,15 @@ impl<'a> Properties {
                 let id_regex = Regex::new(r#"\nID=(.+)\n"#)?;
                 if let Some(caps) = id_regex.captures(&release) {
                     if let Some(distro) = caps.get(1) {
-                        let distro = Some(distro.as_str());
-                        let template = self.supervise_template(distro)?;
-                        let service_path = self.service_path(distro);
+                        let distro = distro.as_str();
+
+                        let executable = match distro {
+                            "alpine" => true,
+                            _ => false,
+                        };
+
+                        let template = self.supervise_template(Some(distro))?;
+                        let service_path = self.service_path(Some(distro));
 
                         match std::fs::write(service_path.clone(), template) {
                             Ok(_) => {}
@@ -329,6 +338,12 @@ impl<'a> Properties {
                             }
                         };
 
+                        if executable {
+                            let mut perms = std::fs::metadata(service_path.clone())?.permissions();
+                            perms.set_mode(0755);
+                            std::fs::set_permissions(service_path.clone(), perms)?;
+                        }
+
                         let systemd_help = format!("Don't forget to `systemctl daemon-reload`, `systemctl enable zeronsd-{}` and `systemctl start zeronsd-{}`.", self.network, self.network);
                         let alpine_help = format!(
                             "Don't to `rc-update add zeronsd-{}` and `rc-service start zeronsd-{}`",
@@ -336,11 +351,8 @@ impl<'a> Properties {
                         );
 
                         let help = match distro {
-                            Some(s) => match s {
-                                "alpine" => alpine_help,
-                                _ => systemd_help,
-                            },
-                            None => systemd_help,
+                            "alpine" => alpine_help,
+                            _ => systemd_help,
                         };
 
                         info!(
