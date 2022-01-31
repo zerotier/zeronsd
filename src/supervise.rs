@@ -258,7 +258,7 @@ impl<'a> Properties {
     fn get_service_template(&self, distro: Option<&str>) -> &str {
         match distro {
             Some(s) => match s {
-                "alpine" => ALPINE_TEMPLATE,
+                "alpine" => ALPINE_TEMPLATE.trim(),
                 _ => SYSTEMD_TEMPLATE,
             },
             None => SYSTEMD_TEMPLATE,
