@@ -6,14 +6,13 @@ If any of this doesn't work, alert @erikh immediately.
 - Edit `Cargo.toml` to update the version string near the top of the file.
 - Put a token attached to a central instance into `test-token.txt`. This file is in `.gitignore` and should not be attached to networks you care about.
 - `make test-integration`. This will create and join your host to several networks.
-- `make test-packages`. Read the output to ensure it passes.
+- `make test-packages`. Read the output to ensure it passes. It will also build the packages.
 - Commit and push main: `git commit -a -s -m "zeronsd v<version>" && git push <remote> main`
 - Tag git: `git tag v<version>`. The `v` is important here. Delete the tag if you created a non-`v` tag.
 - Push the tag: `git push <remote> v<version>`
 - Publish any cargo subpackages (e.g., the openapi client libraries).
 - Push cargo: `cargo publish`. (Get @erikh involved if you need to)
-- Push docker image: `docker push zerotier/zeronsd:<version>` -- no `v` in the version here.
-- Tag `latest` docker image and push it: `docker tag zerotier/zeronsd:<version> zerotier/zeronsd:latest && docker push zerotier/zeronsd:latest`
+- Push docker images: `make docker-image-push`. This will also tag `latest` images.
 - Edit the release tag, it'll be [here](https://github.com/zerotier/zeronsd/releases).
   - In the `target` directory, there will be several files. Push them to the release.
     - `zeronsd_*.deb` is for debian/ubuntu systems.
