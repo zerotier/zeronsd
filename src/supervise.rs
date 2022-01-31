@@ -113,6 +113,7 @@ pub struct Properties {
     pub authtoken: Option<String>,
     pub token: String,
     pub wildcard_names: bool,
+    distro: Option<String>,
 }
 
 impl From<&clap::ArgMatches<'_>> for Properties {
@@ -139,6 +140,7 @@ impl Default for Properties {
             hosts_file: None,
             authtoken: None,
             token: String::new(),
+            distro: None,
         }
     }
 }
@@ -152,7 +154,27 @@ impl<'a> Properties {
         token: Option<&'_ str>,
         wildcard_names: bool,
     ) -> Result<Self, anyhow::Error> {
+        let distro = if cfg!(target_os = "linux") {
+            if let Ok(release) = std::fs::read_to_string(OS_RELEASE_FILE) {
+                let id_regex = Regex::new(r#"\nID=(.+)\n"#)?;
+                if let Some(caps) = id_regex.captures(&release) {
+                    if let Some(distro) = caps.get(1) {
+                        Some(distro.clone().as_str().to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    return Err(anyhow!("Could not determine Linux distribution; you'll need to configure supervision manually. Sorry!"));
+                }
+            } else {
+                return Err(anyhow!("Could not determine Linux distribution; you'll need to configure supervision manually. Sorry!"));
+            }
+        } else {
+            None
+        };
+
         Ok(Self {
+            distro,
             wildcard_names,
             binpath: String::from(std::env::current_exe()?.to_string_lossy()),
             // make this garbage a macro later
@@ -243,8 +265,8 @@ impl<'a> Properties {
         Ok(())
     }
 
-    pub fn supervise_template(&self, distro: Option<&str>) -> Result<String, anyhow::Error> {
-        let template = self.get_service_template(distro);
+    pub fn supervise_template(&self) -> Result<String, anyhow::Error> {
+        let template = self.get_service_template();
 
         let mut t = TinyTemplate::new();
         t.add_template("supervise", template)?;
@@ -255,9 +277,9 @@ impl<'a> Properties {
     }
 
     #[cfg(target_os = "linux")]
-    fn get_service_template(&self, distro: Option<&str>) -> &str {
-        match distro {
-            Some(s) => match s {
+    fn get_service_template(&self) -> &str {
+        match self.distro.clone() {
+            Some(s) => match s.as_str() {
                 "alpine" => ALPINE_TEMPLATE.trim(),
                 _ => SYSTEMD_TEMPLATE,
             },
@@ -266,12 +288,12 @@ impl<'a> Properties {
     }
 
     #[cfg(target_os = "windows")]
-    fn get_service_template(&self, distro: Option<&str>) -> &str {
+    fn get_service_template(&self) -> &str {
         return SERVICE_TEMPLATE;
     }
 
     #[cfg(target_os = "macos")]
-    fn get_service_template(&self, distro: Option<&str>) -> &str {
+    fn get_service_template(&self) -> &str {
         return SERVICE_TEMPLATE;
     }
 
@@ -281,9 +303,9 @@ impl<'a> Properties {
     }
 
     #[cfg(target_os = "linux")]
-    fn service_name(&self, distro: Option<&str>) -> String {
-        match distro {
-            Some(s) => match s {
+    fn service_name(&self) -> String {
+        match self.distro.clone() {
+            Some(s) => match s.as_str() {
                 "alpine" => format!("zeronsd-{}", self.network),
                 _ => format!("zeronsd-{}.service", self.network),
             },
@@ -296,82 +318,77 @@ impl<'a> Properties {
         format!("com.zerotier.nsd.{}.plist", self.network)
     }
 
-    fn service_path(&self, distro: Option<&str>) -> PathBuf {
-        let dir = match distro {
-            Some(s) => match s {
+    fn service_path(&self) -> PathBuf {
+        let dir = match self.distro.clone() {
+            Some(s) => match s.as_str() {
                 "alpine" => ALPINE_INIT_DIR,
                 _ => SUPERVISE_SYSTEM_DIR,
             },
             None => SUPERVISE_SYSTEM_DIR,
         };
-        PathBuf::from(dir).join(self.service_name(distro))
+        PathBuf::from(dir).join(self.service_name())
     }
 
     pub fn install_supervisor(&mut self) -> Result<(), anyhow::Error> {
         self.validate()?;
 
         if cfg!(target_os = "linux") {
-            if let Ok(release) = std::fs::read_to_string(OS_RELEASE_FILE) {
-                let id_regex = Regex::new(r#"\nID=(.+)\n"#)?;
-                if let Some(caps) = id_regex.captures(&release) {
-                    if let Some(distro) = caps.get(1) {
-                        let distro = distro.as_str();
-
-                        let executable = match distro {
-                            "alpine" => true,
-                            _ => false,
-                        };
-
-                        let template = self.supervise_template(Some(distro))?;
-                        let service_path = self.service_path(Some(distro));
-
-                        match std::fs::write(service_path.clone(), template) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                return Err(anyhow!(
-                                    "Could not write the template {}; are you root? ({})",
-                                    service_path
-                                        .to_str()
-                                        .expect("Could not coerce service path to string"),
-                                    e,
-                                ))
-                            }
-                        };
-
-                        if executable {
-                            let mut perms = std::fs::metadata(service_path.clone())?.permissions();
-                            perms.set_mode(0755);
-                            std::fs::set_permissions(service_path.clone(), perms)?;
-                        }
-
-                        let systemd_help = format!("Don't forget to `systemctl daemon-reload`, `systemctl enable zeronsd-{}` and `systemctl start zeronsd-{}`.", self.network, self.network);
-                        let alpine_help = format!(
-                            "Don't to `rc-update add zeronsd-{}` and `rc-service zeronsd-{} start`",
-                            self.network, self.network
-                        );
-
-                        let help = match distro {
-                            "alpine" => alpine_help,
-                            _ => systemd_help,
-                        };
-
-                        info!(
-                            "Service definition written to {}.\n{}",
-                            service_path
-                                .to_str()
-                                .expect("Could not coerce service path to string"),
-                            help,
-                        );
-                    } else {
-                        return Err(anyhow!("Could not determine Linux distribution; you'll need to configure supervision manually. Sorry!"));
-                    }
-                } else {
-                    return Err(anyhow!("Could not determine Linux distribution; you'll need to configure supervision manually. Sorry!"));
+            let executable = if let Some(distro) = self.distro.clone() {
+                match distro.as_str() {
+                    "alpine" => true,
+                    _ => false,
                 }
+            } else {
+                false
+            };
+
+            let template = self.supervise_template()?;
+            let service_path = self.service_path();
+
+            match std::fs::write(service_path.clone(), template) {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Could not write the template {}; are you root? ({})",
+                        service_path
+                            .to_str()
+                            .expect("Could not coerce service path to string"),
+                        e,
+                    ))
+                }
+            };
+
+            if executable {
+                let mut perms = std::fs::metadata(service_path.clone())?.permissions();
+                perms.set_mode(0755);
+                std::fs::set_permissions(service_path.clone(), perms)?;
             }
+
+            let systemd_help = format!("Don't forget to `systemctl daemon-reload`, `systemctl enable zeronsd-{}` and `systemctl start zeronsd-{}`.", self.network, self.network);
+            let alpine_help = format!(
+                "Don't to `rc-update add zeronsd-{}` and `rc-service zeronsd-{} start`",
+                self.network, self.network
+            );
+
+            let help = if let Some(distro) = self.distro.clone() {
+                match distro.as_str() {
+                    "alpine" => alpine_help,
+                    _ => systemd_help,
+                }
+            } else {
+                systemd_help
+            };
+
+            info!(
+                "Service definition written to {}.\n{}",
+                service_path
+                    .to_str()
+                    .expect("Could not coerce service path to string"),
+                help,
+            );
         } else if cfg!(target_os = "macos") {
-            let template = self.supervise_template(None)?;
-            let service_path = self.service_path(None);
+            let template = self.supervise_template()?;
+            let service_path = self.service_path();
 
             match std::fs::write(service_path.clone(), template) {
                 Ok(_) => {}
@@ -399,12 +416,12 @@ impl<'a> Properties {
 
     pub fn uninstall_supervisor(&self) -> Result<(), anyhow::Error> {
         if cfg!(target_os = "linux") {
-            match std::fs::remove_file(self.service_path(None)) {
+            match std::fs::remove_file(self.service_path()) {
                 Ok(_) => {}
                 Err(e) => {
                     return Err(anyhow!(
                         "Could not uninstall supervisor unit file ({}): {}",
-                        self.service_path(None)
+                        self.service_path()
                             .to_str()
                             .expect("Could not coerce service path to string"),
                         e,
@@ -412,12 +429,12 @@ impl<'a> Properties {
                 }
             };
         } else if cfg!(target_os = "macos") {
-            match std::fs::remove_file(self.service_path(None)) {
+            match std::fs::remove_file(self.service_path()) {
                 Ok(_) => {}
                 Err(e) => {
                     return Err(anyhow!(
                         "Could not uninstall supervisor unit file ({}): {}",
-                        self.service_path(None)
+                        self.service_path()
                             .to_str()
                             .expect("Could not coerce service path to string"),
                         e,
@@ -427,8 +444,8 @@ impl<'a> Properties {
 
             info!(
                 "Service definition removed from {}.\nDon't forget to stop it:\nsudo launchctl remove {}",
-                self.service_path(None).to_str().expect("Could not coerce service path to string"),
-                self.service_name(None).replace(".plist", "")
+                self.service_path().to_str().expect("Could not coerce service path to string"),
+                self.service_name().replace(".plist", "")
             );
         } else {
             return Err(anyhow!("Your platform is not supported for this command"));
