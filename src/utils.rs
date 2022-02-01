@@ -25,6 +25,11 @@ pub(crate) fn central_config(token: String) -> Configuration {
     let mut config = Configuration::default();
     config.user_agent = Some(version());
     config.bearer_access_token = Some(token);
+
+    if let Ok(instance) = std::env::var("ZEROTIER_CENTRAL_INSTANCE") {
+        config.base_path = instance
+    }
+
     return config;
 }
 
