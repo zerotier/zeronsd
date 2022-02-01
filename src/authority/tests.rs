@@ -100,7 +100,7 @@ mod sixplane {
     #[test]
     fn test_battery_single_domain_named() {
         init_test_logger();
-        let update_interval = Duration::new(1, 0);
+        let update_interval = Duration::new(20, 0);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(update_interval))
@@ -165,7 +165,7 @@ mod sixplane {
         init_test_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(1, 0)))
+                .update_interval(Some(Duration::new(20, 0)))
                 .network_filename("6plane-only")
                 .wildcard_everything(true),
         );
@@ -300,7 +300,7 @@ mod rfc4193 {
     #[test]
     fn test_battery_single_domain_named() {
         init_test_logger();
-        let update_interval = Duration::new(1, 0);
+        let update_interval = Duration::new(20, 0);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(update_interval))
@@ -379,7 +379,7 @@ mod rfc4193 {
         init_test_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(1, 0)))
+                .update_interval(Some(Duration::new(20, 0)))
                 .network_filename("rfc4193-only")
                 .wildcard_everything(true),
         );
@@ -440,7 +440,7 @@ mod ipv4 {
         init_test_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(1, 0)))
+                .update_interval(Some(Duration::new(20, 0)))
                 .wildcard_everything(true),
         );
 
@@ -553,7 +553,7 @@ mod ipv4 {
     #[test]
     fn test_battery_single_domain_named() {
         init_test_logger();
-        let update_interval = Duration::new(1, 0);
+        let update_interval = Duration::new(20, 0);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(update_interval))
@@ -641,7 +641,7 @@ fn test_hosts_file_reloading() {
     let service = Service::new(
         ServiceConfig::default()
             .hosts(HostsType::Path(hosts_path))
-            .update_interval(Some(Duration::new(1, 0))),
+            .update_interval(Some(Duration::new(20, 0))),
     );
 
     assert_eq!(

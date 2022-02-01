@@ -127,7 +127,7 @@ fn create_listeners(
         }
     }
 
-    let update_interval = update_interval.unwrap_or(Duration::new(2, 0));
+    let update_interval = update_interval.unwrap_or(Duration::new(10, 0));
 
     let mut ztauthority = ZTAuthority::new(
         domain_or_default(None).unwrap(),
