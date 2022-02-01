@@ -661,7 +661,7 @@ fn test_hosts_file_reloading() {
     );
 
     std::fs::write(hosts_path, "127.0.0.3 islay\n::3 islay\n").unwrap();
-    sleep(Duration::new(3, 0)); // wait for bg update
+    sleep(Duration::new(30, 0)); // wait for bg update
 
     assert_eq!(
         service
