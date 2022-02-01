@@ -34,6 +34,8 @@ docker-image-push: docker-image-package
 	docker push zerotier/zeronsd:alpine-$(CARGO_VERSION)
 	docker tag zerotier/zeronsd:$(CARGO_VERSION) zerotier/zeronsd:latest
 	docker tag zerotier/zeronsd:alpine-$(CARGO_VERSION) zerotier/zeronsd:alpine-latest
+	docker push zerotier/zeronsd:latest
+	docker push zerotier/zeronsd:alpine-latest
 
 packages:
 	make docker-image-package
