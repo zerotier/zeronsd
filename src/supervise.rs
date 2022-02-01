@@ -17,6 +17,10 @@ use std::os::unix::fs::PermissionsExt;
 const SUPERVISE_SYSTEM_DIR: &str = "";
 #[cfg(target_os = "windows")]
 const SERVICE_TEMPLATE: &str = "";
+#[cfg(target_os = "windows")]
+const OS_RELEASE_FILE: &str = "";
+#[cfg(target_os = "windows")]
+const ALPINE_INIT_DIR: &str = "";
 
 #[cfg(target_os = "linux")]
 const SUPERVISE_SYSTEM_DIR: &str = "/lib/systemd/system";
@@ -57,6 +61,10 @@ command_background="yes"
 pidfile="/run/$RC_SVCNAME.pid"
 "#;
 
+#[cfg(target_os = "macos")]
+const OS_RELEASE_FILE: &str = "";
+#[cfg(target_os = "macos")]
+const ALPINE_INIT_DIR: &str = "";
 #[cfg(target_os = "macos")]
 const SUPERVISE_SYSTEM_DIR: &str = "/Library/LaunchDaemons/";
 #[cfg(target_os = "macos")]
@@ -333,6 +341,7 @@ impl<'a> Properties {
         self.validate()?;
 
         if cfg!(target_os = "linux") {
+            #[cfg(target_os = "linux")]
             let executable = if let Some(distro) = self.distro.clone() {
                 match distro.as_str() {
                     "alpine" => true,
@@ -358,6 +367,7 @@ impl<'a> Properties {
                 }
             };
 
+            #[cfg(target_os = "linux")]
             if executable {
                 let mut perms = std::fs::metadata(service_path.clone())?.permissions();
                 perms.set_mode(0755);
