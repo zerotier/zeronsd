@@ -99,9 +99,11 @@ Running in docker is a little more complicated. You must be able to have a netwo
 You also need to mount your `authtoken.secret`, which we use to talk to `zerotier-one`
 
 ```
-
-docker run -v /var/lib/zerotier-one:/var/lib/zerotier-one:ro --net host zerotier/zeronsd start <network id>
-
+docker run --net host -it \
+  -v /var/lib/zerotier-one/authtoken.secret:/authtoken.secret \
+  -v <token file>:/token.txt \
+  zeronsd:alpine start -s /authtoken.secret -t /token.txt \
+  <network id>
 ```
 
 ### Other notes
