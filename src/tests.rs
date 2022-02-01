@@ -140,6 +140,7 @@ fn test_supervise_systemd_green() {
                 authtoken: Some(String::from("/var/lib/zerotier-one/authtoken.secret")),
                 hosts_file: Some(String::from("/etc/hosts")),
                 wildcard_names: true,
+                distro: None,
             },
         ),
     ];
@@ -162,17 +163,17 @@ fn test_supervise_systemd_green() {
             assert!(path.is_ok(), "{}", name);
             let expected = std::fs::read_to_string(path.unwrap());
             assert!(expected.is_ok(), "{}", name);
-            let testing = props.supervise_template(None);
+            let testing = props.supervise_template();
             assert!(testing.is_ok(), "{}", name);
 
             assert_eq!(testing.unwrap(), expected.unwrap(), "{}", name);
         } else {
             assert!(props.validate().is_ok(), "{}", name);
 
-            let template = props.supervise_template(None);
+            let template = props.supervise_template();
             assert!(template.is_ok(), "{}", name);
             assert!(
-                std::fs::write(path, props.supervise_template(None).unwrap()).is_ok(),
+                std::fs::write(path, props.supervise_template().unwrap()).is_ok(),
                 "{}",
                 name
             );

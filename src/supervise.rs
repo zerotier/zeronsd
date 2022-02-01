@@ -113,7 +113,7 @@ pub struct Properties {
     pub authtoken: Option<String>,
     pub token: String,
     pub wildcard_names: bool,
-    distro: Option<String>,
+    pub distro: Option<String>,
 }
 
 impl From<&clap::ArgMatches<'_>> for Properties {
