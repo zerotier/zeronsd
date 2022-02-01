@@ -6,18 +6,22 @@
 #   zeronsd:alpine start -s /authtoken.secret -t /token.txt \
 #   <network id>
 
-FROM alpine:latest
-
-COPY . /zeronsd
-WORKDIR /zeronsd
+FROM alpine:latest as builder
 
 RUN apk add rust
 RUN apk add cargo
 RUN apk add openssl
 RUN apk add openssl-dev
 
+COPY . /zeronsd
+WORKDIR /zeronsd
+
 RUN cargo install --path .
 
-ENV PATH /root/.cargo/bin
+FROM alpine:latest
+
+RUN apk add openssl ca-certificates libgcc
+
+COPY --from=builder /root/.cargo/bin/zeronsd /bin/zeronsd
 
 ENTRYPOINT ["zeronsd"]
