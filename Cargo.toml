@@ -16,7 +16,7 @@ edition = "2021"
 [dependencies]
 regex = ">= 0"
 anyhow = ">= 0"
-clap = "=2"
+clap = { version = "3.0", features = ["derive"] }
 ipnetwork = ">= 0"
 trust-dns-resolver = "0.20.2"
 trust-dns-server = { version = "0.20.2", features = ["trust-dns-resolver"] } 
