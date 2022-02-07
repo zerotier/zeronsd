@@ -136,7 +136,6 @@ fn start(args: StartArgs) -> Result<(), anyhow::Error> {
     return Err(anyhow!(
         "No listening IPs for your interface; assign one in ZeroTier Central."
     ));
-    // }
 }
 
 fn main() -> Result<(), anyhow::Error> {
