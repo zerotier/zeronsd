@@ -1,7 +1,7 @@
 /// code to tickle various supervisors to enable the `zeronsd supervise` command.
 /// this code is hard to read but fundamentally launchd and systemd are controlled through a
 /// library called `tinytemplate` and of course serde.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 use log::info;
@@ -12,6 +12,8 @@ use trust_dns_resolver::Name;
 
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
+
+use crate::cli::{SuperviseArgs, UnsuperviseArgs};
 
 #[cfg(target_os = "windows")]
 const SUPERVISE_SYSTEM_DIR: &str = "";
@@ -117,24 +119,30 @@ pub struct Properties {
     pub binpath: String,
     pub domain: Option<String>,
     pub network: String,
-    pub hosts_file: Option<String>,
-    pub authtoken: Option<String>,
-    pub token: String,
+    pub hosts_file: Option<PathBuf>,
+    pub authtoken: Option<PathBuf>,
+    pub token: PathBuf,
     pub wildcard_names: bool,
     pub distro: Option<String>,
 }
 
-impl From<&clap::ArgMatches<'_>> for Properties {
-    fn from(args: &clap::ArgMatches<'_>) -> Self {
+impl From<SuperviseArgs> for Properties {
+    fn from(args: SuperviseArgs) -> Self {
         Self::new(
-            args.value_of("domain"),
-            args.value_of("NETWORK_ID"),
-            args.value_of("file").clone(),
-            args.value_of("secret_file"),
-            args.value_of("token_file"),
-            args.is_present("wildcard"),
+            args.domain.as_deref(),
+            &args.network_id,
+            args.hosts.as_deref(),
+            args.secret.as_deref(),
+            args.token.as_deref(),
+            args.wildcard,
         )
         .unwrap()
+    }
+}
+
+impl From<UnsuperviseArgs> for Properties {
+    fn from(args: UnsuperviseArgs) -> Self {
+        Self::new(None, &args.network_id, None, None, None, false).unwrap()
     }
 }
 
@@ -147,7 +155,7 @@ impl Default for Properties {
             network: String::new(),
             hosts_file: None,
             authtoken: None,
-            token: String::new(),
+            token: PathBuf::new(),
             distro: None,
         }
     }
@@ -156,10 +164,10 @@ impl Default for Properties {
 impl<'a> Properties {
     pub fn new(
         domain: Option<&'_ str>,
-        network: Option<&'_ str>,
-        hosts_file: Option<&'_ str>,
-        authtoken: Option<&'_ str>,
-        token: Option<&'_ str>,
+        network: &'_ str,
+        hosts_file: Option<&'_ Path>,
+        authtoken: Option<&'_ Path>,
+        token: Option<&'_ Path>,
         wildcard_names: bool,
     ) -> Result<Self, anyhow::Error> {
         let distro = if cfg!(target_os = "linux") {
@@ -190,30 +198,36 @@ impl<'a> Properties {
                 Some(domain) => Some(String::from(domain)),
                 None => None,
             },
-            network: network.unwrap().into(),
+            network: network.into(),
             hosts_file: match hosts_file {
-                Some(hosts_file) => Some(String::from(hosts_file)),
+                Some(hosts_file) => Some(hosts_file.to_owned()),
                 None => None,
             },
             authtoken: match authtoken {
-                Some(authtoken) => Some(String::from(authtoken)),
+                Some(authtoken) => Some(authtoken.to_owned()),
                 None => None,
             },
-            token: String::from(token.unwrap_or_default()),
+            token: token.unwrap_or(Path::new("")).to_owned(),
         })
     }
 
     pub fn validate(&mut self) -> Result<(), anyhow::Error> {
         let tstat = match std::fs::metadata(self.token.clone()) {
             Ok(ts) => ts,
-            Err(e) => return Err(anyhow!("Could not stat token file {}: {}", self.token, e)),
+            Err(e) => {
+                return Err(anyhow!(
+                    "Could not stat token file {}: {}",
+                    self.token.display(),
+                    e
+                ))
+            }
         };
 
         if !tstat.is_file() {
-            return Err(anyhow!("Token file {} is not a file", self.token));
+            return Err(anyhow!("Token file {} is not a file", self.token.display()));
         }
 
-        self.token = String::from(std::fs::canonicalize(self.token.clone())?.to_string_lossy());
+        self.token = self.token.canonicalize()?;
 
         if self.network.len() != 16 {
             return Err(anyhow!("Network ID must be 16 characters"));
@@ -222,18 +236,20 @@ impl<'a> Properties {
         if let Some(hosts_file) = self.hosts_file.clone() {
             let hstat = match std::fs::metadata(hosts_file.clone()) {
                 Ok(hs) => hs,
-                Err(e) => return Err(anyhow!("Could not stat hosts file {}: {}", hosts_file, e)),
+                Err(e) => {
+                    return Err(anyhow!(
+                        "Could not stat hosts file {}: {}",
+                        hosts_file.display(),
+                        e
+                    ))
+                }
             };
 
             if !hstat.is_file() {
-                return Err(anyhow!("Hosts file {} is not a file", hosts_file));
+                return Err(anyhow!("Hosts file {} is not a file", hosts_file.display()));
             }
 
-            self.hosts_file = Some(
-                std::fs::canonicalize(hosts_file)?
-                    .to_string_lossy()
-                    .to_string(),
-            );
+            self.hosts_file = Some(hosts_file.canonicalize()?);
         }
 
         if let Some(domain) = self.domain.clone() {
@@ -253,21 +269,20 @@ impl<'a> Properties {
                 Err(e) => {
                     return Err(anyhow!(
                         "Could not stat authtoken file {}: {}",
-                        authtoken,
+                        authtoken.display(),
                         e
                     ))
                 }
             };
 
             if !hstat.is_file() {
-                return Err(anyhow!("authtoken file {} is not a file", authtoken));
+                return Err(anyhow!(
+                    "authtoken file {} is not a file",
+                    authtoken.display()
+                ));
             }
 
-            self.authtoken = Some(
-                std::fs::canonicalize(authtoken)?
-                    .to_string_lossy()
-                    .to_string(),
-            );
+            self.authtoken = Some(authtoken.canonicalize()?);
         }
 
         Ok(())

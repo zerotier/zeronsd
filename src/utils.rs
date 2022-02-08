@@ -1,4 +1,4 @@
-use std::{net::IpAddr, str::FromStr};
+use std::{net::IpAddr, path::Path, str::FromStr};
 
 use ipnetwork::IpNetwork;
 use log::warn;
@@ -52,9 +52,9 @@ pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> IpAddr {
 }
 
 // load and prepare the central API token
-pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> {
-    if arg.is_some() {
-        return Ok(std::fs::read_to_string(arg.unwrap())
+pub(crate) fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error> {
+    if let Some(path) = arg {
+        return Ok(std::fs::read_to_string(path)
             .expect("Could not load token file")
             .trim()
             .to_string());
@@ -70,21 +70,19 @@ pub(crate) fn central_token(arg: Option<&str>) -> Result<String, anyhow::Error> 
 }
 
 // determine the path of the authtoken.secret
-pub(crate) fn authtoken_path(arg: Option<&str>) -> String {
+pub(crate) fn authtoken_path(arg: Option<&Path>) -> &Path {
     if let Some(arg) = arg {
-        return String::from(arg);
+        return arg;
+    }
+
+    if cfg!(target_os = "linux") {
+        Path::new("/var/lib/zerotier-one/authtoken.secret")
+    } else if cfg!(target_os = "windows") {
+        Path::new("C:/ProgramData/ZeroTier/One/authtoken.secret")
+    } else if cfg!(target_os = "macos") {
+        Path::new("/Library/Application Support/ZeroTier/One/authtoken.secret")
     } else {
-        if cfg!(target_os = "linux") {
-            String::from("/var/lib/zerotier-one/authtoken.secret")
-        } else if cfg!(target_os = "windows") {
-            String::from("C:/ProgramData/ZeroTier/One/authtoken.secret")
-        } else if cfg!(target_os = "macos") {
-            String::from("/Library/Application Support/ZeroTier/One/authtoken.secret")
-        } else {
-            panic!(
-                "authtoken.secret not found; please provide the -s option to provide a custom path"
-            )
-        }
+        panic!("authtoken.secret not found; please provide the -s option to provide a custom path")
     }
 }
 
@@ -122,7 +120,7 @@ pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Opti
 // get_listen_ips returns the IPs that the network is providing to the instance running zeronsd.
 // 4193 and 6plane are handled up the stack.
 pub(crate) async fn get_listen_ips(
-    authtoken_path: &str,
+    authtoken_path: &Path,
     network_id: &str,
 ) -> Result<Vec<String>, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;

@@ -1,6 +1,6 @@
 /// functionality to deal with the handling of /etc/hosts formatted files
 use log::warn;
-use std::{collections::HashMap, net::IpAddr, str::FromStr};
+use std::{collections::HashMap, net::IpAddr, path::PathBuf, str::FromStr};
 use trust_dns_server::client::rr::Name;
 
 use crate::utils::ToHostname;
@@ -13,7 +13,7 @@ const COMMENT_MATCH: &str = r"^\s*#";
 /// Parses an /etc/hosts-formatted file into a mapping of ip -> [name]. Used to populate the
 /// authority.
 pub(crate) fn parse_hosts(
-    hosts_file: Option<String>,
+    hosts_file: Option<PathBuf>,
     domain_name: Name,
 ) -> Result<HostsFile, std::io::Error> {
     let mut input: HostsFile = HashMap::new();

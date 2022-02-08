@@ -1,20 +1,6 @@
-use log::info;
-use rand::prelude::SliceRandom;
 use trust_dns_resolver::{IntoName, Name};
 
-use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-    str::FromStr,
-    thread::sleep,
-    time::Duration,
-};
-
-use crate::{
-    authority::service::{HostsType, Lookup, Service, ServiceConfig},
-    hosts::parse_hosts,
-    integration_tests::init_test_logger,
-    tests::HOSTS_DIR,
-};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 type SocketVec = Vec<SocketAddr>;
 
@@ -61,7 +47,7 @@ impl ToPTRVec for SocketVec {
 }
 
 mod sixplane {
-    use std::{net::IpAddr, str::FromStr, time::Duration};
+    use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
 
     use log::info;
     use rand::prelude::SliceRandom;
@@ -140,7 +126,7 @@ mod sixplane {
         info!("Looking up random domains");
 
         let mut hosts_map = parse_hosts(
-            Some(format!("{}/basic-ipv6", HOSTS_DIR)),
+            Some(Path::new(&format!("{}/basic-ipv6", HOSTS_DIR)).to_path_buf()),
             "domain.".into_name().unwrap(),
         )
         .unwrap();
@@ -207,7 +193,7 @@ mod sixplane {
 }
 
 mod rfc4193 {
-    use std::{net::IpAddr, str::FromStr, time::Duration};
+    use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
 
     use log::info;
     use rand::{prelude::SliceRandom, thread_rng};
@@ -354,7 +340,7 @@ mod rfc4193 {
         info!("Looking up random domains");
 
         let mut hosts_map = parse_hosts(
-            Some(format!("{}/basic-ipv6", HOSTS_DIR)),
+            Some(Path::new(&format!("{}/basic-ipv6", HOSTS_DIR)).to_path_buf()),
             "domain.".into_name().unwrap(),
         )
         .unwrap();
@@ -594,88 +580,109 @@ mod ipv4 {
     }
 }
 
-#[test]
-fn test_battery_multi_domain_hosts_file() {
-    init_test_logger();
-    let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let service = Service::new(
-        ServiceConfig::default()
-            .hosts(HostsType::Fixture("basic"))
-            .ips(Some(ips.clone())),
-    );
+mod all {
+    use log::info;
+    use rand::prelude::SliceRandom;
+    use trust_dns_resolver::{IntoName, Name};
 
-    let record = service.member_record();
+    use crate::{
+        authority::service::{HostsType, Lookup, Service, ServiceConfig},
+        hosts::parse_hosts,
+        integration_tests::init_test_logger,
+        tests::HOSTS_DIR,
+    };
 
-    info!("Looking up random domains");
+    use std::{
+        net::{IpAddr, Ipv4Addr, Ipv6Addr},
+        path::Path,
+        str::FromStr,
+        thread::sleep,
+        time::Duration,
+    };
 
-    let mut hosts_map = parse_hosts(
-        Some(format!("{}/basic", HOSTS_DIR)),
-        "domain.".into_name().unwrap(),
-    )
-    .unwrap();
+    #[test]
+    fn test_battery_multi_domain_hosts_file() {
+        init_test_logger();
+        let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
+        let service = Service::new(
+            ServiceConfig::default()
+                .hosts(HostsType::Fixture("basic"))
+                .ips(Some(ips.clone())),
+        );
 
-    for ip in ips {
-        hosts_map.insert(
-            IpAddr::from_str(&ip).unwrap(),
-            vec![record.clone().into_name().unwrap()],
+        let record = service.member_record();
+
+        info!("Looking up random domains");
+
+        let mut hosts_map = parse_hosts(
+            Some(Path::new(&format!("{}/basic", HOSTS_DIR)).to_path_buf()),
+            "domain.".into_name().unwrap(),
+        )
+        .unwrap();
+
+        for ip in ips {
+            hosts_map.insert(
+                IpAddr::from_str(&ip).unwrap(),
+                vec![record.clone().into_name().unwrap()],
+            );
+        }
+
+        let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
+        for _ in 0..10000 {
+            hosts.shuffle(&mut rand::thread_rng());
+            let host = *hosts.first().unwrap();
+            let ips = service.lookup_a(host.to_string());
+            assert!(hosts_map
+                .get(&IpAddr::from(*ips.first().unwrap()))
+                .unwrap()
+                .contains(host));
+        }
+    }
+
+    #[test]
+    fn test_hosts_file_reloading() {
+        init_test_logger();
+        let hosts_path = "/tmp/zeronsd-test-hosts";
+        std::fs::write(hosts_path, "127.0.0.2 islay\n::2 islay\n").unwrap();
+        let service = Service::new(
+            ServiceConfig::default()
+                .hosts(HostsType::Path(hosts_path))
+                .update_interval(Some(Duration::new(20, 0))),
+        );
+
+        assert_eq!(
+            service
+                .lookup_a("islay.domain.".to_string())
+                .first()
+                .unwrap(),
+            &Ipv4Addr::from_str("127.0.0.2").unwrap()
+        );
+
+        assert_eq!(
+            service
+                .lookup_aaaa("islay.domain.".to_string())
+                .first()
+                .unwrap(),
+            &Ipv6Addr::from_str("::2").unwrap()
+        );
+
+        std::fs::write(hosts_path, "127.0.0.3 islay\n::3 islay\n").unwrap();
+        sleep(Duration::new(30, 0)); // wait for bg update
+
+        assert_eq!(
+            service
+                .lookup_a("islay.domain.".to_string())
+                .first()
+                .unwrap(),
+            &Ipv4Addr::from_str("127.0.0.3").unwrap()
+        );
+
+        assert_eq!(
+            service
+                .lookup_aaaa("islay.domain.".to_string())
+                .first()
+                .unwrap(),
+            &Ipv6Addr::from_str("::3").unwrap()
         );
     }
-
-    let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-    for _ in 0..10000 {
-        hosts.shuffle(&mut rand::thread_rng());
-        let host = *hosts.first().unwrap();
-        let ips = service.lookup_a(host.to_string());
-        assert!(hosts_map
-            .get(&IpAddr::from(*ips.first().unwrap()))
-            .unwrap()
-            .contains(host));
-    }
-}
-
-#[test]
-fn test_hosts_file_reloading() {
-    init_test_logger();
-    let hosts_path = "/tmp/zeronsd-test-hosts";
-    std::fs::write(hosts_path, "127.0.0.2 islay\n::2 islay\n").unwrap();
-    let service = Service::new(
-        ServiceConfig::default()
-            .hosts(HostsType::Path(hosts_path))
-            .update_interval(Some(Duration::new(20, 0))),
-    );
-
-    assert_eq!(
-        service
-            .lookup_a("islay.domain.".to_string())
-            .first()
-            .unwrap(),
-        &Ipv4Addr::from_str("127.0.0.2").unwrap()
-    );
-
-    assert_eq!(
-        service
-            .lookup_aaaa("islay.domain.".to_string())
-            .first()
-            .unwrap(),
-        &Ipv6Addr::from_str("::2").unwrap()
-    );
-
-    std::fs::write(hosts_path, "127.0.0.3 islay\n::3 islay\n").unwrap();
-    sleep(Duration::new(30, 0)); // wait for bg update
-
-    assert_eq!(
-        service
-            .lookup_a("islay.domain.".to_string())
-            .first()
-            .unwrap(),
-        &Ipv4Addr::from_str("127.0.0.3").unwrap()
-    );
-
-    assert_eq!(
-        service
-            .lookup_aaaa("islay.domain.".to_string())
-            .first()
-            .unwrap(),
-        &Ipv6Addr::from_str("::3").unwrap()
-    );
 }

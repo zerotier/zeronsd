@@ -5,6 +5,7 @@ use crate::{
 };
 use log::warn;
 use std::{
+    path::Path,
     sync::{Arc, Mutex},
     thread::sleep,
     time::Duration,
@@ -68,7 +69,9 @@ pub(crate) async fn get_identity(
 
 // unpack the authtoken based on what we're passed
 pub(crate) fn get_authtoken(or: Option<&str>) -> Result<String, anyhow::Error> {
-    Ok(std::fs::read_to_string(authtoken_path(or))?)
+    Ok(std::fs::read_to_string(authtoken_path(
+        or.map(|c| Path::new(c)),
+    ))?)
 }
 
 // zerotier_config returns the openapi configuration required to talk to the local ztone instance

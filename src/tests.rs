@@ -1,4 +1,8 @@
-use std::{net::IpAddr, str::FromStr};
+use std::{
+    net::IpAddr,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use crate::utils::{domain_or_default, ToHostname};
 
@@ -105,7 +109,7 @@ fn test_central_token() {
     assert_eq!(central_token(None).unwrap(), "abcdef");
 
     let hosts = std::fs::read_to_string("/etc/hosts").unwrap();
-    let token = central_token(Some("/etc/hosts"));
+    let token = central_token(Some(Path::new("/etc/hosts")));
     assert!(token.is_ok());
     assert_eq!(token.unwrap(), hosts.trim());
 }
@@ -114,19 +118,21 @@ fn test_central_token() {
 #[should_panic]
 fn test_central_token_panic() {
     use crate::utils::central_token;
-    central_token(Some("/nonexistent")).unwrap();
+    central_token(Some(Path::new("/nonexistent"))).unwrap();
 }
 
 #[test]
 #[cfg(target_os = "linux")]
 fn test_supervise_systemd_green() {
+    use std::path::PathBuf;
+
     let table = vec![
         (
             "basic",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
+                token: PathBuf::from("/proc/cpuinfo"),
                 ..Default::default()
             },
         ),
@@ -135,10 +141,10 @@ fn test_supervise_systemd_green() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
+                token: PathBuf::from("/proc/cpuinfo"),
                 domain: Some(String::from("zerotier")),
-                authtoken: Some(String::from("/var/lib/zerotier-one/authtoken.secret")),
-                hosts_file: Some(String::from("/etc/hosts")),
+                authtoken: Some(PathBuf::from("/var/lib/zerotier-one/authtoken.secret")),
+                hosts_file: Some(PathBuf::from("/etc/hosts")),
                 wildcard_names: true,
                 distro: None,
             },
@@ -184,13 +190,15 @@ fn test_supervise_systemd_green() {
 #[test]
 #[cfg(target_os = "linux")]
 fn test_supervise_systemd_red() {
+    use std::path::PathBuf;
+
     let table = vec![
         (
             "bad network",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("123456789101112"),
-                token: String::from("/proc/cpuinfo"),
+                token: PathBuf::from("/proc/cpuinfo"),
                 ..Default::default()
             },
         ),
@@ -199,7 +207,7 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("~"),
+                token: PathBuf::from("~"),
                 ..Default::default()
             },
         ),
@@ -208,7 +216,7 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("."),
+                token: PathBuf::from("."),
                 ..Default::default()
             },
         ),
@@ -217,8 +225,8 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
-                hosts_file: Some(String::from("~")),
+                token: PathBuf::from("/proc/cpuinfo"),
+                hosts_file: Some(PathBuf::from("~")),
                 ..Default::default()
             },
         ),
@@ -227,8 +235,8 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
-                hosts_file: Some(String::from(".")),
+                token: PathBuf::from("/proc/cpuinfo"),
+                hosts_file: Some(PathBuf::from(".")),
                 ..Default::default()
             },
         ),
@@ -237,8 +245,8 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
-                authtoken: Some(String::from("~")),
+                token: PathBuf::from("/proc/cpuinfo"),
+                authtoken: Some(PathBuf::from("~")),
                 ..Default::default()
             },
         ),
@@ -247,8 +255,8 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
-                authtoken: Some(String::from(".")),
+                token: PathBuf::from("/proc/cpuinfo"),
+                authtoken: Some(PathBuf::from(".")),
                 ..Default::default()
             },
         ),
@@ -257,7 +265,7 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
+                token: PathBuf::from("/proc/cpuinfo"),
                 domain: Some(String::from("")),
                 ..Default::default()
             },
@@ -267,7 +275,7 @@ fn test_supervise_systemd_red() {
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
                 network: String::from("1234567891011121"),
-                token: String::from("/proc/cpuinfo"),
+                token: PathBuf::from("/proc/cpuinfo"),
                 domain: Some(String::from("-")),
                 ..Default::default()
             },
@@ -295,7 +303,7 @@ fn test_parse_hosts() {
     {
         if path.metadata().unwrap().is_file() {
             eprintln!("Testing: {}", path.path().display());
-            let res = parse_hosts(Some(path.path().display().to_string()), domain.clone());
+            let res = parse_hosts(Some(path.path()), domain.clone());
             assert!(res.is_ok(), "{}", path.path().display());
 
             let mut table = res.unwrap();
@@ -344,7 +352,7 @@ fn test_parse_hosts_duplicate() {
     let domain = Name::from_str("zombocom").unwrap();
 
     let res = parse_hosts(
-        Some("testdata/hosts-files/duplicates".to_string()),
+        Some(PathBuf::from("testdata/hosts-files/duplicates")),
         domain.clone(),
     );
 
