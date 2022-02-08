@@ -8,6 +8,7 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    path::Path,
     str::FromStr,
     sync::{Arc, Mutex},
     thread::sleep,
@@ -134,8 +135,10 @@ fn create_listeners(
         tn.network.clone().id.unwrap(),
         tn.central(),
         match hosts {
-            HostsType::Fixture(hosts) => Some(format!("{}/{}", HOSTS_DIR, hosts)),
-            HostsType::Path(hosts) => Some(hosts.to_string()),
+            HostsType::Fixture(hosts) => {
+                Some(Path::new(&format!("{}/{}", HOSTS_DIR, hosts)).to_path_buf())
+            }
+            HostsType::Path(hosts) => Some(Path::new(hosts).to_path_buf()),
             HostsType::None => None,
         },
         authority_map,
