@@ -68,7 +68,7 @@ pub(crate) fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error>
         }
     }
 
-    return Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"));
+    Err(anyhow!("missing zerotier central token: set ZEROTIER_CENTRAL_TOKEN in environment, or pass a file containing it with -t"))
 }
 
 // determine the path of the authtoken.secret
@@ -224,7 +224,7 @@ impl ToHostname for String {
 
         let s = s.trim();
 
-        if s == "." || s.ends_with(".") {
+        if s == "." || s.ends_with('.') {
             return Err(anyhow!("Record {} not entered into catalog: '.' and records that ends in '.' are disallowed", s));
         }
 

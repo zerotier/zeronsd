@@ -15,7 +15,7 @@ pub(crate) struct Server {
 
 impl Server {
     pub(crate) fn new(zt: TokioZTAuthority) -> Self {
-        return Self { zt };
+        Self { zt }
     }
 
     // listener routine for TCP and UDP.

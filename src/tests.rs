@@ -158,7 +158,7 @@ fn test_supervise_systemd_green() {
     }
 
     for (name, mut props) in table {
-        let path = std::path::PathBuf::from(format!("testdata/supervise/systemd/{}.unit", name));
+        let path = PathBuf::from(format!("testdata/supervise/systemd/{}.unit", name));
 
         if !write {
             let path = path.canonicalize();

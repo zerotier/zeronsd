@@ -18,7 +18,7 @@ pub(crate) fn parse_hosts(
 ) -> Result<HostsFile, std::io::Error> {
     let mut input: HostsFile = HashMap::new();
 
-    if let None = hosts_file {
+    if hosts_file.is_none() {
         return Ok(input);
     }
 

@@ -156,8 +156,8 @@ fn main() -> Result<(), anyhow::Error> {
         Command::Unsupervise(args) => unsupervise(args),
     };
 
-    if result.is_err() {
-        error!("{}", result.unwrap_err())
+    if let Err(err) = result {
+        error!("{}", err)
     }
 
     Ok(())

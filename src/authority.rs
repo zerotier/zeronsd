@@ -611,14 +611,13 @@ impl ZTAuthority {
         let mut records = vec![self.domain_name.clone()];
         if let Some(hosts) = self.hosts.to_owned() {
             self.prune_hosts();
-            records.append(&mut hosts.values().flatten().map(|v| v.clone()).collect());
+            records.extend(hosts.values().flatten().cloned());
         }
 
         let (mut sixplane, mut rfc4193) = (None, None);
 
         let v6assign = network.config.clone().unwrap().v6_assign_mode;
-        if v6assign.is_some() {
-            let v6assign = v6assign.unwrap().clone();
+        if let Some(v6assign) = v6assign {
             if v6assign.var_6plane.unwrap_or(false) {
                 let s = network.clone().sixplane()?;
                 sixplane = Some(s);
