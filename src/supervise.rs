@@ -288,12 +288,9 @@ impl<'a> Properties {
 
     #[cfg(target_os = "linux")]
     fn get_service_template(&self) -> &str {
-        match self.distro.clone() {
-            Some(s) => match s.as_str() {
-                "alpine" => ALPINE_TEMPLATE.trim(),
-                _ => SYSTEMD_TEMPLATE,
-            },
-            None => SYSTEMD_TEMPLATE,
+        match self.distro.as_deref() {
+            Some("alpine") => ALPINE_TEMPLATE.trim(),
+            _ => SYSTEMD_TEMPLATE,
         }
     }
 
@@ -314,12 +311,9 @@ impl<'a> Properties {
 
     #[cfg(target_os = "linux")]
     fn service_name(&self) -> String {
-        match self.distro.clone() {
-            Some(s) => match s.as_str() {
-                "alpine" => format!("zeronsd-{}", self.network),
-                _ => format!("zeronsd-{}.service", self.network),
-            },
-            None => format!("zeronsd-{}.service", self.network),
+        match self.distro.as_deref() {
+            Some("alpine") => format!("zeronsd-{}", self.network),
+            _ => format!("zeronsd-{}.service", self.network),
         }
     }
 
@@ -329,12 +323,9 @@ impl<'a> Properties {
     }
 
     fn service_path(&self) -> PathBuf {
-        let dir = match self.distro.clone() {
-            Some(s) => match s.as_str() {
-                "alpine" => ALPINE_INIT_DIR,
-                _ => SUPERVISE_SYSTEM_DIR,
-            },
-            None => SUPERVISE_SYSTEM_DIR,
+        let dir = match self.distro.as_deref() {
+            Some("alpine") => ALPINE_INIT_DIR,
+            _ => SUPERVISE_SYSTEM_DIR,
         };
         PathBuf::from(dir).join(self.service_name())
     }
@@ -344,14 +335,7 @@ impl<'a> Properties {
 
         if cfg!(target_os = "linux") {
             #[cfg(target_os = "linux")]
-            let executable = if let Some(distro) = self.distro.clone() {
-                match distro.as_str() {
-                    "alpine" => true,
-                    _ => false,
-                }
-            } else {
-                false
-            };
+            let executable = self.distro.as_deref() == Some("alpine");
 
             let template = self.supervise_template()?;
             let service_path = self.service_path();
@@ -382,11 +366,8 @@ impl<'a> Properties {
                 self.network, self.network
             );
 
-            let help = if let Some(distro) = self.distro.clone() {
-                match distro.as_str() {
-                    "alpine" => alpine_help,
-                    _ => systemd_help,
-                }
+            let help = if self.distro.as_deref() == Some("alpine") {
+                alpine_help
             } else {
                 systemd_help
             };
