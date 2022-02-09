@@ -174,11 +174,7 @@ impl<'a> Properties {
             if let Ok(release) = std::fs::read_to_string(OS_RELEASE_FILE) {
                 let id_regex = Regex::new(r#"\nID=(.+)\n"#)?;
                 if let Some(caps) = id_regex.captures(&release) {
-                    if let Some(distro) = caps.get(1) {
-                        Some(distro.clone().as_str().to_string())
-                    } else {
-                        None
-                    }
+                    caps.get(1).map(|distro| distro.as_str().to_string())
                 } else {
                     return Err(anyhow!("Could not determine Linux distribution; you'll need to configure supervision manually. Sorry!"));
                 }
@@ -194,20 +190,11 @@ impl<'a> Properties {
             wildcard_names,
             binpath: String::from(std::env::current_exe()?.to_string_lossy()),
             // make this garbage a macro later
-            domain: match domain {
-                Some(domain) => Some(String::from(domain)),
-                None => None,
-            },
+            domain: domain.map(String::from),
             network: network.into(),
-            hosts_file: match hosts_file {
-                Some(hosts_file) => Some(hosts_file.to_owned()),
-                None => None,
-            },
-            authtoken: match authtoken {
-                Some(authtoken) => Some(authtoken.to_owned()),
-                None => None,
-            },
-            token: token.unwrap_or(Path::new("")).to_owned(),
+            hosts_file: hosts_file.map(|hosts_file| hosts_file.to_owned()),
+            authtoken: authtoken.map(|authtoken| authtoken.to_owned()),
+            token: token.unwrap_or_else(|| Path::new("")).to_owned(),
         })
     }
 

@@ -442,11 +442,7 @@ impl ZTRecord {
 
     // get_canonical_wildcard is a function to combine canonical_name (named members) and wildcard functionality.
     pub(crate) fn get_canonical_wildcard(&self) -> Option<Name> {
-        if self.canonical_name.is_none() {
-            return None;
-        }
-
-        Some(self.canonical_name.clone().unwrap().to_wildcard(0))
+        self.canonical_name.clone().map(|name| name.to_wildcard(0))
     }
 
     // insert_authority is not very well named, but performs the function of inserting a ZTRecord
