@@ -95,7 +95,7 @@ pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Erro
 // indirectly.
 pub(crate) async fn find_members(zt: TokioZTAuthority) {
     let read = zt.read().await;
-    let mut interval = tokio::time::interval(read.update_interval.clone());
+    let mut interval = tokio::time::interval(read.update_interval);
     drop(read);
 
     loop {
