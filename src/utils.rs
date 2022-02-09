@@ -22,15 +22,17 @@ fn version() -> String {
 
 // this provides the production configuration for talking to central through the openapi libraries.
 pub(crate) fn central_config(token: String) -> Configuration {
-    let mut config = Configuration::default();
-    config.user_agent = Some(version());
-    config.bearer_access_token = Some(token);
+    let mut config = Configuration {
+        user_agent: Some(version()),
+        bearer_access_token: Some(token),
+        ..Default::default()
+    };
 
     if let Ok(instance) = std::env::var("ZEROTIER_CENTRAL_INSTANCE") {
-        config.base_path = instance
+        config.base_path = instance;
     }
 
-    return config;
+    config
 }
 
 // create a tokio runtime. We don't use the macros (they are hard to use) so this is the closest
