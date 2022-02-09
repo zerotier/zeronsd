@@ -25,7 +25,7 @@ fn test_parse_member_name() {
 
         assert_eq!(parse_member_name(None, domain_name.clone()), None);
 
-        for name in vec!["islay", "ALL-CAPS", "Capitalized", "with.dots"] {
+        for name in ["islay", "ALL-CAPS", "Capitalized", "with.dots"] {
             assert_eq!(
                 parse_member_name(Some(name.to_string()), domain_name.clone()),
                 Some(name.to_fqdn(domain_name.clone()).unwrap()),
@@ -34,7 +34,7 @@ fn test_parse_member_name() {
             );
         }
 
-        for bad_name in vec![".", "!", "arghle."] {
+        for bad_name in [".", "!", "arghle."] {
             assert_eq!(
                 parse_member_name(Some(bad_name.to_string()), domain_name.clone()),
                 None,
@@ -43,7 +43,7 @@ fn test_parse_member_name() {
             );
         }
 
-        for (orig, translated) in vec![("Erik's laptop", "eriks-laptop"), ("!foo", "foo")] {
+        for (orig, translated) in [("Erik's laptop", "eriks-laptop"), ("!foo", "foo")] {
             assert_eq!(
                 parse_member_name(Some(orig.to_string()), domain_name.clone()),
                 Some(translated.to_fqdn(domain_name.clone()).unwrap()),
@@ -95,7 +95,7 @@ fn test_domain_or_default() {
         Name::from_str("zerotier.tld").unwrap()
     );
 
-    for bad in vec!["bad.", "~", "!", ".", ""] {
+    for bad in ["bad.", "~", "!", ".", ""] {
         assert!(domain_or_default(Some(bad)).is_err(), "{}", bad);
     }
 }
