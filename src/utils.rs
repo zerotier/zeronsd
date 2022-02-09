@@ -171,7 +171,7 @@ pub async fn update_central_dns(
     let mut zt_network =
         zerotier_central_api::apis::network_api::get_network_by_id(&config, &network).await?;
 
-    let mut domain_name = domain_name.clone();
+    let mut domain_name = domain_name;
     domain_name.set_fqdn(false);
 
     let dns = Some(zerotier_central_api::models::Dns {
@@ -205,7 +205,7 @@ pub trait ToHostname {
 
 impl ToHostname for &str {
     fn to_hostname(self) -> Result<Name, anyhow::Error> {
-        self.clone().to_string().to_hostname()
+        self.to_string().to_hostname()
     }
 
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
@@ -216,7 +216,7 @@ impl ToHostname for &str {
 impl ToHostname for String {
     // to_hostname turns member names into trust-dns compatible dns names.
     fn to_hostname(self) -> Result<Name, anyhow::Error> {
-        let mut s = self.clone().trim().to_string();
+        let mut s = self.trim().to_string();
         for (regex, replacement) in translation_table() {
             s = regex.replace_all(&s, replacement).to_string();
         }
