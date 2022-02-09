@@ -61,7 +61,7 @@ pub(crate) fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error>
     }
 
     if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
-        if token.len() > 0 {
+        if !token.is_empty() {
             return Ok(token);
         }
     }
@@ -89,11 +89,10 @@ pub(crate) fn authtoken_path(arg: Option<&Path>) -> &Path {
 // use the default tld if none is supplied.
 pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
     if let Some(tld) = tld {
-        if tld.len() > 0 {
-            return Ok(Name::from_str(&format!("{}.", tld))?);
-        } else {
+        if tld.is_empty() {
             return Err(anyhow!("Domain name must not be empty if provided."));
         }
+        return Ok(Name::from_str(&format!("{}.", tld))?);
     };
 
     Ok(Name::from_str(DOMAIN_NAME)?)
@@ -103,7 +102,7 @@ pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error
 pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name> {
     if let Some(name) = name {
         let name = name.trim();
-        if name.len() > 0 {
+        if !name.is_empty() {
             match name.to_fqdn(domain_name) {
                 Ok(record) => return Some(record),
                 Err(e) => {
@@ -149,7 +148,7 @@ pub(crate) async fn get_listen_ips(
         }
         Ok(listen) => {
             if let Some(assigned) = listen.assigned_addresses {
-                if assigned.len() > 0 {
+                if !assigned.is_empty() {
                     return Ok(assigned);
                 }
             }
@@ -227,7 +226,7 @@ impl ToHostname for String {
             return Err(anyhow!("Record {} not entered into catalog: '.' and records that ends in '.' are disallowed", s));
         }
 
-        if s.len() == 0 {
+        if s.is_empty() {
             return Err(anyhow!("translated hostname {} is an empty string", self));
         }
 

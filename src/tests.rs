@@ -151,10 +151,7 @@ fn test_supervise_systemd_green() {
         ),
     ];
 
-    let write = match std::env::var("WRITE_FIXTURES") {
-        Ok(var) => var != "",
-        Err(_) => false,
-    };
+    let write = matches!(std::env::var("WRITE_FIXTURES"), Ok(var) if !var.is_empty());
 
     if write {
         eprintln!("Write mode: not testing, but updating unit files")

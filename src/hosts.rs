@@ -27,7 +27,7 @@ pub(crate) fn parse_hosts(
     let content = std::fs::read_to_string(hosts_file.clone().unwrap())?;
 
     for line in content.lines() {
-        if line.trim().len() == 0 {
+        if line.trim().is_empty() {
             continue;
         }
 
