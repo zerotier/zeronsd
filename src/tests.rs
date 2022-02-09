@@ -363,7 +363,7 @@ fn test_parse_hosts_duplicate() {
     assert!(result.contains(
         &Name::from_str("hostname1")
             .unwrap()
-            .append_domain(&domain.clone())
+            .append_domain(&domain)
     ));
     assert!(result.contains(
         &Name::from_str("hostname2.corp")
