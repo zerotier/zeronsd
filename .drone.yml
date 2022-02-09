@@ -1,0 +1,30 @@
+---
+kind: pipeline
+type: docker
+name: zeronsd
+
+clone:
+  depth: 1
+
+steps:
+  - name: build x64
+    image: registry.sean.farm/honda-builder
+    commands:
+      - cargo build
+  - name: notify-mattermost
+    pull: always
+    image: registry.sean.farm/mattermost-notify
+    environment:
+      token:
+        from_secret: mattermost-token
+      host:
+        from_secret: mattermost-host
+      channel:
+        from_secret: mattermost-channel
+      maxRetry: 3
+    when:
+      status:
+        - failure
+
+image_pull_secrets:
+  - dockerconfigjson
