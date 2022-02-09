@@ -36,50 +36,43 @@ pub(crate) fn parse_hosts(
         let mut ary = whitespace.split(line);
 
         // the first item will be the ip
-        match ary.next() {
-            Some(ip) => {
-                // technically we're still matching the head of the line at this point. if it's a
-                // comment, bail.
-                if comment.is_match(ip) {
-                    continue;
-                }
+        if let Some(ip) = ary.next() {
+            // technically we're still matching the head of the line at this point. if it's a
+            // comment, bail.
+            if comment.is_match(ip) {
+                continue;
+            }
 
-                // ensure we have an IP, again, this is still the first field.
-                match IpAddr::from_str(ip) {
-                    Ok(parsed_ip) => {
-                        // now that we have the ip, it's all names now.
-                        let mut v: Vec<Name> = Vec::new();
+            // ensure we have an IP, again, this is still the first field.
+            match IpAddr::from_str(ip) {
+                Ok(parsed_ip) => {
+                    // now that we have the ip, it's all names now.
+                    let mut v: Vec<Name> = Vec::new();
 
-                        // continue to iterate over the hosts. If we encounter a comment, stop
-                        // processing.
-                        for host in ary.take_while(|h| !comment.is_match(h)) {
-                            let fqdn = match host.to_fqdn(domain_name.clone()) {
-                                Ok(fqdn) => Some(fqdn),
-                                Err(e) => {
-                                    warn!("Invalid host {}: {:?}", host, e);
-                                    None
-                                }
-                            };
-
-                            if let Some(fqdn) = fqdn {
-                                v.push(fqdn)
+                    // continue to iterate over the hosts. If we encounter a comment, stop
+                    // processing.
+                    for host in ary.take_while(|h| !comment.is_match(h)) {
+                        let fqdn = match host.to_fqdn(domain_name.clone()) {
+                            Ok(fqdn) => Some(fqdn),
+                            Err(e) => {
+                                warn!("Invalid host {}: {:?}", host, e);
+                                None
                             }
-                        }
+                        };
 
-                        // if we have a valid ip in the collection already, append, don't clobber
-                        // it.
-                        if input.contains_key(&parsed_ip) {
-                            input.get_mut(&parsed_ip).unwrap().append(&mut v);
-                        } else {
-                            input.insert(parsed_ip, v);
+                        if let Some(fqdn) = fqdn {
+                            v.push(fqdn)
                         }
                     }
-                    Err(e) => {
-                        warn!("Couldn't parse {}: {}", ip, e);
-                    }
+
+                    // if we have a valid ip in the collection already, append, don't clobber
+                    // it.
+                    input.entry(parsed_ip).or_default().extend(v);
+                }
+                Err(e) => {
+                    warn!("Couldn't parse {}: {}", ip, e);
                 }
             }
-            None => {}
         }
     }
 
