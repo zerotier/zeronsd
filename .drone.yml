@@ -8,7 +8,7 @@ clone:
 
 steps:
   - name: build x64
-    image: registry.sean.farm/honda-builder
+    image: registry.sean.farm/sid-builder
     commands:
       - cargo build
   - name: notify-mattermost
