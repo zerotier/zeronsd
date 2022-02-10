@@ -452,16 +452,16 @@ impl ZTRecord {
     // insert_authority is not very well named, but performs the function of inserting a ZTRecord
     // into a ZTAuthority.
     pub(crate) fn insert_authority(&self, authority: &ZTAuthority) -> Result<(), anyhow::Error> {
-        authority.match_or_insert(self.fqdn.clone(), self.ips.clone());
+        authority.match_or_insert(self.fqdn.clone(), &self.ips);
 
         if self.wildcard_everything {
-            authority.match_or_insert(self.fqdn.clone().to_wildcard(0), self.ips.clone());
+            authority.match_or_insert(self.fqdn.clone().to_wildcard(0), &self.ips);
         }
 
         if self.canonical_name.is_some() {
-            authority.match_or_insert(self.canonical_name.clone().unwrap(), self.ips.clone());
+            authority.match_or_insert(self.canonical_name.clone().unwrap(), &self.ips);
             if self.wildcard_everything {
-                authority.match_or_insert(self.get_canonical_wildcard().unwrap(), self.ips.clone())
+                authority.match_or_insert(self.get_canonical_wildcard().unwrap(), &self.ips)
             }
         }
 
@@ -543,17 +543,16 @@ impl ZTAuthority {
 
     // match_or_insert avoids duplicate names by finding them first and removing them. Contrast
     // it makes heavy use of replace_ip_record to perform this function.
-    fn match_or_insert(&self, name: Name, newips: Vec<IpAddr>) {
+    fn match_or_insert(&self, name: Name, newips: &[IpAddr]) {
         let rdatas: Vec<RData> = newips
-            .clone()
-            .into_iter()
-            .map(|ip| match ip {
+            .iter()
+            .map(|&ip| match ip {
                 IpAddr::V4(ip) => RData::A(ip),
                 IpAddr::V6(ip) => RData::AAAA(ip),
             })
             .collect();
 
-        for rt in vec![RecordType::A, RecordType::AAAA] {
+        for rt in [RecordType::A, RecordType::AAAA] {
             let lock = self
                 .authority
                 .read()
@@ -562,16 +561,17 @@ impl ZTAuthority {
             // for the record type, fetch the named record.
             let rs = lock
                 .records()
-                .get(&RrKey::new(name.clone().into(), rt))
-                .clone();
+                .get(&RrKey::new(name.clone().into(), rt));
 
             // gather all the ips (v6 too) for the record.
             let ips: Vec<IpAddr> = newips
-                .clone()
-                .into_iter()
-                .filter(|i| match i {
-                    IpAddr::V4(_) => rt == RecordType::A,
-                    IpAddr::V6(_) => rt == RecordType::AAAA,
+                .iter()
+                .copied()
+                .filter(|ip| {
+                    matches!(
+                        (ip, rt),
+                        (IpAddr::V4(_), RecordType::A) | (IpAddr::V6(_), RecordType::AAAA)
+                    )
                 })
                 .collect();
 
@@ -673,7 +673,7 @@ impl ZTAuthority {
 
         for (ip, hostnames) in self.hosts.clone().unwrap().iter() {
             for hostname in hostnames {
-                self.match_or_insert(hostname.clone(), vec![ip.clone()]);
+                self.match_or_insert(hostname.clone(), &[*ip]);
             }
         }
         Ok(())
