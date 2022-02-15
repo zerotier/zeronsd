@@ -11,7 +11,7 @@ use ipnetwork::IpNetwork;
 use log::{error, info, warn};
 use tokio::sync::RwLockReadGuard;
 use trust_dns_resolver::{
-    config::{NameServerConfigGroup, ResolverOpts},
+    config::{NameServerConfigGroup},
     proto::{
         error::ProtoError,
         rr::{dnssec::SupportedAlgorithms, rdata::SOA, RecordSet},
@@ -324,14 +324,14 @@ pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow
 
     drop(read);
 
-    let resolvconf = trust_dns_resolver::config::ResolverConfig::default();
+    let resolv = trust_dns_resolver::system_conf::read_system_conf().unwrap();
     let mut nsconfig = NameServerConfigGroup::new();
 
-    for server in resolvconf.name_servers() {
+    for server in resolv.0.name_servers() {
         nsconfig.push(server.clone());
     }
 
-    let options = Some(ResolverOpts::default());
+    let options = Some(resolv.1);
     let config = &ForwardConfig {
         name_servers: nsconfig.clone(),
         options,
