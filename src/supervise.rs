@@ -385,7 +385,7 @@ impl<'a> Properties {
             #[cfg(target_os = "linux")]
             if executable {
                 let mut perms = std::fs::metadata(service_path.clone())?.permissions();
-                perms.set_mode(0755);
+                perms.set_mode(0o755);
                 std::fs::set_permissions(service_path.clone(), perms)?;
             }
 
