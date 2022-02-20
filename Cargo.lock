@@ -1111,19 +1111,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "stderrlog"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a53e2eff3e94a019afa6265e8ee04cb05b9d33fe9f5078b14e4e391d155a38"
-dependencies = [
- "atty",
- "chrono",
- "log",
- "termcolor",
- "thread_local",
-]
-
-[[package]]
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1187,15 +1174,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "thread_local"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d40c6d1b69745a6ec6fb1ca717914848da4b44ae29d9b3080cbee91d72a69b14"
-dependencies = [
- "lazy_static",
 ]
 
 [[package]]
@@ -1686,6 +1664,7 @@ version = "0.2.6"
 dependencies = [
  "anyhow",
  "clap",
+ "env_logger",
  "hex",
  "ipnetwork",
  "log",
@@ -1694,7 +1673,6 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "stderrlog",
  "tinytemplate",
  "tokio",
  "trust-dns-resolver",

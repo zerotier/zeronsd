@@ -60,13 +60,13 @@ mod sixplane {
             tests::ToIPv6Vec,
         },
         hosts::parse_hosts,
-        integration_tests::init_test_logger,
         tests::HOSTS_DIR,
+        utils::init_logger,
     };
 
     #[test]
     fn test_battery_single_domain() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(ServiceConfig::default().network_filename("6plane-only"));
 
         let record = service.member_record();
@@ -85,7 +85,7 @@ mod sixplane {
 
     #[test]
     fn test_battery_single_domain_named() {
-        init_test_logger();
+        init_logger();
         let update_interval = Duration::new(20, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -114,7 +114,7 @@ mod sixplane {
 
     #[test]
     fn test_battery_multi_domain_hosts_file() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -148,7 +148,7 @@ mod sixplane {
 
     #[test]
     fn test_wildcard_central() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(20, 0)))
@@ -206,13 +206,13 @@ mod rfc4193 {
             tests::{ToIPv6Vec, ToPTRVec},
         },
         hosts::parse_hosts,
-        integration_tests::init_test_logger,
         tests::HOSTS_DIR,
+        utils::init_logger,
     };
 
     #[test]
     fn test_battery_single_domain() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(ServiceConfig::default().network_filename("rfc4193-only"));
 
         let record = service.member_record();
@@ -285,7 +285,7 @@ mod rfc4193 {
 
     #[test]
     fn test_battery_single_domain_named() {
-        init_test_logger();
+        init_logger();
         let update_interval = Duration::new(20, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -328,7 +328,7 @@ mod rfc4193 {
 
     #[test]
     fn test_battery_multi_domain_hosts_file() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -362,7 +362,7 @@ mod rfc4193 {
 
     #[test]
     fn test_wildcard_central() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(20, 0)))
@@ -418,12 +418,12 @@ mod ipv4 {
             service::{Lookup, Service, ServiceConfig},
             tests::{ToIPv4Vec, ToPTRVec},
         },
-        integration_tests::init_test_logger,
+        utils::init_logger,
     };
 
     #[test]
     fn test_wildcard_central() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(20, 0)))
@@ -461,7 +461,7 @@ mod ipv4 {
 
     #[test]
     fn test_battery_single_domain() {
-        init_test_logger();
+        init_logger();
         let service = Service::new(ServiceConfig::default().ips(Some(vec![
             "172.16.240.2",
             "172.16.240.3",
@@ -538,7 +538,7 @@ mod ipv4 {
 
     #[test]
     fn test_battery_single_domain_named() {
-        init_test_logger();
+        init_logger();
         let update_interval = Duration::new(20, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -588,8 +588,8 @@ mod all {
     use crate::{
         authority::service::{HostsType, Lookup, Service, ServiceConfig},
         hosts::parse_hosts,
-        integration_tests::init_test_logger,
         tests::HOSTS_DIR,
+        utils::init_logger,
     };
 
     use std::{
@@ -602,7 +602,7 @@ mod all {
 
     #[test]
     fn test_battery_multi_domain_hosts_file() {
-        init_test_logger();
+        init_logger();
         let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
         let service = Service::new(
             ServiceConfig::default()
@@ -641,7 +641,7 @@ mod all {
 
     #[test]
     fn test_hosts_file_reloading() {
-        init_test_logger();
+        init_logger();
         let hosts_path = "/tmp/zeronsd-test-hosts";
         std::fs::write(hosts_path, "127.0.0.2 islay\n::2 islay\n").unwrap();
         let service = Service::new(

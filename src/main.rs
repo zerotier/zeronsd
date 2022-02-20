@@ -139,14 +139,9 @@ fn start(args: StartArgs) -> Result<(), anyhow::Error> {
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    let cli = Cli::parse();
+    utils::init_logger();
 
-    stderrlog::new()
-        .module(String::from("zeronsd"))
-        .verbosity(cli.verbose + 2)
-        .timestamp(stderrlog::Timestamp::Off)
-        .init()
-        .unwrap();
+    let cli = Cli::parse();
 
     let result = match cli.command {
         Command::Start(args) => start(args),

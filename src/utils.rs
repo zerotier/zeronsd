@@ -1,4 +1,4 @@
-use std::{net::IpAddr, path::Path, str::FromStr};
+use std::{net::IpAddr, path::Path, str::FromStr, sync::Once};
 
 use ipnetwork::IpNetwork;
 use log::warn;
@@ -18,6 +18,19 @@ pub(crate) const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 // this really needs to be replaced with lazy_static! magic
 fn version() -> String {
     "zeronsd ".to_string() + VERSION_STRING
+}
+
+static LOGGER: Once = Once::new();
+
+// initializes a logger
+pub(crate) fn init_logger() {
+    LOGGER.call_once(|| {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Error)
+            .parse_default_env()
+            .parse_env("ZERONSD_LOG")
+            .init();
+    })
 }
 
 // this provides the production configuration for talking to central through the openapi libraries.

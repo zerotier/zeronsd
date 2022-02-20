@@ -1,7 +1,7 @@
 /// testing stuff; gated by feature flags. Does full round-trip processing of DNS results.
 use crate::{
     addresses::Calculator,
-    utils::{authtoken_path, central_config, get_listen_ips, init_runtime},
+    utils::{authtoken_path, central_config, get_listen_ips, init_logger, init_runtime},
 };
 use log::warn;
 use std::{
@@ -139,19 +139,6 @@ impl MemberConfigUtil for MemberConfig {
         self.active_bridge = None;
         self.identity = Some(identity);
     }
-}
-
-pub(crate) fn init_test_logger() {
-    stderrlog::new()
-        .verbosity(
-            std::env::var("VERBOSITY")
-                .unwrap_or(String::new())
-                .parse()
-                .unwrap_or(0),
-        )
-        .timestamp(stderrlog::Timestamp::Second)
-        .init()
-        .unwrap_or(())
 }
 
 // TestContext provides all the stuff we need to talk to run tests smoothly
@@ -335,7 +322,8 @@ impl Drop for TestNetwork {
 
 #[test]
 fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    init_test_logger();
+    init_logger();
+
     let tn = TestNetwork::new(
         init_test_runtime(),
         "basic-ipv4",
