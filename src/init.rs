@@ -8,43 +8,24 @@ use ipnetwork::IpNetwork;
 use log::{error, info, warn};
 use tokio::sync::RwLock;
 
-use crate::{
-    addresses::Calculator,
-    authority::{find_members, init_trust_dns_authority, new_ptr_authority, ZTAuthority},
-    cli::{Cli, Command, StartArgs, SuperviseArgs, UnsuperviseArgs},
-    utils::{central_config, central_token, update_central_dns},
-};
-
-mod addresses;
-mod authority;
-mod cli;
-mod hosts;
-mod server;
-mod supervise;
-mod utils;
-
-// integration tests are setup a little weird; basically `cargo test --feature integration-tests`
-#[cfg(all(feature = "integration-tests", test))]
-mod integration_tests;
-#[cfg(test)]
-mod tests;
+use crate::{addresses::*, authority::*, cli::*, server::*, supervise::*, utils::*};
 
 fn unsupervise(args: UnsuperviseArgs) -> Result<(), anyhow::Error> {
-    supervise::Properties::from(args).uninstall_supervisor()
+    Properties::from(args).uninstall_supervisor()
 }
 
 fn supervise(args: SuperviseArgs) -> Result<(), anyhow::Error> {
-    supervise::Properties::from(args).install_supervisor()
+    Properties::from(args).install_supervisor()
 }
 
 fn start(args: StartArgs) -> Result<(), anyhow::Error> {
-    let domain_name = utils::domain_or_default(args.domain.as_deref())?;
-    let authtoken = utils::authtoken_path(args.secret.as_deref());
-    let runtime = &mut utils::init_runtime();
+    let domain_name = domain_or_default(args.domain.as_deref())?;
+    let authtoken = authtoken_path(args.secret.as_deref());
+    let runtime = &mut init_runtime();
     let token = central_config(central_token(args.token.as_deref())?);
 
     info!("Welcome to ZeroNS!");
-    let ips = runtime.block_on(utils::get_listen_ips(&authtoken, &args.network_id))?;
+    let ips = runtime.block_on(get_listen_ips(&authtoken, &args.network_id))?;
 
     // more or less the setup for the "main loop"
     if ips.len() > 0 {
@@ -52,7 +33,7 @@ fn start(args: StartArgs) -> Result<(), anyhow::Error> {
             runtime,
             domain_name.clone(),
             ips.iter()
-                .map(|i| utils::parse_ip_from_cidr(i.clone()).to_string())
+                .map(|i| parse_ip_from_cidr(i.clone()).to_string())
                 .collect(),
             token.clone(),
             args.network_id.clone(),
@@ -64,7 +45,7 @@ fn start(args: StartArgs) -> Result<(), anyhow::Error> {
         let authority = init_trust_dns_authority(domain_name.clone());
 
         for cidr in ips.clone() {
-            let listen_ip = utils::parse_ip_from_cidr(cidr.clone());
+            let listen_ip = parse_ip_from_cidr(cidr.clone());
             listen_ips.push(listen_ip.clone());
             let cidr = IpNetwork::from_str(&cidr.clone())?;
             if !ipmap.contains_key(&listen_ip) {
@@ -120,7 +101,7 @@ fn start(args: StartArgs) -> Result<(), anyhow::Error> {
         for ip in listen_ips {
             info!("Your IP for this network: {}", ip);
 
-            let server = crate::server::Server::new(arc_authority.to_owned());
+            let server = Server::new(arc_authority.to_owned());
             runtime.spawn(server.listen(SocketAddr::new(ip, 53), Duration::new(0, 1000)));
         }
 
@@ -138,8 +119,8 @@ fn start(args: StartArgs) -> Result<(), anyhow::Error> {
     ));
 }
 
-fn main() -> Result<(), anyhow::Error> {
-    utils::init_logger();
+pub fn init() -> Result<(), anyhow::Error> {
+    init_logger();
 
     let cli = Cli::parse();
 

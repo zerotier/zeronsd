@@ -9,9 +9,9 @@ test:
 
 test-integration:
 ifneq (${SKIP},)
-	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test ${RUN_TEST} --features integration-tests -- --skip '${SKIP}' --nocapture --test-threads 1"
+	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test ${RUN_TEST} -- --skip '${SKIP}' --nocapture --test-threads 1"
 else
-	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test ${RUN_TEST} --features integration-tests -- --nocapture --test-threads 1"
+	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test ${RUN_TEST} -- --nocapture --test-threads 1"
 endif
 
 generate: central service

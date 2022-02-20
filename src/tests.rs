@@ -6,8 +6,6 @@ use std::{
 
 use crate::utils::{domain_or_default, ToHostname};
 
-pub const HOSTS_DIR: &str = "testdata/hosts-files";
-
 #[test]
 fn test_parse_member_name() {
     use crate::utils::parse_member_name;
@@ -296,7 +294,7 @@ fn test_parse_hosts() {
 
     let domain = &Name::from_str("zombocom").unwrap();
 
-    for path in std::fs::read_dir(HOSTS_DIR)
+    for path in std::fs::read_dir(crate::utils::TEST_HOSTS_DIR)
         .unwrap()
         .into_iter()
         .map(|p| p.unwrap())

@@ -32,8 +32,9 @@ log = ">=0"
 env_logger = ">=0"
 hex = ">=0"
 
-[features]
-integration-tests = []
+[dev-dependencies]
+async-trait = ">=0"
+lazy_static = ">=0"
 
 [package.metadata.deb]
 copyright = "ZeroTier, Inc"

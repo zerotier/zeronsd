@@ -18,7 +18,7 @@ fn get_parts(member: Member) -> Result<(u64, u64), anyhow::Error> {
     ))
 }
 
-pub(crate) trait Calculator {
+pub trait Calculator {
     fn sixplane(self) -> Result<IpNetwork, anyhow::Error>;
     fn rfc4193(self) -> Result<IpNetwork, anyhow::Error>;
 }
