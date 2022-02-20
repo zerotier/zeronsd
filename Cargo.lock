@@ -82,19 +82,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "chrono"
-version = "0.4.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
-dependencies = [
- "libc",
- "num-integer",
- "num-traits",
- "time 0.1.43",
- "winapi",
-]
-
-[[package]]
 name = "clap"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -178,6 +165,19 @@ name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
  "humantime",
@@ -644,25 +644,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "num-integer"
-version = "0.1.44"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2cc698a63b549a70bc047073d2949cce27cd1c7b0a4a862d08a8031bc2801db"
-dependencies = [
- "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-traits"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
-dependencies = [
- "autocfg",
 ]
 
 [[package]]
@@ -1178,16 +1159,6 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
-name = "time"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "004cbc98f30fa233c61a38bc77e96a9106e65c88f2d3bef182ae952027e5753d"
@@ -1326,7 +1297,7 @@ dependencies = [
  "radix_trie",
  "rand",
  "thiserror",
- "time 0.3.7",
+ "time",
  "tokio",
  "trust-dns-proto",
 ]
@@ -1388,13 +1359,13 @@ dependencies = [
  "bytes",
  "cfg-if",
  "enum-as-inner",
- "env_logger",
+ "env_logger 0.8.4",
  "futures-executor",
  "futures-util",
  "log",
  "serde",
  "thiserror",
- "time 0.3.7",
+ "time",
  "tokio",
  "toml",
  "trust-dns-client",
@@ -1660,11 +1631,11 @@ dependencies = [
 
 [[package]]
 name = "zeronsd"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "anyhow",
  "clap",
- "env_logger",
+ "env_logger 0.9.0",
  "hex",
  "ipnetwork",
  "log",
@@ -1683,9 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "zerotier-central-api"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7648fc784340f8992902d91c36e0cbceb71176926c53e5bc84b918069db79643"
+version = "1.0.3"
 dependencies = [
  "reqwest",
  "serde",
@@ -1696,9 +1665,7 @@ dependencies = [
 
 [[package]]
 name = "zerotier-one-api"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e82c6f3322540f6c7808d446849baf2dc027a1784dc30626be2a665b548153"
+version = "1.0.5"
 dependencies = [
  "reqwest",
  "serde",

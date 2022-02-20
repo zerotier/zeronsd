@@ -186,10 +186,10 @@ pub(crate) fn update_central_dns(
     let mut domain_name = domain_name.clone();
     domain_name.set_fqdn(false);
 
-    let dns = Some(Box::new(zerotier_central_api::models::NetworkConfigDns {
+    let dns = Some(zerotier_central_api::models::Dns {
         domain: Some(domain_name.to_string()),
         servers: Some(ips),
-    }));
+    });
 
     if let Some(mut zt_network_config) = zt_network.config.to_owned() {
         zt_network_config.dns = dns;
