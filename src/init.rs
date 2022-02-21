@@ -1,6 +1,5 @@
 use std::{
-    collections::HashMap, net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc, thread::sleep,
-    time::Duration,
+    collections::HashMap, net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
 };
 
 use anyhow::anyhow;
@@ -54,26 +53,25 @@ impl Launcher {
         })
     }
 
-    pub fn start(&self) -> Result<(), anyhow::Error> {
+    pub async fn start(&self) -> Result<(), anyhow::Error> {
         let domain_name = domain_or_default(self.domain.as_deref())?;
         let authtoken = authtoken_path(self.secret.as_deref());
-        let runtime = &mut init_runtime();
         let token = central_config(central_token(self.token.as_deref())?);
 
         info!("Welcome to ZeroNS!");
-        let ips = runtime.block_on(get_listen_ips(&authtoken, &self.network_id))?;
+        let ips = get_listen_ips(&authtoken, &self.network_id).await?;
 
         // more or less the setup for the "main loop"
         if ips.len() > 0 {
             update_central_dns(
-                runtime,
                 domain_name.clone(),
                 ips.iter()
                     .map(|i| parse_ip_from_cidr(i.clone()).to_string())
                     .collect(),
                 token.clone(),
                 self.network_id.clone(),
-            )?;
+            )
+            .await?;
 
             let mut listen_ips = Vec::new();
             let mut ipmap = HashMap::new();
@@ -94,11 +92,11 @@ impl Launcher {
                 }
             }
 
-            let network =
-                runtime.block_on(zerotier_central_api::apis::network_api::get_network_by_id(
-                    &token,
-                    &self.network_id,
-                ))?;
+            let network = zerotier_central_api::apis::network_api::get_network_by_id(
+                &token,
+                &self.network_id,
+            )
+            .await?;
 
             let v6assign = network.config.clone().unwrap().v6_assign_mode;
             if v6assign.is_some() {
@@ -134,22 +132,16 @@ impl Launcher {
 
             let arc_authority = Arc::new(RwLock::new(ztauthority));
 
-            runtime.spawn(find_members(arc_authority.clone()));
+            tokio::spawn(find_members(arc_authority.clone()));
 
             for ip in listen_ips {
                 info!("Your IP for this network: {}", ip);
 
                 let server = Server::new(arc_authority.to_owned());
-                runtime.spawn(server.listen(SocketAddr::new(ip, 53), Duration::new(0, 1000)));
+                tokio::spawn(server.listen(SocketAddr::new(ip, 53), Duration::new(0, 1000)));
             }
 
-            async fn wait() {
-                loop {
-                    sleep(Duration::new(60, 0))
-                }
-            }
-
-            return Ok(runtime.block_on(wait()));
+            return Ok(());
         }
 
         return Err(anyhow!(
