@@ -475,7 +475,7 @@ async fn create_listeners(
         }
     }
 
-    let update_interval = update_interval.unwrap_or(Duration::new(10, 0));
+    let update_interval = update_interval.unwrap_or(Duration::new(1, 0));
 
     let mut ztauthority = ZTAuthority::new(
         domain_or_default(None).unwrap(),
@@ -501,12 +501,12 @@ async fn create_listeners(
     let authority_handle = tokio::spawn(find_members(arc_authority.clone()));
     let mut servers = Vec::new();
 
-    tokio::time::sleep(Duration::new(5, 0)).await;
+    tokio::time::sleep(Duration::new(1, 0)).await;
 
     for ip in listen_ips.clone() {
         let server = Server::new(arc_authority.to_owned());
         info!("Serving {}", ip.clone());
-        servers.push(tokio::spawn(server.listen(ip, Duration::new(0, 1000))));
+        servers.push(tokio::spawn(server.listen(ip, Duration::new(0, 500))));
     }
 
     (listen_ips, authority_handle, servers)
