@@ -13,7 +13,7 @@ use trust_dns_resolver::Name;
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::cli::{SuperviseArgs, UnsuperviseArgs};
+use crate::cli::{StartArgs, UnsuperviseArgs};
 
 #[cfg(target_os = "windows")]
 const SUPERVISE_SYSTEM_DIR: &str = "";
@@ -126,15 +126,19 @@ pub struct Properties {
     pub distro: Option<String>,
 }
 
-impl From<SuperviseArgs> for Properties {
-    fn from(args: SuperviseArgs) -> Self {
+impl From<StartArgs> for Properties {
+    fn from(args: StartArgs) -> Self {
+        let args: crate::init::Launcher = args.into();
+
+        let wildcard = args.wildcard.is_some() && args.wildcard.unwrap();
+
         Self::new(
             args.domain.as_deref(),
             &args.network_id,
             args.hosts.as_deref(),
             args.secret.as_deref(),
             args.token.as_deref(),
-            args.wildcard,
+            wildcard,
         )
         .unwrap()
     }
@@ -212,6 +216,11 @@ impl<'a> Properties {
     }
 
     pub fn validate(&mut self) -> Result<(), anyhow::Error> {
+        self.token = match self.token.canonicalize() {
+            Ok(res) => res,
+            Err(e) => return Err(anyhow!("Could not find token file: {}", e)),
+        };
+
         let tstat = match std::fs::metadata(self.token.clone()) {
             Ok(ts) => ts,
             Err(e) => {
@@ -226,8 +235,6 @@ impl<'a> Properties {
         if !tstat.is_file() {
             return Err(anyhow!("Token file {} is not a file", self.token.display()));
         }
-
-        self.token = self.token.canonicalize()?;
 
         if self.network.len() != 16 {
             return Err(anyhow!("Network ID must be 16 characters"));
