@@ -17,7 +17,8 @@ pub struct Launcher {
     pub(crate) hosts: Option<PathBuf>,
     pub(crate) secret: Option<PathBuf>,
     pub(crate) token: Option<PathBuf>,
-    pub(crate) wildcard: bool,
+    pub(crate) wildcard: Option<bool>,
+    #[serde(skip_deserializing)]
     pub(crate) network_id: String,
 }
 
@@ -26,6 +27,21 @@ pub enum ConfigFormat {
     JSON,
     YAML,
     TOML,
+}
+
+impl FromStr for ConfigFormat {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "json" | "JSON" => Ok(ConfigFormat::JSON),
+            "yaml" | "YAML" => Ok(ConfigFormat::YAML),
+            "toml" | "TOML" => Ok(ConfigFormat::TOML),
+            _ => Err(anyhow!(
+                "invalid format: allowed values: [json, yaml, toml]"
+            )),
+        }
+    }
 }
 
 impl Launcher {
@@ -112,7 +128,7 @@ impl Launcher {
                 authority.clone(),
             );
 
-            if self.wildcard {
+            if self.wildcard.is_some() && self.wildcard.unwrap() {
                 ztauthority.wildcard_everything();
             }
 
