@@ -98,13 +98,13 @@ pub struct UnsuperviseArgs {
     pub network_id: String,
 }
 
-pub fn init() -> Result<(), anyhow::Error> {
+pub async fn init() -> Result<(), anyhow::Error> {
     crate::utils::init_logger();
 
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Command::Start(args) => start(args),
+        Command::Start(args) => start(args).await,
         Command::Supervise(args) => supervise(args),
         Command::Unsupervise(args) => unsupervise(args),
     };
@@ -116,9 +116,9 @@ pub fn init() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn start(args: StartArgs) -> Result<(), anyhow::Error> {
+async fn start(args: StartArgs) -> Result<(), anyhow::Error> {
     let launcher: Launcher = args.into();
-    launcher.start()
+    launcher.start().await
 }
 
 fn unsupervise(args: UnsuperviseArgs) -> Result<(), anyhow::Error> {

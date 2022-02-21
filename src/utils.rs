@@ -3,7 +3,6 @@ use std::{net::IpAddr, path::Path, str::FromStr, sync::Once};
 use ipnetwork::IpNetwork;
 use log::warn;
 use regex::Regex;
-use tokio::runtime::Runtime;
 use trust_dns_resolver::IntoName;
 use trust_dns_server::client::rr::Name;
 use zerotier_central_api::apis::configuration::Configuration;
@@ -46,17 +45,6 @@ pub fn central_config(token: String) -> Configuration {
     }
 
     return config;
-}
-
-// create a tokio runtime. We don't use the macros (they are hard to use) so this is the closest
-// we'll get to being able to get a runtime easily.
-pub fn init_runtime() -> Runtime {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(num_cpus::get())
-        .thread_name("zeronsd")
-        .build()
-        .expect("failed to initialize tokio")
 }
 
 // extracts the ip from the CIDR. 10.0.0.1/32 becomes 10.0.0.1
@@ -174,16 +162,14 @@ pub async fn get_listen_ips(
 }
 
 // update_central_dns pushes the search records
-pub fn update_central_dns(
-    runtime: &mut Runtime,
+pub async fn update_central_dns(
     domain_name: Name,
     ips: Vec<String>,
     config: Configuration,
     network: String,
 ) -> Result<(), anyhow::Error> {
-    let mut zt_network = runtime.block_on(
-        zerotier_central_api::apis::network_api::get_network_by_id(&config, &network),
-    )?;
+    let mut zt_network =
+        zerotier_central_api::apis::network_api::get_network_by_id(&config, &network).await?;
 
     let mut domain_name = domain_name.clone();
     domain_name.set_fqdn(false);
@@ -196,9 +182,8 @@ pub fn update_central_dns(
     if let Some(mut zt_network_config) = zt_network.config.to_owned() {
         zt_network_config.dns = dns;
         zt_network.config = Some(zt_network_config);
-        runtime.block_on(zerotier_central_api::apis::network_api::update_network(
-            &config, &network, zt_network,
-        ))?;
+        zerotier_central_api::apis::network_api::update_network(&config, &network, zt_network)
+            .await?;
     }
 
     Ok(())
