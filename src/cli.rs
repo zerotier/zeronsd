@@ -1,3 +1,5 @@
+use crate::{init::Launcher, supervise::Properties};
+use log::error;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
@@ -52,6 +54,19 @@ pub struct StartArgs {
     pub network_id: String,
 }
 
+impl Into<Launcher> for StartArgs {
+    fn into(self) -> Launcher {
+        Launcher {
+            domain: self.domain,
+            hosts: self.hosts,
+            secret: self.secret,
+            token: self.token,
+            wildcard: self.wildcard,
+            network_id: self.network_id,
+        }
+    }
+}
+
 #[derive(Args)]
 pub struct SuperviseArgs {
     /// TLD to use for hostnames
@@ -82,4 +97,35 @@ pub struct SuperviseArgs {
 pub struct UnsuperviseArgs {
     /// Network ID to remove
     pub network_id: String,
+}
+
+pub fn init() -> Result<(), anyhow::Error> {
+    crate::utils::init_logger();
+
+    let cli = Cli::parse();
+
+    let result = match cli.command {
+        Command::Start(args) => start(args),
+        Command::Supervise(args) => supervise(args),
+        Command::Unsupervise(args) => unsupervise(args),
+    };
+
+    if result.is_err() {
+        error!("{}", result.unwrap_err())
+    }
+
+    Ok(())
+}
+
+fn start(args: StartArgs) -> Result<(), anyhow::Error> {
+    let launcher: Launcher = args.into();
+    launcher.start()
+}
+
+fn unsupervise(args: UnsuperviseArgs) -> Result<(), anyhow::Error> {
+    Properties::from(args).uninstall_supervisor()
+}
+
+fn supervise(args: SuperviseArgs) -> Result<(), anyhow::Error> {
+    Properties::from(args).install_supervisor()
 }
