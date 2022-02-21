@@ -34,7 +34,7 @@ mod sixplane {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
         init_logger();
-        let update_interval = Duration::new(20, 0);
+        let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(update_interval))
@@ -103,7 +103,7 @@ mod sixplane {
         init_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(20, 0)))
+                .update_interval(Some(Duration::new(2, 0)))
                 .network_filename("6plane-only")
                 .wildcard_everything(true),
         )
@@ -239,7 +239,7 @@ mod rfc4193 {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
         init_logger();
-        let update_interval = Duration::new(20, 0);
+        let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(update_interval))
@@ -327,7 +327,7 @@ mod rfc4193 {
         init_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(20, 0)))
+                .update_interval(Some(Duration::new(2, 0)))
                 .network_filename("rfc4193-only")
                 .wildcard_everything(true),
         )
@@ -387,7 +387,7 @@ mod ipv4 {
         init_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(20, 0)))
+                .update_interval(Some(Duration::new(2, 0)))
                 .wildcard_everything(true),
         )
         .await;
@@ -518,7 +518,7 @@ mod ipv4 {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
         init_logger();
-        let update_interval = Duration::new(20, 0);
+        let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(update_interval))
@@ -633,7 +633,7 @@ mod all {
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Path(hosts_path))
-                .update_interval(Some(Duration::new(20, 0))),
+                .update_interval(Some(Duration::new(2, 0))),
         )
         .await;
 
