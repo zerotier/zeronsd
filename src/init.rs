@@ -43,6 +43,8 @@ impl FromStr for ConfigFormat {
     }
 }
 
+type ArcAuthority = Arc<RwLock<ZTAuthority>>;
+
 impl Launcher {
     pub fn new_from_config(filename: &str, format: ConfigFormat) -> Result<Self, anyhow::Error> {
         let res = std::fs::read_to_string(filename)?;
@@ -53,7 +55,7 @@ impl Launcher {
         })
     }
 
-    pub async fn start(&self) -> Result<(), anyhow::Error> {
+    pub async fn start(&self) -> Result<ArcAuthority, anyhow::Error> {
         let domain_name = domain_or_default(self.domain.as_deref())?;
         let authtoken = authtoken_path(self.secret.as_deref());
         let token = central_config(central_token(self.token.as_deref())?);
@@ -141,7 +143,7 @@ impl Launcher {
                 tokio::spawn(server.listen(SocketAddr::new(ip, 53), Duration::new(0, 1000)));
             }
 
-            return Ok(());
+            return Ok(arc_authority);
         }
 
         return Err(anyhow!(
