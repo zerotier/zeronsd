@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Args, Subcommand, Parser};
+use clap::{Args, Parser, Subcommand};
 
 /// zerotier central nameserver
 #[derive(Parser)]

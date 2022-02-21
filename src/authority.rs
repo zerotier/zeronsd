@@ -36,7 +36,7 @@ use crate::{
     utils::{parse_member_name, ToHostname},
 };
 
-pub(crate) trait ToPointerSOA {
+pub trait ToPointerSOA {
     fn to_ptr_soa_name(self) -> Result<Name, ProtoError>;
 }
 
@@ -56,7 +56,7 @@ impl ToPointerSOA for IpNetwork {
     }
 }
 
-pub(crate) trait ToWildcard {
+pub trait ToWildcard {
     fn to_wildcard(self, count: u8) -> Name;
 }
 
@@ -71,12 +71,12 @@ impl ToWildcard for Name {
     }
 }
 
-pub(crate) type TokioZTAuthority = Arc<tokio::sync::RwLock<ZTAuthority>>;
+pub type TokioZTAuthority = Arc<tokio::sync::RwLock<ZTAuthority>>;
 // Authority is lock managed, and kept on the heap. Be mindful when modifying through the Arc.
-pub(crate) type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
-pub(crate) type PtrAuthorityMap = HashMap<IpNetwork, Authority>;
+pub type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
+pub type PtrAuthorityMap = HashMap<IpNetwork, Authority>;
 
-pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Error> {
+pub fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Error> {
     let domain_name = ip.to_ptr_soa_name()?;
 
     let mut authority = InMemoryAuthority::empty(
@@ -93,7 +93,7 @@ pub(crate) fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Erro
 // find_members waits for the update_interval time, then populates the authority based on the
 // members list. This call is fairly high level; most of the other calls are called by it
 // indirectly.
-pub(crate) async fn find_members(zt: TokioZTAuthority) {
+pub async fn find_members(zt: TokioZTAuthority) {
     let read = zt.read().await;
     let mut interval = tokio::time::interval(read.update_interval.clone());
     drop(read);
@@ -281,7 +281,7 @@ fn configure_ptr(
 }
 
 // set_soa should only be called once per authority; it configures the SOA record for the zone.
-pub(crate) fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
+pub fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
     let mut soa = Record::new();
     soa.set_name(domain_name.clone());
     soa.set_rr_type(RecordType::SOA);
@@ -300,7 +300,7 @@ pub(crate) fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
 }
 
 // init_trust_dns_authority is a really ugly constructor.
-pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
+pub fn init_trust_dns_authority(domain_name: Name) -> Authority {
     let mut authority = InMemoryAuthority::empty(
         domain_name.clone(),
         trust_dns_server::authority::ZoneType::Primary,
@@ -313,7 +313,7 @@ pub(crate) fn init_trust_dns_authority(domain_name: Name) -> Authority {
 
 // init_catalog: also a really ugly constructor, but in this case initializes the whole trust-dns
 // subsystem.
-pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow::Error> {
+pub async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow::Error> {
     let read = zt.read().await;
 
     let mut catalog = Catalog::default();
@@ -355,7 +355,7 @@ pub(crate) async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow
 
 // ZTRecord is the encapsulation of a single record; Members are usually transformed into this
 // struct.
-pub(crate) struct ZTRecord {
+pub struct ZTRecord {
     fqdn: Name,
     canonical_name: Option<Name>,
     ptr_name: Name,
@@ -365,7 +365,7 @@ pub(crate) struct ZTRecord {
 }
 
 impl ZTRecord {
-    pub(crate) fn new(
+    pub fn new(
         member: &Member,
         sixplane: Option<IpNetwork>,
         rfc4193: Option<IpNetwork>,
@@ -421,7 +421,7 @@ impl ZTRecord {
     }
 
     // insert_records is hopefully well-named.
-    pub(crate) fn insert_records(&self, records: &mut Vec<Name>) {
+    pub fn insert_records(&self, records: &mut Vec<Name>) {
         records.push(self.fqdn.clone());
 
         for ip in self.ips.clone() {
@@ -441,7 +441,7 @@ impl ZTRecord {
     }
 
     // get_canonical_wildcard is a function to combine canonical_name (named members) and wildcard functionality.
-    pub(crate) fn get_canonical_wildcard(&self) -> Option<Name> {
+    pub fn get_canonical_wildcard(&self) -> Option<Name> {
         if self.canonical_name.is_none() {
             return None;
         }
@@ -451,7 +451,7 @@ impl ZTRecord {
 
     // insert_authority is not very well named, but performs the function of inserting a ZTRecord
     // into a ZTAuthority.
-    pub(crate) fn insert_authority(&self, authority: &ZTAuthority) -> Result<(), anyhow::Error> {
+    pub fn insert_authority(&self, authority: &ZTAuthority) -> Result<(), anyhow::Error> {
         authority.match_or_insert(self.fqdn.clone(), &self.ips);
 
         if self.wildcard_everything {
@@ -469,7 +469,7 @@ impl ZTRecord {
     }
 
     // insert_member_ptr is a lot like insert_authority, but for PTRs.
-    pub(crate) fn insert_member_ptr(
+    pub fn insert_member_ptr(
         &self,
         authority_map: PtrAuthorityMap,
         _sixplane: Option<IpNetwork>,
@@ -502,7 +502,7 @@ impl ZTRecord {
 
 // ZTAuthority is the customized trust-dns authority.
 #[derive(Clone)]
-pub(crate) struct ZTAuthority {
+pub struct ZTAuthority {
     ptr_authority_map: PtrAuthorityMap,
     authority: Authority,
     domain_name: Name,
@@ -515,7 +515,7 @@ pub(crate) struct ZTAuthority {
 }
 
 impl ZTAuthority {
-    pub(crate) fn new(
+    pub fn new(
         domain_name: Name,
         network: String,
         config: Configuration,
@@ -537,7 +537,7 @@ impl ZTAuthority {
         }
     }
 
-    pub(crate) fn wildcard_everything(&mut self) {
+    pub fn wildcard_everything(&mut self) {
         self.wildcard_everything = true;
     }
 
@@ -559,9 +559,7 @@ impl ZTAuthority {
                 .expect("Could not get authority read lock");
 
             // for the record type, fetch the named record.
-            let rs = lock
-                .records()
-                .get(&RrKey::new(name.clone().into(), rt));
+            let rs = lock.records().get(&RrKey::new(name.clone().into(), rt));
 
             // gather all the ips (v6 too) for the record.
             let ips: Vec<IpAddr> = newips
@@ -746,8 +744,3 @@ impl ZTAuthority {
         }
     }
 }
-
-#[cfg(all(feature = "integration-tests", test))]
-mod service;
-#[cfg(all(feature = "integration-tests", test))]
-mod tests;

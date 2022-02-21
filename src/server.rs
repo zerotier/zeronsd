@@ -9,17 +9,17 @@ use trust_dns_server::server::ServerFuture;
 
 use crate::authority::{init_catalog, TokioZTAuthority};
 
-pub(crate) struct Server {
+pub struct Server {
     zt: TokioZTAuthority,
 }
 
 impl Server {
-    pub(crate) fn new(zt: TokioZTAuthority) -> Self {
+    pub fn new(zt: TokioZTAuthority) -> Self {
         return Self { zt };
     }
 
     // listener routine for TCP and UDP.
-    pub(crate) async fn listen(
+    pub async fn listen(
         self,
         listen_addr: SocketAddr,
         tcp_timeout: Duration,

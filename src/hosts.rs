@@ -5,14 +5,14 @@ use trust_dns_server::client::rr::Name;
 
 use crate::utils::ToHostname;
 
-pub(crate) type HostsFile = HashMap<IpAddr, Vec<Name>>;
+pub type HostsFile = HashMap<IpAddr, Vec<Name>>;
 
 const WHITESPACE_SPLIT: &str = r"\s+";
 const COMMENT_MATCH: &str = r"^\s*#";
 
 /// Parses an /etc/hosts-formatted file into a mapping of ip -> [name]. Used to populate the
 /// authority.
-pub(crate) fn parse_hosts(
+pub fn parse_hosts(
     hosts_file: Option<PathBuf>,
     domain_name: Name,
 ) -> Result<HostsFile, std::io::Error> {

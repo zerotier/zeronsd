@@ -1,4 +1,4 @@
-use std::{net::IpAddr, path::Path, str::FromStr};
+use std::{net::IpAddr, path::Path, str::FromStr, sync::Once};
 
 use ipnetwork::IpNetwork;
 use log::warn;
@@ -10,18 +10,33 @@ use zerotier_central_api::apis::configuration::Configuration;
 
 use anyhow::anyhow;
 
+// collections of test hosts files
+pub const TEST_HOSTS_DIR: &str = "testdata/hosts-files";
 // default domain parameter. FIXME change to home.arpa.
-pub(crate) const DOMAIN_NAME: &str = "domain.";
+pub const DOMAIN_NAME: &str = "domain.";
 // zeronsd version calculated from Cargo.toml
-pub(crate) const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
 // this really needs to be replaced with lazy_static! magic
 fn version() -> String {
     "zeronsd ".to_string() + VERSION_STRING
 }
 
+static LOGGER: Once = Once::new();
+
+// initializes a logger
+pub fn init_logger() {
+    LOGGER.call_once(|| {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Error)
+            .parse_default_env()
+            .parse_env("ZERONSD_LOG")
+            .init();
+    })
+}
+
 // this provides the production configuration for talking to central through the openapi libraries.
-pub(crate) fn central_config(token: String) -> Configuration {
+pub fn central_config(token: String) -> Configuration {
     let mut config = Configuration::default();
     config.user_agent = Some(version());
     config.bearer_access_token = Some(token);
@@ -35,7 +50,7 @@ pub(crate) fn central_config(token: String) -> Configuration {
 
 // create a tokio runtime. We don't use the macros (they are hard to use) so this is the closest
 // we'll get to being able to get a runtime easily.
-pub(crate) fn init_runtime() -> Runtime {
+pub fn init_runtime() -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(num_cpus::get())
@@ -45,14 +60,14 @@ pub(crate) fn init_runtime() -> Runtime {
 }
 
 // extracts the ip from the CIDR. 10.0.0.1/32 becomes 10.0.0.1
-pub(crate) fn parse_ip_from_cidr(ip_with_cidr: String) -> IpAddr {
+pub fn parse_ip_from_cidr(ip_with_cidr: String) -> IpAddr {
     IpNetwork::from_str(&ip_with_cidr)
         .expect("Could not parse IP from CIDR")
         .ip()
 }
 
 // load and prepare the central API token
-pub(crate) fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error> {
+pub fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error> {
     if let Some(path) = arg {
         return Ok(std::fs::read_to_string(path)
             .expect("Could not load token file")
@@ -70,7 +85,7 @@ pub(crate) fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error>
 }
 
 // determine the path of the authtoken.secret
-pub(crate) fn authtoken_path(arg: Option<&Path>) -> &Path {
+pub fn authtoken_path(arg: Option<&Path>) -> &Path {
     if let Some(arg) = arg {
         return arg;
     }
@@ -87,7 +102,7 @@ pub(crate) fn authtoken_path(arg: Option<&Path>) -> &Path {
 }
 
 // use the default tld if none is supplied.
-pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
+pub fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
     if let Some(tld) = tld {
         if tld.len() > 0 {
             return Ok(Name::from_str(&format!("{}.", tld))?);
@@ -100,7 +115,7 @@ pub(crate) fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error
 }
 
 // parse_member_name ensures member names are DNS compliant
-pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name> {
+pub fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name> {
     if let Some(name) = name {
         let name = name.trim();
         if name.len() > 0 {
@@ -119,7 +134,7 @@ pub(crate) fn parse_member_name(name: Option<String>, domain_name: Name) -> Opti
 
 // get_listen_ips returns the IPs that the network is providing to the instance running zeronsd.
 // 4193 and 6plane are handled up the stack.
-pub(crate) async fn get_listen_ips(
+pub async fn get_listen_ips(
     authtoken_path: &Path,
     network_id: &str,
 ) -> Result<Vec<String>, anyhow::Error> {
@@ -159,7 +174,7 @@ pub(crate) async fn get_listen_ips(
 }
 
 // update_central_dns pushes the search records
-pub(crate) fn update_central_dns(
+pub fn update_central_dns(
     runtime: &mut Runtime,
     domain_name: Name,
     ips: Vec<String>,
@@ -173,10 +188,10 @@ pub(crate) fn update_central_dns(
     let mut domain_name = domain_name.clone();
     domain_name.set_fqdn(false);
 
-    let dns = Some(Box::new(zerotier_central_api::models::NetworkConfigDns {
+    let dns = Some(zerotier_central_api::models::Dns {
         domain: Some(domain_name.to_string()),
         servers: Some(ips),
-    }));
+    });
 
     if let Some(mut zt_network_config) = zt_network.config.to_owned() {
         zt_network_config.dns = dns;
@@ -198,7 +213,7 @@ fn translation_table() -> Vec<(Regex, &'static str)> {
     ]
 }
 
-pub(crate) trait ToHostname {
+pub trait ToHostname {
     fn to_hostname(self) -> Result<Name, anyhow::Error>;
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error>;
 }
