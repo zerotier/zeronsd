@@ -104,7 +104,10 @@ pub async fn init() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Command::Start(args) => start(args).await,
+        Command::Start(args) => {
+            start(args).await?;
+            Ok(())
+        }
         Command::Supervise(args) => supervise(args),
         Command::Unsupervise(args) => unsupervise(args),
     };
@@ -118,7 +121,8 @@ pub async fn init() -> Result<(), anyhow::Error> {
 
 async fn start(args: StartArgs) -> Result<(), anyhow::Error> {
     let launcher: Launcher = args.into();
-    launcher.start().await
+    launcher.start().await?;
+    Ok(())
 }
 
 fn unsupervise(args: UnsuperviseArgs) -> Result<(), anyhow::Error> {
