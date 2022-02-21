@@ -12,7 +12,7 @@ use anyhow::anyhow;
 // collections of test hosts files
 pub const TEST_HOSTS_DIR: &str = "testdata/hosts-files";
 // default domain parameter. FIXME change to home.arpa.
-pub const DOMAIN_NAME: &str = "domain.";
+pub const DOMAIN_NAME: &str = "home.arpa.";
 // zeronsd version calculated from Cargo.toml
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
