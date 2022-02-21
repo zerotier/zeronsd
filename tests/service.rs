@@ -654,7 +654,7 @@ impl Service {
     }
 
     pub fn member_record(&self) -> String {
-        format!("zt-{}.domain.", self.network().identity().clone())
+        format!("zt-{}.home.arpa.", self.network().identity().clone())
     }
 
     pub async fn change_name(&self, name: &'static str) {

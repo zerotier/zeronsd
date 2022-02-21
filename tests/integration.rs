@@ -45,7 +45,7 @@ mod sixplane {
 
         service.change_name("islay").await;
 
-        let named_record = "islay.domain.".to_string();
+        let named_record = "islay.home.arpa.".to_string();
 
         for record in vec![member_record, named_record.clone()] {
             info!("Looking up {}", record);
@@ -79,7 +79,7 @@ mod sixplane {
             Some(
                 Path::new(&format!("{}/basic-ipv6", zeronsd::utils::TEST_HOSTS_DIR)).to_path_buf(),
             ),
-            "domain.".into_name().unwrap(),
+            "home.arpa.".into_name().unwrap(),
         )
         .unwrap();
 
@@ -110,7 +110,7 @@ mod sixplane {
         .await;
 
         let member_record = service.member_record();
-        let named_record = Name::from_str("islay.domain.").unwrap();
+        let named_record = Name::from_str("islay.home.arpa.").unwrap();
 
         service.change_name("islay").await;
 
@@ -251,7 +251,7 @@ mod rfc4193 {
 
         service.change_name("islay").await;
 
-        let named_record = "islay.domain.".to_string();
+        let named_record = "islay.home.arpa.".to_string();
 
         for record in vec![member_record, named_record.clone()] {
             info!("Looking up {}", record);
@@ -303,7 +303,7 @@ mod rfc4193 {
             Some(
                 Path::new(&format!("{}/basic-ipv6", zeronsd::utils::TEST_HOSTS_DIR)).to_path_buf(),
             ),
-            "domain.".into_name().unwrap(),
+            "home.arpa.".into_name().unwrap(),
         )
         .unwrap();
 
@@ -334,7 +334,7 @@ mod rfc4193 {
         .await;
 
         let member_record = service.member_record();
-        let named_record = Name::from_str("islay.domain.").unwrap();
+        let named_record = Name::from_str("islay.home.arpa.").unwrap();
 
         service.change_name("islay").await;
 
@@ -393,7 +393,7 @@ mod ipv4 {
         .await;
 
         let member_record = service.member_record();
-        let named_record = Name::from_str("islay.domain.").unwrap();
+        let named_record = Name::from_str("islay.home.arpa.").unwrap();
 
         service.change_name("islay").await;
 
@@ -530,7 +530,7 @@ mod ipv4 {
 
         service.change_name("islay").await;
 
-        let named_record = "islay.domain.".to_string();
+        let named_record = "islay.home.arpa.".to_string();
 
         for record in vec![member_record, named_record.clone()] {
             info!("Looking up {}", record);
@@ -602,7 +602,7 @@ mod all {
 
         let mut hosts_map = parse_hosts(
             Some(Path::new(&format!("{}/basic", TEST_HOSTS_DIR)).to_path_buf()),
-            "domain.".into_name().unwrap(),
+            "home.arpa.".into_name().unwrap(),
         )
         .unwrap();
 
@@ -639,7 +639,7 @@ mod all {
 
         assert_eq!(
             service
-                .lookup_a("islay.domain.".to_string())
+                .lookup_a("islay.home.arpa.".to_string())
                 .await
                 .first()
                 .unwrap(),
@@ -648,7 +648,7 @@ mod all {
 
         assert_eq!(
             service
-                .lookup_aaaa("islay.domain.".to_string())
+                .lookup_aaaa("islay.home.arpa.".to_string())
                 .await
                 .first()
                 .unwrap(),
@@ -660,7 +660,7 @@ mod all {
 
         assert_eq!(
             service
-                .lookup_a("islay.domain.".to_string())
+                .lookup_a("islay.home.arpa.".to_string())
                 .await
                 .first()
                 .unwrap(),
@@ -669,7 +669,7 @@ mod all {
 
         assert_eq!(
             service
-                .lookup_aaaa("islay.domain.".to_string())
+                .lookup_aaaa("islay.home.arpa.".to_string())
                 .await
                 .first()
                 .unwrap(),
