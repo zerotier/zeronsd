@@ -83,9 +83,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "clap"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5f1fea81f183005ced9e59cdb01737ef2423956dac5a6d731b06b2ecfaa3467"
+checksum = "6d76c22c9b9b215eeb8d016ad3a90417bd13cb24cf8142756e6472445876cab7"
 dependencies = [
  "atty",
  "bitflags",
@@ -1657,6 +1657,8 @@ dependencies = [
 [[package]]
 name = "zerotier-central-api"
 version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9944068ba3ed2b0c17c2bc0a8b006741ef55db122994e2b835515b2bbc6b7ec"
 dependencies = [
  "reqwest",
  "serde",
@@ -1668,6 +1670,8 @@ dependencies = [
 [[package]]
 name = "zerotier-one-api"
 version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68d4f5b250dff3e61267c248cb50550161bef160380902cae78f81cfa28a3a78"
 dependencies = [
  "reqwest",
  "serde",
