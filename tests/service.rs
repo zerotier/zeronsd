@@ -501,7 +501,7 @@ async fn create_listeners(
     let authority_handle = tokio::spawn(find_members(arc_authority.clone()));
     let mut servers = Vec::new();
 
-    tokio::time::sleep(Duration::new(1, 0)).await;
+    tokio::time::sleep(Duration::new(3, 0)).await;
 
     for ip in listen_ips.clone() {
         let server = Server::new(arc_authority.to_owned());
@@ -530,6 +530,7 @@ fn create_resolvers(sockets: Vec<SocketAddr>) -> Resolvers {
         });
 
         let mut opts = ResolverOpts::default();
+        opts.timeout = Duration::new(10, 0);
         opts.cache_size = 0;
         opts.rotate = true;
         opts.use_hosts_file = false;
