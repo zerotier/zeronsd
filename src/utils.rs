@@ -36,15 +36,17 @@ pub fn init_logger() {
 
 // this provides the production configuration for talking to central through the openapi libraries.
 pub fn central_config(token: String) -> Configuration {
-    let mut config = Configuration::default();
-    config.user_agent = Some(version());
-    config.bearer_access_token = Some(token);
+    let mut config = Configuration {
+        user_agent: Some(version()),
+        bearer_access_token: Some(token),
+        ..Default::default()
+    };
 
     if let Ok(instance) = std::env::var("ZEROTIER_CENTRAL_INSTANCE") {
-        config.base_path = instance
+        config.base_path = instance;
     }
 
-    return config;
+    config
 }
 
 // extracts the ip from the CIDR. 10.0.0.1/32 becomes 10.0.0.1
