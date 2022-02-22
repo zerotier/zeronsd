@@ -198,11 +198,6 @@ impl TestContext {
     }
 }
 
-lazy_static! {
-    static ref NETWORKS: Arc<Mutex<HashMap<String, TestNetwork>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
-
 // TestNetwork creates a testnetwork in central and joins it. When this data is destroyed/dropped
 // it will remove the network and leave it like nothing ever happened.
 #[derive(Clone)]
@@ -303,16 +298,13 @@ impl TestNetwork {
     }
 
     pub fn teardown(&mut self) {
-        let identity = self.identity();
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async {
-                if let Some(network) = NETWORKS.lock().await.remove(&identity) {
-                    network.leave().await.unwrap();
-                    let central = network.central();
-                    zerotier_central_api::apis::network_api::delete_network(&central, &identity)
-                        .await
-                        .unwrap();
-                }
+                self.leave().await.unwrap();
+                let central = self.central();
+                zerotier_central_api::apis::network_api::delete_network(&central, &self.identity())
+                    .await
+                    .unwrap_err();
             })
         })
     }
