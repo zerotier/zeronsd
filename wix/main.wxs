@@ -16,26 +16,54 @@
 -->
 
 <!--
+  The "cargo wix" subcommand provides a variety of predefined variables available
+  for customization of this template. The values for each variable are set at
+  installer creation time. The following variables are available:
+
+  TargetTriple      = The rustc target triple name.
+  TargetEnv         = The rustc target environment. This is typically either
+                      "msvc" or "gnu" depending on the toolchain downloaded and
+                      installed.
+  TargetVendor      = The rustc target vendor. This is typically "pc", but Rust
+                      does support other vendors, like "uwp".
+  CargoTargetBinDir = The complete path to the binary (exe). The default would
+                      be "target\release\<BINARY_NAME>.exe" where
+                      "<BINARY_NAME>" is replaced with the name of each binary
+                      target defined in the package's manifest (Cargo.toml). If
+                      a different rustc target triple is used than the host,
+                      i.e. cross-compiling, then the default path would be
+                      "target\<CARGO_TARGET>\<CARGO_PROFILE>\<BINARY_NAME>.exe",
+                      where "<CARGO_TARGET>" is replaced with the "CargoTarget"
+                      variable value and "<CARGO_PROFILE>" is replaced with the
+                      value from the `CargoProfile` variable.
+  CargoTargetDir    = The path to the directory for the build artifacts, i.e.
+                      "target".
+  CargoProfile      = Either "debug" or `release` depending on the build
+                      profile. The default is "release".
+  Version           = The version for the installer. The default is the
+                      "Major.Minor.Fix" semantic versioning number of the Rust
+                      package.
+-->
+
+<!--
   Please do not remove these pre-processor If-Else blocks. These are used with
   the `cargo wix` subcommand to automatically determine the installation
   destination for 32-bit versus 64-bit installers. Removal of these lines will
   cause installation errors.
 -->
-<?if $(var.Platform) = x64 ?>
-    <?define Win64 = "yes" ?>
+<?if $(sys.BUILDARCH) = x64 or $(sys.BUILDARCH) = arm64 ?>
     <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
 <?else ?>
-  <?define Win64 = "no" ?>
-  <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
 <?endif ?>
 
-<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi' xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
 
     <Product
         Id='*'
         Name='zeronsd'
-        UpgradeCode='2A2DB7B3-55F9-40E9-B3D6-A2064E3A9800'
-        Manufacturer='ZeroTier, Inc.'
+        UpgradeCode='13FCBA41-D8FB-4697-A284-50442E938C9B'
+        Manufacturer='Erik Hollensbe'
         Language='1033'
         Codepage='1252'
         Version='$(var.Version)'>
@@ -43,13 +71,13 @@
         <Package Id='*'
             Keywords='Installer'
             Description='Unicast DNS resolver for ZeroTier networks'
-            Manufacturer='ZeroTier, Inc.'
+            Manufacturer='Erik Hollensbe'
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'
             InstallScope='perMachine'
             SummaryCodepage='1252'
-            Platform='$(var.Platform)'/>
+            />
 
         <MajorUpgrade
             Schedule='afterInstallInitialize'
@@ -61,23 +89,29 @@
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
                 <Directory Id='APPLICATIONFOLDER' Name='zeronsd'>
-                    <!--
-                      Disabling the license sidecar file in the installer is a two step process:
-
-                      1. Comment out or remove the `Component` tag along with its contents.
-                      2. Comment out or remove the `ComponentRef` tag with the "License" Id
-                         attribute value further down in this file.
-                    -->
-                    <Component Id='License' Guid='*' Win64='$(var.Win64)'>
-                        <File Id='LicenseFile'
-                            Name='LICENSE'
-                            DiskId='1'
-                            Source='LICENSE'
-                            KeyPath='yes'/>
-                    </Component>
                     
+                    <!--
+                      Enabling the license sidecar file in the installer is a four step process:
+
+                      1. Uncomment the `Component` tag and its contents.
+                      2. Change the value for the `Source` attribute in the `File` tag to a path
+                         to the file that should be included as the license sidecar file. The path
+                         can, and probably should be, relative to this file.
+                      3. Change the value for the `Name` attribute in the `File` tag to the
+                         desired name for the file when it is installed alongside the `bin` folder
+                         in the installation directory. This can be omitted if the desired name is
+                         the same as the file name.
+                      4. Uncomment the `ComponentRef` tag with the Id attribute value of "License"
+                         further down in this file.
+                    -->
+                    <!--
+                    <Component Id='License' Guid='*'>
+                        <File Id='LicenseFile' Name='ChangeMe' DiskId='1' Source='C:\Path\To\File' KeyPath='yes'/>
+                    </Component>
+                    -->
+
                     <Directory Id='Bin' Name='bin'>
-                        <Component Id='Path' Guid='D5669769-0727-4B68-94C8-57C812292BE8' Win64='$(var.Win64)' KeyPath='yes'>
+                        <Component Id='Path' Guid='ECDD2A6F-A790-439C-B416-AE3BE5D3A670' KeyPath='yes'>
                             <Environment
                                 Id='PATH'
                                 Name='PATH'
@@ -87,13 +121,15 @@
                                 Action='set'
                                 System='yes'/>
                         </Component>
-                        <Component Id='binary0' Guid='*' Win64='$(var.Win64)'>
+                        <Component Id='binary0' Guid='*'>
                             <File
                                 Id='exe0'
                                 Name='zeronsd.exe'
                                 DiskId='1'
-                                Source='target/$(var.Profile)/zeronsd.exe'
-                                KeyPath='yes'/>
+                                Source='$(var.CargoTargetBinDir)\zeronsd.exe'
+                                KeyPath='yes'>
+                              <fire:FirewallException Id="FWX1" Name="zeronsd.exe" Port="53" Protocol="udp" Scope="any" />
+                            </File>
                         </Component>
                     </Directory>
                 </Directory>
@@ -109,12 +145,13 @@
             AllowAdvertise='no'
             Display='expand'
             Absent='disallow'>
-            <!--
-              Comment out or remove the following `ComponentRef` tag to remove
-              the license sidecar file from the installer.
-            -->
-            <ComponentRef Id='License'/>
             
+            <!--
+              Uncomment the following `ComponentRef` tag to add the license
+              sidecar file to the installer.
+            -->
+            <!--<ComponentRef Id='License'/>-->
+
             <ComponentRef Id='binary0'/>
 
             <Feature
