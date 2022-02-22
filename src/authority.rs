@@ -289,7 +289,7 @@ pub fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
         domain_name.clone(),
         Name::from_str("administrator")
             .unwrap()
-            .append_domain(&domain_name.clone()),
+            .append_domain(&domain_name),
         authority.serial() + 1,
         30,
         0,
