@@ -5,7 +5,7 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
 - Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
 - Tells Central to point all clients that have the "Manage DNS" settings turned **on** to resolve to it.
-- Finally, sets a provided TLD (`.domain` is the default), as well as configuring `A` (IPv4) and `AAAA` (IPv6) records for:
+- Finally, sets a provided TLD (`.home.arpa` is the default; recommended by IANA), as well as configuring `A` (IPv4) and `AAAA` (IPv6) records for:
   - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4 & IPv6 addresses for them.
   - Names: _if_ the names are compatible with DNS names, they will be converted as such: to `<name>.<tld>`.
     - Please note that **collisions are possible** and that it's _up to the admin to prevent them_.
@@ -18,7 +18,7 @@ Before continuing, be reminded that zeronsd is **beta software**. That said, if 
 
 Packages:
 
-- Linux/Windows: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb`, `*.rpm` for Linux, and MSI format for Windows.
+- Linux/Windows: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb`, `*.rpm` for Linux, and MSI format for Windows. **NOTE**: the Windows MSI will install a firewall exception for port 53 so zeronsd can communicate.
   - [Arch Linux](https://aur.archlinux.org/packages/zeronsd/) packages provided by [@devvick](https://github.com/devvick)!
 - Mac OS X: `brew tap zerotier/homebrew-tap && brew install zerotier/homebrew-tap/zeronsd`
 - Docker: `docker pull zerotier/zeronsd` (see below for more on docker)
@@ -33,7 +33,7 @@ Please obtain a working [rust environment](https://rustup.rs/) first.
 cargo install zeronsd
 ```
 
-### From Git
+### From Git (via Cargo)
 
 ```
 cargo install --git https://github.com/zerotier/zeronsd --branch main
@@ -59,6 +59,10 @@ docker build --build-arg IS_TAG=1 --build-arg VERSION=v0.1.0 # builds version 0.
 
 Once built, the image automatically runs `zeronsd` for you. The default subcommand is `help`.
 
+### Docker (alpine edition)
+
+See [Dockerfile.alpine](Dockerfile.alpine).
+
 ## Usage
 
 Setting `ZEROTIER_CENTRAL_TOKEN` in the environment (or providing the `-t` flag, which points at a file containing this value) is required. You must be able to administer the ZeroTier network to use `zeronsd` with it. Also, running as `root` is required as _many client resolvers do not work over anything but port 53_. Your `zeronsd` instance will listen on both `udp` and `tcp`, port `53`.
@@ -70,6 +74,18 @@ Setting `ZEROTIER_CENTRAL_TOKEN` in the environment (or providing the `-t` flag,
 ```
 zeronsd start <network id>
 ```
+
+#### Configuration
+
+zeronsd as of v0.3 takes a configuration file via the `-c` flag which correlates to all of the command-line options. `--config-type` corresponds to the format of the configuration file: `yaml` is the default, and `json` and `toml` are also supported.
+
+The configuration directives are as follows:
+
+- domain: (string) will set a TLD for your records; the default is `home.arpa`.
+- hosts: (string) will parse a file in `/etc/hosts` format and append it to your records.
+- secret: (string) path to `authtoken.secret` which is needed to talk to ZeroTier on localhost. You can provide this file with this argument, but it is auto-detected on multiple platforms including Linux, OS X and Windows.
+- token: (string) path to file containing your [ZeroTier Central token](https://my.zerotier.com/account).
+- wildcard: (bool) Enables wildcard mode, where all member names get a wildcard in this format: `*.<name>.<tld>`; this points at the member's IP address(es).
 
 ### Running as a service
 
@@ -114,7 +130,7 @@ It should print some diagnostics after it has talked to your `zerotier-one` inst
 
 ### Flags for the `start` and `supervise` subcommands:
 
-- `-d <tld>` will set a TLD for your records; the default is `domain`.
+- `-d <tld>` will set a TLD for your records; the default is `home.arpa`.
 - `-f <hosts file>` will parse a file in `/etc/hosts` format and append it to your records.
 - `-s <secret file>` path to `authtoken.secret` which is needed to talk to ZeroTier on localhost. You can provide this file with this argument, but it is auto-detected on multiple platforms including Linux, OS X and Windows.
 - `-t <central token file>` path to file containing your [ZeroTier Central token](https://my.zerotier.com/account).
