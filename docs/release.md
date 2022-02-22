@@ -22,7 +22,7 @@ If any of this doesn't work, alert @erikh immediately.
     - If cargo doesn't work after this, you've done it wrong.
   - [WIX Toolset](https://github.com/wixtoolset/wix3/releases/tag/wix3112rtm) also needs to be installed.
   - Finally, set up some kind of clone of the tag, or VM shared folders.
-  - Run `cargo wix` in an administrator terminal.
+  - Run `cargo wix -L -ext -L WixFirewallExtension -C -ext -C WixFirewallExtension` in a windows terminal.
     - The resulting installer will be in `target/wix/*.msi`. You do not need the other files.
 - OS X: Get permissions from Joseph to commit to [homebrew-tap](https://github.com/zerotier/homebrew-tap) or submit a PR.
   - Edit `Formula/zeronsd.rb` and change the following attributes:
