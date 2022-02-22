@@ -302,9 +302,12 @@ impl TestNetwork {
             tokio::runtime::Handle::current().block_on(async {
                 self.leave().await.unwrap();
                 let central = self.central();
-                zerotier_central_api::apis::network_api::delete_network(&central, &self.identity())
-                    .await
-                    .unwrap_err();
+                zerotier_central_api::apis::network_api::delete_network(
+                    &central,
+                    &self.network.id.clone().unwrap(),
+                )
+                .await
+                .unwrap();
             })
         })
     }

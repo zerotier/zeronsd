@@ -108,6 +108,10 @@ zeronsd unsupervise 36579ad8f6a82ad3
 systemctl daemon-reload
 ```
 
+### Logging
+
+Set `ZERONSD_LOG` or `RUST_LOG` to various log levels or other parameters according to the [env_logger](https://crates.io/crates/env_logger) specification for more.
+
 ### Docker
 
 Running in docker is a little more complicated. You must be able to have a network interface you can import (joined a network) and must be able to reach `localhost:9999` on the host. At this time, for brevity's sake we are recommending running with `--net=host` until we have more time to investigate a potentially more secure solution.
