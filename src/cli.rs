@@ -33,6 +33,9 @@ pub enum Command {
 
 #[derive(Args)]
 pub struct StartArgs {
+    /// Network ID to query
+    pub network_id: String,
+
     /// TLD to use for hostnames
     #[clap(short, long)]
     pub domain: Option<String>,
@@ -51,10 +54,7 @@ pub struct StartArgs {
 
     /// Wildcard all names in Central to point at the respective member's IP address(es)
     #[clap(short, long)]
-    pub wildcard: Option<bool>,
-
-    /// Network ID to query
-    pub network_id: String,
+    pub wildcard: bool,
 
     /// Configuration file containing these arguments (overrides most CLI options)
     #[clap(short = 'c', long = "config", value_name = "PATH")]

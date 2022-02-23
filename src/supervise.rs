@@ -130,15 +130,13 @@ impl From<StartArgs> for Properties {
     fn from(args: StartArgs) -> Self {
         let args: crate::init::Launcher = args.into();
 
-        let wildcard = args.wildcard.is_some() && args.wildcard.unwrap();
-
         Self::new(
             args.domain.as_deref(),
             &args.network_id,
             args.hosts.as_deref(),
             args.secret.as_deref(),
             args.token.as_deref(),
-            wildcard,
+            args.wildcard,
         )
         .unwrap()
     }

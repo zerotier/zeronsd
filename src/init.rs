@@ -16,7 +16,7 @@ pub struct Launcher {
     pub(crate) hosts: Option<PathBuf>,
     pub(crate) secret: Option<PathBuf>,
     pub(crate) token: Option<PathBuf>,
-    pub(crate) wildcard: Option<bool>,
+    pub(crate) wildcard: bool,
     #[serde(skip_deserializing)]
     pub(crate) network_id: String,
 }
@@ -128,7 +128,7 @@ impl Launcher {
                 authority.clone(),
             );
 
-            if self.wildcard.is_some() && self.wildcard.unwrap() {
+            if self.wildcard {
                 ztauthority.wildcard_everything();
             }
 
