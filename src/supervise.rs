@@ -4,7 +4,6 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
-use log::info;
 use regex::Regex;
 use serde::Serialize;
 use tinytemplate::TinyTemplate;
@@ -389,7 +388,7 @@ impl<'a> Properties {
                 _ => systemd_help,
             };
 
-            info!(
+            eprintln!(
                 "Service definition written to {}.\n{}",
                 service_path
                     .to_str()
@@ -413,7 +412,7 @@ impl<'a> Properties {
                 }
             };
 
-            info!(
+            eprintln!(
                 "Service definition written to {}.\nTo start the service, run:\nsudo launchctl load {}",
                 service_path.to_str().expect("Could not coerce service path to string"),
                 service_path.to_str().expect("Could not coerce service path to string")
@@ -438,6 +437,10 @@ impl<'a> Properties {
                     ))
                 }
             };
+            eprintln!(
+                "Service definition removed from {}.\nDon't forget to reload systemd:\nsudo systemctl daemon-reload",
+                self.service_path().to_str().expect("Could not coerce service path to string"),
+            );
         } else if cfg!(target_os = "macos") {
             match std::fs::remove_file(self.service_path()) {
                 Ok(_) => {}
@@ -452,7 +455,7 @@ impl<'a> Properties {
                 }
             };
 
-            info!(
+            eprintln!(
                 "Service definition removed from {}.\nDon't forget to stop it:\nsudo launchctl remove {}",
                 self.service_path().to_str().expect("Could not coerce service path to string"),
                 self.service_name().replace(".plist", "")
