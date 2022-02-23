@@ -145,6 +145,7 @@ fn test_supervise_systemd_green() {
                 hosts_file: Some(PathBuf::from("/etc/hosts")),
                 wildcard_names: true,
                 distro: None,
+                ..Default::default()
             },
         ),
     ];
@@ -164,11 +165,8 @@ fn test_supervise_systemd_green() {
         if !write {
             let path = path.canonicalize();
 
-            assert!(path.is_ok(), "{}", name);
             let expected = std::fs::read_to_string(path.unwrap());
-            assert!(expected.is_ok(), "{}", name);
             let testing = props.supervise_template();
-            assert!(testing.is_ok(), "{}", name);
 
             assert_eq!(testing.unwrap(), expected.unwrap(), "{}", name);
         } else {
@@ -361,11 +359,7 @@ fn test_parse_hosts_duplicate() {
     assert!(result.is_some());
     let result = result.unwrap();
 
-    assert!(result.contains(
-        &Name::from_str("hostname1")
-            .unwrap()
-            .append_domain(&domain)
-    ));
+    assert!(result.contains(&Name::from_str("hostname1").unwrap().append_domain(&domain)));
     assert!(result.contains(
         &Name::from_str("hostname2.corp")
             .unwrap()

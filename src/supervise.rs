@@ -32,7 +32,7 @@ const SUPERVISE_SYSTEM_DIR: &str = "/lib/systemd/system";
 const OS_RELEASE_FILE: &str = "/etc/os-release";
 
 #[cfg(target_os = "linux")]
-const SYSTEMD_TEMPLATE: &str = "
+const SYSTEMD_TEMPLATE: &str = r#"
 [Unit]
 Description=zeronsd for network {network}
 Requires=zerotier-one.service
@@ -40,12 +40,12 @@ After=zerotier-one.service
 
 [Service]
 Type=simple
-ExecStart={binpath} start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
+ExecStart={binpath} start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
 TimeoutStopSec=30
 
 [Install]
 WantedBy=default.target
-";
+"#;
 
 #[cfg(target_os = "linux")]
 const ALPINE_INIT_DIR: &str = "/etc/init.d";
@@ -60,7 +60,7 @@ depend() \{
 
 description="zeronsd for network {network}"
 command="{binpath}"
-command_args="start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}"
+command_args="start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}"
 command_background="yes"
 pidfile="/run/$RC_SVCNAME.pid"
 "#;
@@ -104,7 +104,7 @@ const SERVICE_TEMPLATE: &str = r#"
       <string>-c</string>
       <string>{config}</string>
       {{ endif }}
-      {{ if config_type }}
+      {{ if config_type_supplied }}
       <string>--config-type</string>
       <string>{config_type}</string>
       {{ endif }}
@@ -134,6 +134,7 @@ pub struct Properties {
     pub token: PathBuf,
     pub config: Option<PathBuf>,
     pub config_type: ConfigFormat,
+    pub config_type_supplied: bool,
     pub wildcard_names: bool,
     pub distro: Option<String>,
 }
@@ -184,6 +185,7 @@ impl Default for Properties {
             authtoken: None,
             config: None,
             config_type: ConfigFormat::YAML,
+            config_type_supplied: false,
             token: PathBuf::new(),
             distro: None,
         }
@@ -239,7 +241,8 @@ impl<'a> Properties {
                 None => None,
             },
             token: token.unwrap_or(Path::new("")).to_owned(),
-            config_type,
+            config_type: config_type.clone(),
+            config_type_supplied: config_type != ConfigFormat::YAML,
             config: match config {
                 Some(config) => Some(config.to_owned()),
                 None => None,
