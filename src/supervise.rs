@@ -12,7 +12,10 @@ use trust_dns_resolver::Name;
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::cli::{StartArgs, UnsuperviseArgs};
+use crate::{
+    cli::{StartArgs, UnsuperviseArgs},
+    init::ConfigFormat,
+};
 
 #[cfg(target_os = "windows")]
 const SUPERVISE_SYSTEM_DIR: &str = "";
@@ -37,7 +40,7 @@ After=zerotier-one.service
 
 [Service]
 Type=simple
-ExecStart={binpath} start -t {token} {{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
+ExecStart={binpath} start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
 TimeoutStopSec=30
 
 [Install]
@@ -57,7 +60,7 @@ depend() \{
 
 description="zeronsd for network {network}"
 command="{binpath}"
-command_args="start -t {token} {{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}"
+command_args="start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}"
 command_background="yes"
 pidfile="/run/$RC_SVCNAME.pid"
 "#;
@@ -97,6 +100,14 @@ const SERVICE_TEMPLATE: &str = r#"
       <string>-d</string>
       <string>{domain}</string>
       {{ endif }}
+      {{ if config }}
+      <string>-c</string>
+      <string>{config}</string>
+      {{ endif }}
+      {{ if config_type }}
+      <string>--config-type</string>
+      <string>{config_type}</string>
+      {{ endif }}
       <string>{network}</string>
     </array>
 
@@ -121,21 +132,26 @@ pub struct Properties {
     pub hosts_file: Option<PathBuf>,
     pub authtoken: Option<PathBuf>,
     pub token: PathBuf,
+    pub config: Option<PathBuf>,
+    pub config_type: ConfigFormat,
     pub wildcard_names: bool,
     pub distro: Option<String>,
 }
 
 impl From<StartArgs> for Properties {
     fn from(args: StartArgs) -> Self {
-        let args: crate::init::Launcher = args.into();
+        let launcher: crate::init::Launcher = args.clone().into();
 
+        // FIXME rewrite this to use a struct init later
         Self::new(
-            args.domain.as_deref(),
-            &args.network_id,
-            args.hosts.as_deref(),
-            args.secret.as_deref(),
-            args.token.as_deref(),
-            args.wildcard,
+            launcher.domain.as_deref(),
+            &launcher.network_id,
+            launcher.hosts.as_deref(),
+            launcher.secret.as_deref(),
+            launcher.token.as_deref(),
+            launcher.wildcard,
+            args.config.as_deref(),
+            args.config_type,
         )
         .unwrap()
     }
@@ -143,7 +159,17 @@ impl From<StartArgs> for Properties {
 
 impl From<UnsuperviseArgs> for Properties {
     fn from(args: UnsuperviseArgs) -> Self {
-        Self::new(None, &args.network_id, None, None, None, false).unwrap()
+        Self::new(
+            None,
+            &args.network_id,
+            None,
+            None,
+            None,
+            false,
+            None,
+            ConfigFormat::YAML,
+        )
+        .unwrap()
     }
 }
 
@@ -156,6 +182,8 @@ impl Default for Properties {
             network: String::new(),
             hosts_file: None,
             authtoken: None,
+            config: None,
+            config_type: ConfigFormat::YAML,
             token: PathBuf::new(),
             distro: None,
         }
@@ -170,6 +198,8 @@ impl<'a> Properties {
         authtoken: Option<&'_ Path>,
         token: Option<&'_ Path>,
         wildcard_names: bool,
+        config: Option<&'_ Path>,
+        config_type: ConfigFormat,
     ) -> Result<Self, anyhow::Error> {
         let distro = if cfg!(target_os = "linux") {
             if let Ok(release) = std::fs::read_to_string(OS_RELEASE_FILE) {
@@ -209,10 +239,23 @@ impl<'a> Properties {
                 None => None,
             },
             token: token.unwrap_or(Path::new("")).to_owned(),
+            config_type,
+            config: match config {
+                Some(config) => Some(config.to_owned()),
+                None => None,
+            },
         })
     }
 
     pub fn validate(&mut self) -> Result<(), anyhow::Error> {
+        self.config = match self.config.clone() {
+            Some(config) => match config.canonicalize() {
+                Ok(res) => Some(res),
+                Err(e) => return Err(anyhow!("Could not find token file: {}", e)),
+            },
+            None => None,
+        };
+
         self.token = match self.token.canonicalize() {
             Ok(res) => res,
             Err(e) => return Err(anyhow!("Could not find token file: {}", e)),
