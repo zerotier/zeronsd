@@ -21,7 +21,7 @@ pub struct Launcher {
     pub(crate) network_id: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ConfigFormat {
     JSON,
     YAML,

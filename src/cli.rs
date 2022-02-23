@@ -31,7 +31,7 @@ pub enum Command {
     Unsupervise(UnsuperviseArgs),
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct StartArgs {
     /// Network ID to query
     pub network_id: String,
