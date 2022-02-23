@@ -3,7 +3,7 @@ use crate::{
     supervise::Properties,
 };
 use log::error;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use clap::{Args, Parser, Subcommand};
 
@@ -106,7 +106,10 @@ pub async fn init() -> Result<(), anyhow::Error> {
     let result = match cli.command {
         Command::Start(args) => {
             start(args).await?;
-            Ok(())
+
+            loop {
+                tokio::time::sleep(Duration::MAX).await
+            }
         }
         Command::Supervise(args) => supervise(args),
         Command::Unsupervise(args) => unsupervise(args),
