@@ -103,7 +103,7 @@ mod sixplane {
         init_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(2, 0)))
+                .update_interval(Some(Duration::new(5, 0)))
                 .network_filename("6plane-only")
                 .wildcard_everything(true),
         )
@@ -327,7 +327,7 @@ mod rfc4193 {
         init_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(2, 0)))
+                .update_interval(Some(Duration::new(5, 0)))
                 .network_filename("rfc4193-only")
                 .wildcard_everything(true),
         )
@@ -387,7 +387,7 @@ mod ipv4 {
         init_logger();
         let service = Service::new(
             ServiceConfig::default()
-                .update_interval(Some(Duration::new(2, 0)))
+                .update_interval(Some(Duration::new(5, 0)))
                 .wildcard_everything(true),
         )
         .await;
