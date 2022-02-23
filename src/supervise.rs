@@ -261,9 +261,8 @@ impl<'a> Properties {
                 return Err(anyhow!("Domain name cannot be empty"));
             }
 
-            match Name::parse(domain.as_str(), None) {
-                Ok(_) => {}
-                Err(e) => return Err(anyhow!("Domain name is invalid: {}", e)),
+            if let Err(e) = Name::parse(&domain, None) {
+                return Err(anyhow!("Domain name is invalid: {}", e));
             }
         }
 
@@ -399,7 +398,7 @@ impl<'a> Properties {
             let template = self.supervise_template()?;
             let service_path = self.service_path();
 
-            match std::fs::write(service_path.clone(), template) {
+            match std::fs::write(&service_path, template) {
                 Ok(_) => {}
                 Err(e) => {
                     return Err(anyhow!(
