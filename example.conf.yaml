@@ -1,0 +1,30 @@
+---
+# must be set; the file containing the token used to communicate with ZeroTier
+# Central.
+token: "/home/erikh/src/github.com/zerotier/zeronsd/.token"
+# The domain to use for all subdomains. Defaults to `home.arpa.`. Trailing
+# period is not required.
+#
+# domain: "foo"
+
+# An /etc/hosts style file which contains a static list of host mappings. Does
+# not have to live on the network.
+#
+# hosts: "/etc/hosts"
+
+# The path to the authtoken.secret used to communicate with the local
+# zerotier-one instance. Only needs to be set if it is not the default, which
+# is the path below (for linux).
+#
+# secret: "/var/lib/zerotier-one/authtoken.secret"
+
+# Wildcard domains? This feature will add wildcard records for all domains
+# registered in zeronsd, so that subdomains of them can be used to point at the
+# same address; useful for vhosting.
+#
+# wildcard: false
+
+# These two parameters are the certificate and key for DNS-over-TLS.
+#
+# tls_cert: cert.pem
+# tls_key: cert.key
