@@ -537,13 +537,17 @@ impl ZTAuthority {
         }
     }
 
+    pub fn authority(&self) -> Authority {
+        self.authority.clone()
+    }
+
     pub fn wildcard_everything(&mut self) {
         self.wildcard_everything = true;
     }
 
     // match_or_insert avoids duplicate names by finding them first and removing them. Contrast
     // it makes heavy use of replace_ip_record to perform this function.
-    fn match_or_insert(&self, name: Name, newips: &[IpAddr]) {
+    pub fn match_or_insert(&self, name: Name, newips: &[IpAddr]) {
         let rdatas: Vec<RData> = newips
             .iter()
             .map(|&ip| match ip {

@@ -71,7 +71,7 @@ impl Into<Launcher> for StartArgs {
             let res = Launcher::new_from_config(config.to_str().unwrap(), self.config_type);
             match res {
                 Ok(mut res) => {
-                    res.network_id = self.network_id.clone();
+                    res.network_id = Some(self.network_id.clone());
                     res
                 }
                 Err(e) => {
@@ -86,7 +86,7 @@ impl Into<Launcher> for StartArgs {
                 secret: self.secret,
                 token: self.token,
                 wildcard: self.wildcard,
-                network_id: self.network_id,
+                network_id: Some(self.network_id),
             }
         }
     }

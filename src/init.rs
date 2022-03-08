@@ -12,13 +12,13 @@ use crate::{addresses::*, authority::*, server::*, utils::*};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Launcher {
-    pub(crate) domain: Option<String>,
-    pub(crate) hosts: Option<PathBuf>,
-    pub(crate) secret: Option<PathBuf>,
-    pub(crate) token: Option<PathBuf>,
-    pub(crate) wildcard: bool,
+    pub domain: Option<String>,
+    pub hosts: Option<PathBuf>,
+    pub secret: Option<PathBuf>,
+    pub token: Option<PathBuf>,
+    pub wildcard: bool,
     #[serde(skip_deserializing)]
-    pub(crate) network_id: String,
+    pub network_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -45,23 +45,50 @@ impl FromStr for ConfigFormat {
 
 type ArcAuthority = Arc<RwLock<ZTAuthority>>;
 
+impl Default for Launcher {
+    fn default() -> Self {
+        Launcher {
+            domain: None,
+            hosts: None,
+            secret: None,
+            token: None,
+            wildcard: false,
+            network_id: None,
+        }
+    }
+}
+
 impl Launcher {
     pub fn new_from_config(filename: &str, format: ConfigFormat) -> Result<Self, anyhow::Error> {
         let res = std::fs::read_to_string(filename)?;
+        Self::parse_format(&res, format)
+    }
+
+    pub fn parse_format(s: &str, format: ConfigFormat) -> Result<Self, anyhow::Error> {
         Ok(match format {
-            ConfigFormat::JSON => serde_json::from_str(&res)?,
-            ConfigFormat::YAML => serde_yaml::from_str(&res)?,
-            ConfigFormat::TOML => toml::from_str(&res)?,
+            ConfigFormat::JSON => serde_json::from_str(&s)?,
+            ConfigFormat::YAML => serde_yaml::from_str(&s)?,
+            ConfigFormat::TOML => toml::from_str(&s)?,
         })
     }
 
+    pub fn parse(s: &str, network_id: String, format: ConfigFormat) -> Result<Self, anyhow::Error> {
+        let mut l: Launcher = Self::parse_format(s, format)?;
+        l.network_id = Some(network_id);
+        Ok(l)
+    }
+
     pub async fn start(&self) -> Result<ArcAuthority, anyhow::Error> {
+        if self.network_id.is_none() {
+            return Err(anyhow!("network ID is invalid; cannot continue"));
+        }
+
         let domain_name = domain_or_default(self.domain.as_deref())?;
         let authtoken = authtoken_path(self.secret.as_deref());
         let token = central_config(central_token(self.token.as_deref())?);
 
         info!("Welcome to ZeroNS!");
-        let ips = get_listen_ips(&authtoken, &self.network_id).await?;
+        let ips = get_listen_ips(&authtoken, &self.network_id.clone().unwrap()).await?;
 
         // more or less the setup for the "main loop"
         if ips.len() > 0 {
@@ -71,7 +98,7 @@ impl Launcher {
                     .map(|i| parse_ip_from_cidr(i.clone()).to_string())
                     .collect(),
                 token.clone(),
-                self.network_id.clone(),
+                self.network_id.clone().unwrap(),
             )
             .await?;
 
@@ -96,7 +123,7 @@ impl Launcher {
 
             let network = zerotier_central_api::apis::network_api::get_network_by_id(
                 &token,
-                &self.network_id,
+                &self.network_id.clone().unwrap(),
             )
             .await?;
 
@@ -120,7 +147,7 @@ impl Launcher {
             // ZTAuthority more or less is the mainloop. Setup continues below.
             let mut ztauthority = ZTAuthority::new(
                 domain_name.clone(),
-                self.network_id.clone(),
+                self.network_id.clone().unwrap(),
                 token.clone(),
                 self.hosts.clone(),
                 authority_map.clone(),

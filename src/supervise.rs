@@ -146,7 +146,7 @@ impl From<StartArgs> for Properties {
         // FIXME rewrite this to use a struct init later
         Self::new(
             launcher.domain.as_deref(),
-            &launcher.network_id,
+            &launcher.network_id.unwrap(),
             launcher.hosts.as_deref(),
             launcher.secret.as_deref(),
             launcher.token.as_deref(),
