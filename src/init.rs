@@ -17,6 +17,8 @@ pub struct Launcher {
     pub hosts: Option<PathBuf>,
     pub secret: Option<PathBuf>,
     pub token: Option<PathBuf>,
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
@@ -53,6 +55,8 @@ impl Default for Launcher {
             hosts: None,
             secret: None,
             token: None,
+            tls_cert: None,
+            tls_key: None,
             wildcard: false,
             network_id: None,
         }
@@ -168,26 +172,36 @@ impl Launcher {
             for ip in listen_ips {
                 info!("Your IP for this network: {}", ip);
 
-                let certs = rustls_pemfile::read_all(&mut BufReader::new(std::fs::File::open(
-                    "cert.pem",
-                )?))?
-                .iter()
-                .filter_map(|i| match i {
-                    Item::X509Certificate(i) => Some(rustls::Certificate(i.clone())),
-                    _ => None,
-                })
-                .collect::<Vec<rustls::Certificate>>();
+                let certs = if let Some(cert_path) = self.tls_cert.clone() {
+                    Some(
+                        rustls_pemfile::read_all(&mut BufReader::new(std::fs::File::open(
+                            cert_path,
+                        )?))?
+                        .iter()
+                        .filter_map(|i| match i {
+                            Item::X509Certificate(i) => Some(rustls::Certificate(i.clone())),
+                            _ => None,
+                        })
+                        .collect::<Vec<rustls::Certificate>>(),
+                    )
+                } else {
+                    None
+                };
 
-                let key = rustls::PrivateKey(
-                    match rustls_pemfile::read_one(&mut BufReader::new(std::fs::File::open(
-                        "cert.key",
-                    )?))?
-                    .unwrap()
-                    {
-                        Item::RSAKey(i) | Item::ECKey(i) | Item::PKCS8Key(i) => i,
-                        _ => Vec::new(),
-                    },
-                );
+                let key = if let Some(key_path) = self.tls_key.clone() {
+                    Some(rustls::PrivateKey(
+                        match rustls_pemfile::read_one(&mut BufReader::new(std::fs::File::open(
+                            key_path,
+                        )?))?
+                        .unwrap()
+                        {
+                            Item::RSAKey(i) | Item::ECKey(i) | Item::PKCS8Key(i) => i,
+                            _ => Vec::new(),
+                        },
+                    ))
+                } else {
+                    None
+                };
 
                 tokio::spawn(server.clone().listen(ip, Duration::new(1, 0), certs, key));
             }

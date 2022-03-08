@@ -27,19 +27,26 @@ impl Server {
         self,
         ip: IpAddr,
         tcp_timeout: Duration,
-        certs: Vec<rustls::Certificate>,
-        key: rustls::PrivateKey,
+        certs: Option<Vec<rustls::Certificate>>,
+        key: Option<rustls::PrivateKey>,
     ) -> Result<(), anyhow::Error> {
         loop {
             let sa = SocketAddr::new(ip, 53);
             let tcp = TcpListener::bind(sa).await?;
             let udp = UdpSocket::bind(sa).await?;
-            let tls = TcpListener::bind(SocketAddr::new(ip, 853)).await?;
 
             let mut sf = ServerFuture::new(init_catalog(self.zt.clone()).await?);
-            match sf.register_tls_listener(tls, tcp_timeout, (certs.clone(), key.clone())) {
-                Ok(_) => {}
-                Err(e) => log::error!("Cannot start DoT listener: {}", e),
+
+            if certs.is_some() && key.is_some() {
+                let tls = TcpListener::bind(SocketAddr::new(ip, 853)).await?;
+                match sf.register_tls_listener(
+                    tls,
+                    tcp_timeout,
+                    (certs.clone().unwrap(), key.clone().unwrap()),
+                ) {
+                    Ok(_) => {}
+                    Err(e) => log::error!("Cannot start DoT listener: {}", e),
+                }
             }
 
             sf.register_socket(udp);
