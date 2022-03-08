@@ -1,10 +1,11 @@
 use std::{
-    collections::HashMap, net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+    collections::HashMap, io::BufReader, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
 };
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
 use log::{info, warn};
+use rustls_pemfile::Item;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
@@ -163,11 +164,32 @@ impl Launcher {
 
             tokio::spawn(find_members(arc_authority.clone()));
 
+            let server = Server::new(arc_authority.to_owned());
             for ip in listen_ips {
                 info!("Your IP for this network: {}", ip);
 
-                let server = Server::new(arc_authority.to_owned());
-                tokio::spawn(server.listen(SocketAddr::new(ip, 53), Duration::new(0, 1000)));
+                let certs = rustls_pemfile::read_all(&mut BufReader::new(std::fs::File::open(
+                    "cert.pem",
+                )?))?
+                .iter()
+                .filter_map(|i| match i {
+                    Item::X509Certificate(i) => Some(rustls::Certificate(i.clone())),
+                    _ => None,
+                })
+                .collect::<Vec<rustls::Certificate>>();
+
+                let key = rustls::PrivateKey(
+                    match rustls_pemfile::read_one(&mut BufReader::new(std::fs::File::open(
+                        "cert.key",
+                    )?))?
+                    .unwrap()
+                    {
+                        Item::RSAKey(i) | Item::ECKey(i) | Item::PKCS8Key(i) => i,
+                        _ => Vec::new(),
+                    },
+                );
+
+                tokio::spawn(server.clone().listen(ip, Duration::new(1, 0), certs, key));
             }
 
             return Ok(arc_authority);
