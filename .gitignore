@@ -2,3 +2,6 @@
 .token
 test-token.txt
 /test.yaml
+/*.pem
+/*.crt
+/*.key
