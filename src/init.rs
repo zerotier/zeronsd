@@ -1,14 +1,19 @@
-use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 
 use openssl::{pkey::PKey, stack::Stack, x509::X509};
 
-use crate::{addresses::*, authority::*, server::*, utils::*};
+use crate::{
+    addresses::*,
+    authority::{find_members, RecordAuthority, ZTAuthority},
+    server::*,
+    traits::ToPointerSOA,
+    utils::*,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Launcher {
@@ -46,8 +51,6 @@ impl FromStr for ConfigFormat {
     }
 }
 
-type ArcAuthority = Arc<RwLock<ZTAuthority>>;
-
 impl Default for Launcher {
     fn default() -> Self {
         Launcher {
@@ -84,14 +87,14 @@ impl Launcher {
         Ok(l)
     }
 
-    pub async fn start(&self) -> Result<ArcAuthority, anyhow::Error> {
+    pub async fn start(&self) -> Result<ZTAuthority, anyhow::Error> {
         if self.network_id.is_none() {
             return Err(anyhow!("network ID is invalid; cannot continue"));
         }
 
         let domain_name = domain_or_default(self.domain.as_deref())?;
         let authtoken = authtoken_path(self.secret.as_deref());
-        let token = central_config(central_token(self.token.as_deref())?);
+        let config = central_config(central_token(self.token.as_deref())?);
 
         info!("Welcome to ZeroNS!");
         let ips = get_listen_ips(&authtoken, &self.network_id.clone().unwrap()).await?;
@@ -103,7 +106,7 @@ impl Launcher {
                 ips.iter()
                     .map(|i| parse_ip_from_cidr(i.clone()).to_string())
                     .collect(),
-                token.clone(),
+                config.clone(),
                 self.network_id.clone().unwrap(),
             )
             .await?;
@@ -111,7 +114,7 @@ impl Launcher {
             let mut listen_ips = Vec::new();
             let mut ipmap = HashMap::new();
             let mut authority_map = HashMap::new();
-            let authority = init_trust_dns_authority(domain_name.clone());
+            let authority = RecordAuthority::new(domain_name.clone().into()).await?;
 
             for cidr in ips.clone() {
                 let listen_ip = parse_ip_from_cidr(cidr.clone());
@@ -122,13 +125,14 @@ impl Launcher {
                 }
 
                 if !authority_map.contains_key(&cidr) {
-                    let ptr_authority = new_ptr_authority(cidr)?;
+                    log::debug!("{}", cidr.to_ptr_soa_name()?);
+                    let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name()?).await?;
                     authority_map.insert(cidr, ptr_authority);
                 }
             }
 
             let network = zerotier_central_api::apis::network_api::get_network_by_id(
-                &token,
+                &config,
                 &self.network_id.clone().unwrap(),
             )
             .await?;
@@ -144,32 +148,26 @@ impl Launcher {
                 if v6assign.rfc4193.unwrap_or(false) {
                     let cidr = network.clone().rfc4193().unwrap();
                     if !authority_map.contains_key(&cidr) {
-                        let ptr_authority = new_ptr_authority(cidr)?;
+                        let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name()?).await?;
                         authority_map.insert(cidr, ptr_authority);
                     }
                 }
             }
 
-            // ZTAuthority more or less is the mainloop. Setup continues below.
-            let mut ztauthority = ZTAuthority::new(
-                domain_name.clone(),
-                self.network_id.clone().unwrap(),
-                token.clone(),
-                self.hosts.clone(),
-                authority_map.clone(),
-                Duration::new(30, 0),
-                authority.clone(),
-            );
+            let ztauthority = ZTAuthority {
+                config,
+                network_id: self.network_id.clone().unwrap(),
+                hosts: None, // this will be parsed later.
+                hosts_file: self.hosts.clone(),
+                reverse_authority_map: authority_map,
+                forward_authority: authority,
+                wildcard: self.wildcard,
+                update_interval: Duration::new(30, 0),
+            };
 
-            if self.wildcard {
-                ztauthority.wildcard_everything();
-            }
+            tokio::spawn(find_members(ztauthority.clone()));
 
-            let arc_authority = Arc::new(RwLock::new(ztauthority));
-
-            tokio::spawn(find_members(arc_authority.clone()));
-
-            let server = Server::new(arc_authority.to_owned());
+            let server = Server::new(ztauthority.to_owned());
             for ip in listen_ips {
                 info!("Your IP for this network: {}", ip);
 
@@ -200,14 +198,16 @@ impl Launcher {
                         stack.push(cert)?;
                     }
                     Some((tls_cert.unwrap(), Some(stack)))
-                } else {
+                } else if tls_cert.is_some() {
                     Some((tls_cert.unwrap(), None))
+                } else {
+                    None
                 };
 
                 tokio::spawn(server.clone().listen(ip, Duration::new(1, 0), certs, key));
             }
 
-            return Ok(arc_authority);
+            return Ok(ztauthority);
         }
 
         return Err(anyhow!(

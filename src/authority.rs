@@ -3,27 +3,24 @@ use std::{
     net::IpAddr,
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, RwLock, RwLockWriteGuard},
+    sync::Arc,
     time::Duration,
 };
 
+use async_trait::async_trait;
 use ipnetwork::IpNetwork;
-use log::{error, info, warn};
-use tokio::sync::RwLockReadGuard;
 use trust_dns_resolver::{
     config::NameServerConfigGroup,
-    proto::{
-        error::ProtoError,
-        rr::{dnssec::SupportedAlgorithms, rdata::SOA, RecordSet},
-    },
-    IntoName,
+    proto::rr::{dnssec::SupportedAlgorithms, rdata::SOA, RData, Record, RecordSet, RecordType},
+    IntoName, Name,
 };
-
 use trust_dns_server::{
     authority::{AuthorityObject, Catalog},
-    client::rr::{LowerName, Name, RData, Record, RecordType, RrKey},
-    store::forwarder::ForwardAuthority,
-    store::{forwarder::ForwardConfig, in_memory::InMemoryAuthority},
+    client::rr::{LowerName, RrKey},
+    store::{
+        forwarder::{ForwardAuthority, ForwardConfig},
+        in_memory::InMemoryAuthority,
+    },
 };
 use zerotier_central_api::{
     apis::configuration::Configuration,
@@ -33,294 +30,37 @@ use zerotier_central_api::{
 use crate::{
     addresses::Calculator,
     hosts::{parse_hosts, HostsFile},
+    traits::{ToPointerSOA, ToWildcard},
     utils::{parse_member_name, ToHostname},
 };
 
-pub trait ToPointerSOA {
-    fn to_ptr_soa_name(self) -> Result<Name, ProtoError>;
-}
-
-impl ToPointerSOA for IpNetwork {
-    fn to_ptr_soa_name(self) -> Result<Name, ProtoError> {
-        // how many bits in each ptr octet
-        let octet_factor = match self {
-            IpNetwork::V4(_) => 8,
-            IpNetwork::V6(_) => 4,
-        };
-
-        Ok(self
-            .network()
-            .into_name()?
-            // round off the subnet, account for in-addr.arpa.
-            .trim_to((self.prefix() as usize / octet_factor) + 2))
-    }
-}
-
-pub trait ToWildcard {
-    fn to_wildcard(self, count: u8) -> Name;
-}
-
-impl ToWildcard for Name {
-    fn to_wildcard(self, count: u8) -> Name {
-        let mut name = Self::from_str("*").unwrap();
-        for _ in 0..count {
-            name = name.append_domain(&Self::from_str("*").unwrap());
-        }
-
-        name.append_domain(&self).into_wildcard()
-    }
-}
-
-pub type TokioZTAuthority = Arc<tokio::sync::RwLock<ZTAuthority>>;
-// Authority is lock managed, and kept on the heap. Be mindful when modifying through the Arc.
-pub type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
-pub type PtrAuthorityMap = HashMap<IpNetwork, Authority>;
-
-pub fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Error> {
-    Ok(init_trust_dns_authority(ip.to_ptr_soa_name()?))
-}
-
-// find_members waits for the update_interval time, then populates the authority based on the
-// members list. This call is fairly high level; most of the other calls are called by it
-// indirectly.
-pub async fn find_members(zt: TokioZTAuthority) {
-    let read = zt.read().await;
-    let mut interval = tokio::time::interval(read.update_interval);
-    drop(read);
+pub async fn find_members(mut zt: ZTAuthority) {
+    let mut timer = tokio::time::interval(zt.update_interval);
 
     loop {
-        interval.tick().await;
+        match zt.configure_hosts().await {
+            Ok(_) => {}
+            Err(e) => log::error!("error refreshing hosts file: {}", e),
+        }
 
-        zt.write()
-            .await
-            .configure_hosts()
-            .expect("Could not configure authority from hosts file");
-
-        match get_members(zt.read().await).await {
-            Ok((network, members)) => match zt.write().await.configure_members(network, members) {
+        match zt.get_members().await {
+            Ok((network, members)) => match zt.configure_members(network, members).await {
                 Ok(_) => {}
                 Err(e) => {
-                    error!("error configuring authority: {}", e)
+                    log::error!("error configuring authority: {}", e)
                 }
             },
             Err(e) => {
-                error!("error syncing members: {}", e)
+                log::error!("error syncing members: {}", e)
             }
         }
+
+        timer.tick().await;
     }
 }
 
-// get_members is a convenience method for the openapi calls required to get member and network
-// information. It could be named better.
-async fn get_members(
-    zt: RwLockReadGuard<'_, ZTAuthority>,
-) -> Result<(Network, Vec<Member>), anyhow::Error> {
-    let config = zt.config.clone();
-    let network = zt.network.clone();
-
-    let members =
-        zerotier_central_api::apis::network_member_api::get_network_member_list(&config, &network)
-            .await?;
-
-    let network =
-        zerotier_central_api::apis::network_api::get_network_by_id(&config, &network).await?;
-
-    Ok((network, members))
-}
-
-// prune_records walks the authority and a tracked list of the most recent writes. Then, it
-// subtracts the items in the authority that are not in the tracked list.
-fn prune_records(authority: Authority, written: Vec<Name>) -> Result<(), anyhow::Error> {
-    let mut rrkey_list = Vec::new();
-    let mut lock = authority
-        .write()
-        .expect("Could not acquire write lock on authority");
-
-    let rr = lock.records_mut();
-
-    for (rrkey, rs) in rr.clone() {
-        let key = &rrkey.name().into_name()?;
-        if !written.contains(key) && rs.record_type() != RecordType::SOA {
-            rrkey_list.push(rrkey);
-        }
-    }
-
-    for rrkey in rrkey_list {
-        warn!("Removing expired record {}", rrkey.name());
-        rr.remove(&rrkey);
-    }
-
-    Ok(())
-}
-
-// upsert_address is a convenience function to transform and insert any record, v4, v6, and ptr
-// variants.
-fn upsert_address(
-    authority: &mut RwLockWriteGuard<InMemoryAuthority>,
-    fqdn: Name,
-    rt: RecordType,
-    rdatas: Vec<RData>,
-) {
-    let serial = authority.serial() + 1;
-    let records = authority.records_mut();
-    let key = RrKey::new(LowerName::from(fqdn.clone()), rt);
-
-    records.remove(&key);
-
-    for rdata in rdatas {
-        if match rt {
-            RecordType::A => match rdata {
-                RData::A(_) => Some(()),
-                _ => None,
-            },
-            RecordType::AAAA => match rdata {
-                RData::AAAA(_) => Some(()),
-                _ => None,
-            },
-            RecordType::PTR => match rdata {
-                RData::PTR(_) => Some(()),
-                _ => None,
-            },
-            _ => None,
-        }
-        .is_some()
-        {
-            let mut address = Record::with(fqdn.clone(), rt, 60);
-            address.set_rdata(rdata.clone());
-            info!("Adding new record {}: ({})", fqdn.clone(), rdata.clone());
-            authority.upsert(address, serial);
-        }
-    }
-}
-
-// set_ptr_record transforms member information into a ptr record.
-fn set_ptr_record(
-    authority: &mut RwLockWriteGuard<InMemoryAuthority>,
-    ip_name: Name,
-    canonical_name: Name,
-) {
-    warn!(
-        "Replacing PTR record {}: ({})",
-        ip_name.clone(),
-        canonical_name
-    );
-
-    authority.records_mut().remove(&RrKey::new(
-        ip_name
-            .clone()
-            .into_name()
-            .expect("Could not coerce IP address into DNS name")
-            .into(),
-        RecordType::PTR,
-    ));
-
-    upsert_address(
-        authority,
-        ip_name.clone(),
-        RecordType::PTR,
-        vec![RData::PTR(canonical_name)],
-    );
-}
-
-// replace_ip_record replaces an IP record of either v4 or v6 type.
-fn replace_ip_record(
-    authority: &mut RwLockWriteGuard<InMemoryAuthority>,
-    name: Name,
-    rt: RecordType,
-    newips: Vec<IpAddr>,
-) {
-    upsert_address(
-        authority,
-        name.clone(),
-        rt,
-        newips
-            .into_iter()
-            .map(|i| match i {
-                IpAddr::V4(i) => RData::A(i),
-                IpAddr::V6(i) => RData::AAAA(i),
-            })
-            .collect(),
-    );
-}
-
-// configure_ptr is a frontend for set_ptr_record that acquires locks and other stuff.
-fn configure_ptr(
-    authority: Authority,
-    ip: Name,
-    canonical_name: Name,
-) -> Result<(), anyhow::Error> {
-    let lock = &mut authority
-        .write()
-        .expect("Could not acquire authority write lock");
-
-    match lock
-        .records()
-        .get(&RrKey::new(ip.clone().into(), RecordType::PTR))
-    {
-        Some(records) => {
-            if !records
-                .records(false, SupportedAlgorithms::all())
-                .any(|rec| rec.rdata().eq(&RData::PTR(canonical_name.clone())))
-            {
-                set_ptr_record(lock, ip.clone(), canonical_name.clone());
-            }
-        }
-        None => set_ptr_record(lock, ip.clone(), canonical_name.clone()),
-    }
-    Ok(())
-}
-
-// set_soa should only be called once per authority; it configures the SOA record for the zone.
-pub fn get_soa(domain_name: Name) -> Record {
-    let mut soa = Record::new();
-    soa.set_name(domain_name.clone());
-    soa.set_rr_type(RecordType::SOA);
-    soa.set_rdata(RData::SOA(SOA::new(
-        domain_name.clone(),
-        Name::from_str("administrator")
-            .unwrap()
-            .append_domain(&domain_name),
-        1,
-        30,
-        0,
-        -1,
-        0,
-    )));
-    soa
-}
-
-// init_trust_dns_authority is a really ugly constructor.
-pub fn init_trust_dns_authority(domain_name: Name) -> Authority {
-    let mut map = BTreeMap::new();
-    let soa = get_soa(domain_name.clone());
-    let mut rs = RecordSet::new(&domain_name, RecordType::SOA, 1);
-    rs.insert(soa, 1);
-
-    map.insert(RrKey::new(domain_name.clone().into(), RecordType::SOA), rs);
-
-    let authority = InMemoryAuthority::new(
-        domain_name.clone(),
-        map,
-        trust_dns_server::authority::ZoneType::Primary,
-        false,
-    )
-    .expect("could not construct authority");
-
-    Box::new(Arc::new(RwLock::new(authority)))
-}
-
-// init_catalog: also a really ugly constructor, but in this case initializes the whole trust-dns
-// subsystem.
-pub async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow::Error> {
-    let read = zt.read().await;
-
+pub async fn init_catalog(zt: ZTAuthority) -> Result<Catalog, anyhow::Error> {
     let mut catalog = Catalog::default();
-    catalog.upsert(read.domain_name.clone().into(), read.authority.box_clone());
-    for (network, authority) in read.ptr_authority_map.clone() {
-        catalog.upsert(network.to_ptr_soa_name()?.into(), authority.box_clone());
-    }
-
-    drop(read);
 
     let resolv = trust_dns_resolver::system_conf::read_system_conf()?;
     let mut nsconfig = NameServerConfigGroup::new();
@@ -343,281 +83,67 @@ pub async fn init_catalog(zt: TokioZTAuthority) -> Result<Catalog, anyhow::Error
     .await
     .expect("Could not initialize forwarder");
 
+    catalog.upsert(Name::root().into(), Box::new(Arc::new(forwarder)));
+
     catalog.upsert(
-        Name::root().into(),
-        Box::new(Arc::new(RwLock::new(forwarder))),
+        zt.forward_authority.domain_name.clone().into(),
+        zt.forward_authority.box_clone(),
     );
+
+    for (network, authority) in zt.reverse_authority_map {
+        catalog.upsert(network.to_ptr_soa_name()?.into(), authority.box_clone())
+    }
 
     Ok(catalog)
 }
 
-// ZTRecord is the encapsulation of a single record; Members are usually transformed into this
-// struct.
-pub struct ZTRecord {
-    fqdn: Name,
-    canonical_name: Option<Name>,
-    ptr_name: Name,
-    ips: Vec<IpAddr>,
-    wildcard_everything: bool,
-    member: Member,
-}
-
-impl ZTRecord {
-    pub fn new(
-        member: &Member,
-        sixplane: Option<IpNetwork>,
-        rfc4193: Option<IpNetwork>,
-        domain_name: Name,
-        wildcard_everything: bool,
-    ) -> Result<Self, anyhow::Error> {
-        let member_name = format!(
-            "zt-{}",
-            member
-                .clone()
-                .node_id
-                .expect("Node ID for member does not exist")
-        );
-
-        let fqdn = member_name.clone().to_fqdn(domain_name.clone())?;
-
-        // this is default the zt-<member id> but can switch to a named name if
-        // tweaked in central. see below.
-        let mut canonical_name = None;
-        let mut ptr_name = fqdn.clone();
-
-        if let Some(name) = parse_member_name(member.name.clone(), domain_name.clone()) {
-            canonical_name = Some(name.clone());
-            ptr_name = name;
-        }
-
-        let mut ips: Vec<IpAddr> = member
-            .clone()
-            .config
-            .expect("Member config does not exist")
-            .ip_assignments
-            .expect("IP assignments for member do not exist")
-            .into_iter()
-            .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
-            .collect();
-
-        if sixplane.is_some() {
-            ips.push(member.clone().sixplane()?.ip());
-        }
-
-        if rfc4193.is_some() {
-            ips.push(member.clone().rfc4193()?.ip());
-        }
-
-        Ok(Self {
-            member: member.clone(),
-            wildcard_everything,
-            fqdn,
-            canonical_name,
-            ptr_name,
-            ips,
-        })
-    }
-
-    // insert_records is hopefully well-named.
-    pub fn insert_records(&self, records: &mut Vec<Name>) {
-        records.push(self.fqdn.clone());
-
-        for ip in self.ips.clone() {
-            records.push(ip.into_name().expect("Could not coerce IP into name"))
-        }
-
-        if self.canonical_name.is_some() {
-            records.push(self.canonical_name.clone().unwrap());
-            if self.wildcard_everything {
-                records.push(self.get_canonical_wildcard().unwrap())
-            }
-        }
-
-        if self.wildcard_everything {
-            records.push(self.fqdn.clone().to_wildcard(0))
-        }
-    }
-
-    // get_canonical_wildcard is a function to combine canonical_name (named members) and wildcard functionality.
-    pub fn get_canonical_wildcard(&self) -> Option<Name> {
-        if self.canonical_name.is_none() {
-            return None;
-        }
-
-        Some(self.canonical_name.clone().unwrap().to_wildcard(0))
-    }
-
-    // insert_authority is not very well named, but performs the function of inserting a ZTRecord
-    // into a ZTAuthority.
-    pub fn insert_authority(&self, authority: &ZTAuthority) -> Result<(), anyhow::Error> {
-        authority.match_or_insert(self.fqdn.clone(), &self.ips);
-
-        if self.wildcard_everything {
-            authority.match_or_insert(self.fqdn.clone().to_wildcard(0), &self.ips);
-        }
-
-        if self.canonical_name.is_some() {
-            authority.match_or_insert(self.canonical_name.clone().unwrap(), &self.ips);
-            if self.wildcard_everything {
-                authority.match_or_insert(self.get_canonical_wildcard().unwrap(), &self.ips)
-            }
-        }
-
-        Ok(())
-    }
-
-    // insert_member_ptr is a lot like insert_authority, but for PTRs.
-    pub fn insert_member_ptr(
-        &self,
-        authority_map: PtrAuthorityMap,
-        _sixplane: Option<IpNetwork>,
-        rfc4193: Option<IpNetwork>,
-        records: &mut Vec<Name>,
-    ) -> Result<(), anyhow::Error> {
-        for ip in self.ips.clone() {
-            for (network, authority) in authority_map.clone() {
-                if network.contains(ip) {
-                    let ip = ip.into_name().expect("Could not coerce IP into name");
-                    records.push(ip.clone());
-                    configure_ptr(authority.clone(), ip, self.ptr_name.clone())?;
-                }
-            }
-        }
-
-        if let Some(rfc4193) = rfc4193 {
-            let ptr = self.member.clone().rfc4193()?.network().into_name()?;
-
-            records.push(ptr.clone());
-
-            if let Some(authority) = authority_map.get(&rfc4193) {
-                configure_ptr(authority.clone(), ptr, self.ptr_name.clone())?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-// ZTAuthority is the customized trust-dns authority.
 #[derive(Clone)]
 pub struct ZTAuthority {
-    ptr_authority_map: PtrAuthorityMap,
-    authority: Authority,
-    domain_name: Name,
-    network: String,
-    config: Configuration,
-    hosts_file: Option<PathBuf>,
-    hosts: Option<Box<HostsFile>>,
-    update_interval: Duration,
-    wildcard_everything: bool,
+    pub network_id: String,
+    pub hosts_file: Option<PathBuf>,
+    pub config: Configuration,
+    pub reverse_authority_map: HashMap<IpNetwork, RecordAuthority>,
+    pub forward_authority: RecordAuthority,
+    pub wildcard: bool,
+    pub update_interval: Duration,
+    pub hosts: Option<Box<HostsFile>>,
 }
 
 impl ZTAuthority {
-    pub fn new(
-        domain_name: Name,
-        network: String,
-        config: Configuration,
-        hosts_file: Option<PathBuf>,
-        ptr_authority_map: PtrAuthorityMap,
-        update_interval: Duration,
-        authority: Authority,
-    ) -> Self {
-        Self {
-            update_interval,
-            domain_name: domain_name.clone(),
-            network,
-            config,
-            authority,
-            ptr_authority_map,
-            hosts_file,
-            hosts: None,
-            wildcard_everything: false,
-        }
-    }
+    pub async fn configure_hosts(&mut self) -> Result<(), anyhow::Error> {
+        self.hosts = Some(Box::new(parse_hosts(
+            self.hosts_file.clone(),
+            self.forward_authority.domain_name.clone().into(),
+        )?));
 
-    pub fn authority(&self) -> Authority {
-        self.authority.clone()
-    }
-
-    pub fn wildcard_everything(&mut self) {
-        self.wildcard_everything = true;
-    }
-
-    // match_or_insert avoids duplicate names by finding them first and removing them. Contrast
-    // it makes heavy use of replace_ip_record to perform this function.
-    pub fn match_or_insert(&self, name: Name, newips: &[IpAddr]) {
-        let rdatas: Vec<RData> = newips
-            .iter()
-            .map(|&ip| match ip {
-                IpAddr::V4(ip) => RData::A(ip),
-                IpAddr::V6(ip) => RData::AAAA(ip),
-            })
-            .collect();
-
-        for rt in [RecordType::A, RecordType::AAAA] {
-            let lock = self
-                .authority
-                .read()
-                .expect("Could not get authority read lock");
-
-            // for the record type, fetch the named record.
-            let rs = lock.records().get(&RrKey::new(name.clone().into(), rt));
-
-            // gather all the ips (v6 too) for the record.
-            let ips: Vec<IpAddr> = newips
-                .iter()
-                .copied()
-                .filter(|ip| {
-                    matches!(
-                        (ip, rt),
-                        (IpAddr::V4(_), RecordType::A) | (IpAddr::V6(_), RecordType::AAAA)
-                    )
-                })
-                .collect();
-
-            match rs {
-                Some(rs) => {
-                    let records = rs.records(false, SupportedAlgorithms::all());
-                    if records.is_empty()
-                        || !records.into_iter().all(|r| rdatas.contains(r.rdata()))
-                    {
-                        drop(lock);
-                        if !ips.is_empty() {
-                            replace_ip_record(
-                                &mut self.authority.write().expect("write lock"),
-                                name.clone(),
-                                rt,
-                                ips,
-                            );
-                        }
-                    }
-                }
-                None => {
-                    drop(lock);
-                    if !ips.is_empty() {
-                        replace_ip_record(
-                            &mut self.authority.write().expect("write lock"),
-                            name.clone(),
-                            rt,
-                            ips,
-                        );
-                    }
-                }
+        for (ip, hostnames) in self.hosts.clone().unwrap().iter() {
+            for hostname in hostnames {
+                self.forward_authority
+                    .match_or_insert(hostname.clone(), &[*ip])
+                    .await;
             }
         }
+
+        Ok(())
     }
 
-    // configure_members merges the hosts lists and members list with allll the network options to
-    // basically mutate the authority into shape.
-    fn configure_members(
-        &mut self,
+    pub async fn configure_members(
+        &self,
         network: Network,
         members: Vec<Member>,
     ) -> Result<(), anyhow::Error> {
-        let mut records = vec![self.domain_name.clone()];
-        if let Some(hosts) = self.hosts.to_owned() {
-            self.prune_hosts();
-            records.append(&mut hosts.values().flatten().map(|v| v.clone()).collect());
+        let mut forward_records = vec![self.forward_authority.domain_name.clone()];
+        let mut reverse_records = HashMap::new();
+
+        self.reverse_authority_map
+            .iter()
+            .for_each(|(network, authority)| {
+                reverse_records.insert(network, vec![authority.domain_name.clone()]);
+            });
+
+        if let Some(hosts) = self.hosts.clone() {
+            self.forward_authority.prune_hosts(hosts.clone()).await?;
+            forward_records.append(&mut hosts.values().flatten().map(|v| v.into()).collect());
         }
 
         let (mut sixplane, mut rfc4193) = (None, None);
@@ -628,13 +154,11 @@ impl ZTAuthority {
             if v6assign.var_6plane.unwrap_or(false) {
                 let s = network.clone().sixplane()?;
                 sixplane = Some(s);
-                records.push(s.to_ptr_soa_name()?);
             }
 
             if v6assign.rfc4193.unwrap_or(false) {
                 let s = network.clone().rfc4193()?;
                 rfc4193 = Some(s);
-                records.push(s.to_ptr_soa_name()?);
             }
         }
 
@@ -643,56 +167,129 @@ impl ZTAuthority {
                 &member,
                 sixplane,
                 rfc4193,
-                self.domain_name.clone(),
-                self.wildcard_everything,
+                self.forward_authority.domain_name.clone().into(),
+                self.wildcard,
             )?;
-            record.insert_authority(self)?;
-            record.insert_member_ptr(
-                self.ptr_authority_map.to_owned(),
-                sixplane,
-                rfc4193,
-                &mut records,
-            )?;
-            record.insert_records(&mut records);
-        }
 
-        prune_records(self.authority.to_owned(), records.clone())?;
-        for authority in self.ptr_authority_map.values() {
-            prune_records(authority.to_owned(), records.clone())?;
-        }
+            self.forward_authority
+                .insert_member(&mut forward_records, record.clone())
+                .await?;
 
-        Ok(())
-    }
-
-    // configure_hosts is for /etc/hosts format management
-    fn configure_hosts(&mut self) -> Result<(), anyhow::Error> {
-        self.hosts = Some(Box::new(parse_hosts(
-            self.hosts_file.clone(),
-            self.domain_name.clone(),
-        )?));
-
-        for (ip, hostnames) in self.hosts.clone().unwrap().iter() {
-            for hostname in hostnames {
-                self.match_or_insert(hostname.clone(), &[*ip]);
+            if let Some(ips) = member.config.and_then(|c| {
+                c.ip_assignments.and_then(|ips| {
+                    Some(
+                        ips.iter()
+                            .filter_map(|ip| IpAddr::from_str(ip).map_or(None, |ip| Some(ip)))
+                            .collect::<Vec<IpAddr>>(),
+                    )
+                })
+            }) {
+                for (network, authority) in self.reverse_authority_map.clone() {
+                    for ip in ips.clone() {
+                        if network.contains(ip) {
+                            authority
+                                .insert_member_ptr(
+                                    reverse_records.get_mut(&network).unwrap(),
+                                    record.clone(),
+                                )
+                                .await?;
+                        }
+                    }
+                }
             }
         }
+
+        self.forward_authority
+            .prune_records(forward_records.clone())
+            .await?;
+
+        for (network, authority) in self.reverse_authority_map.clone() {
+            authority
+                .prune_records(reverse_records.get(&network).unwrap().clone())
+                .await?;
+        }
+
         Ok(())
     }
 
-    // prune_hosts removes the hosts after a /etc/hosts update is detected
-    fn prune_hosts(&mut self) {
-        if self.hosts.is_none() {
-            return;
+    pub async fn get_members(&self) -> Result<(Network, Vec<Member>), anyhow::Error> {
+        let config = self.config.clone();
+        let network_id = self.network_id.clone();
+
+        let members = zerotier_central_api::apis::network_member_api::get_network_member_list(
+            &config,
+            &network_id,
+        )
+        .await?;
+
+        let network =
+            zerotier_central_api::apis::network_api::get_network_by_id(&config, &network_id)
+                .await?;
+
+        Ok((network, members))
+    }
+}
+
+#[derive(Clone)]
+pub struct RecordAuthority {
+    domain_name: LowerName,
+    authority: Arc<InMemoryAuthority>,
+}
+
+impl RecordAuthority {
+    pub async fn new(domain_name: LowerName) -> Result<Self, anyhow::Error> {
+        Ok(Self {
+            authority: Arc::new(Self::configure_authority(domain_name.clone().into()).await?),
+            domain_name,
+        })
+    }
+
+    async fn configure_authority(domain_name: Name) -> Result<InMemoryAuthority, anyhow::Error> {
+        let mut map = BTreeMap::new();
+        let mut soa = Record::with(domain_name.clone(), RecordType::SOA, 30);
+
+        soa.set_data(Some(RData::SOA(SOA::new(
+            domain_name.clone(),
+            Name::from_str("administrator")?.append_domain(&domain_name.clone().into())?,
+            1,
+            30,
+            0,
+            -1,
+            0,
+        ))));
+
+        let mut rs = RecordSet::new(&domain_name.clone(), RecordType::SOA, 1);
+        rs.insert(soa, 1);
+        map.insert(RrKey::new(domain_name.clone().into(), RecordType::SOA), rs);
+
+        let authority = InMemoryAuthority::new(
+            domain_name.clone(),
+            map,
+            trust_dns_server::authority::ZoneType::Primary,
+            false,
+        )
+        .expect("Could not initialize authority");
+
+        Ok(authority)
+    }
+
+    async fn replace_ip_record(&self, fqdn: Name, rdatas: Vec<RData>) {
+        let serial = self.authority.serial().await;
+        for rdata in rdatas {
+            let mut address = Record::with(fqdn.clone(), rdata.to_record_type(), 60);
+            address.set_data(Some(rdata.clone()));
+            log::info!("Adding new record {}: ({})", fqdn.clone(), rdata);
+            self.authority.upsert(address, serial).await;
         }
+    }
 
-        let mut lock = self.authority.write().expect("Pruning hosts write lock");
-
-        let serial = lock.serial();
-        let rr = lock.records_mut();
+    async fn prune_hosts(&self, hosts: Box<HostsFile>) -> Result<(), anyhow::Error> {
+        let serial = self.authority.serial().await;
+        let mut rr = self.authority.records_mut().await;
 
         let mut hosts_map = HashMap::new();
 
-        for (ip, hosts) in self.hosts.to_owned().unwrap().into_iter() {
+        for (ip, hosts) in hosts.to_owned().into_iter() {
             for host in hosts {
                 if !hosts_map.contains_key(&host) {
                     hosts_map.insert(host.clone(), vec![]);
@@ -731,18 +328,312 @@ impl ZTAuthority {
 
                 if key.eq(&host)
                     && (records.is_empty()
-                        || !records.map(|r| r.rdata()).all(|rd| rdatas.contains(rd)))
+                        || !records
+                            .map(|r| r.data().unwrap())
+                            .all(|rd| rdatas.contains(rd)))
                 {
-                    let mut new_rset = RecordSet::new(key, rt, serial + 1);
+                    let mut new_rset = RecordSet::new(key, rt, serial);
                     for rdata in rdatas.clone() {
                         new_rset.add_rdata(rdata);
                     }
 
-                    warn!("Replacing host record for {} with {:?}", key, ips);
+                    log::warn!("Replacing host record for {} with {:?}", key, ips);
                     rr.remove(&rrkey);
-                    rr.insert(rrkey, Arc::new(new_rset));
+                    rr.insert(rrkey.clone(), Arc::new(new_rset));
                 }
             }
         }
+
+        Ok(())
+    }
+
+    async fn prune_records(&self, written: Vec<LowerName>) -> Result<(), anyhow::Error> {
+        let mut rrkey_list = Vec::new();
+
+        let mut rr = self.authority.records_mut().await;
+
+        for (rrkey, rs) in rr.clone() {
+            let key = &rrkey.name().into_name()?.into();
+            if !written.contains(key) && rs.record_type() != RecordType::SOA {
+                rrkey_list.push(rrkey);
+            }
+        }
+
+        for rrkey in rrkey_list {
+            log::warn!("Removing expired record {}", rrkey.name());
+            rr.remove(&rrkey);
+        }
+
+        Ok(())
+    }
+
+    pub async fn match_or_insert(&self, name: Name, ips: &[IpAddr]) {
+        let rdatas: Vec<RData> = ips
+            .iter()
+            .map(|&ip| match ip {
+                IpAddr::V4(ip) => RData::A(ip),
+                IpAddr::V6(ip) => RData::AAAA(ip),
+            })
+            .collect();
+
+        for rt in [RecordType::A, RecordType::AAAA] {
+            let type_records = self.authority.records().await.clone();
+            let name_records = type_records.get(&RrKey::new(name.clone().into(), rt));
+
+            let type_ips: Vec<IpAddr> = ips
+                .iter()
+                .copied()
+                .filter(|ip| {
+                    matches!(
+                        (ip, rt),
+                        (IpAddr::V4(_), RecordType::A) | (IpAddr::V6(_), RecordType::AAAA)
+                    )
+                })
+                .collect();
+
+            match name_records {
+                Some(name_records) => {
+                    if name_records.is_empty()
+                        || !name_records
+                            .records_without_rrsigs()
+                            .all(|r| rdatas.clone().contains(r.data().unwrap()))
+                    {
+                        if !type_ips.is_empty() {
+                            self.replace_ip_record(name.clone(), rdatas.clone()).await;
+                        }
+                    }
+                }
+                None => {
+                    if !type_ips.is_empty() {
+                        self.replace_ip_record(name.clone(), rdatas.clone()).await;
+                    }
+                }
+            }
+        }
+    }
+
+    async fn insert_member(
+        &self,
+        records: &mut Vec<LowerName>,
+        record: ZTRecord,
+    ) -> Result<(), anyhow::Error> {
+        self.match_or_insert(record.fqdn.clone(), &record.ips).await;
+        records.push(record.fqdn.clone().into());
+
+        if record.wildcard {
+            self.match_or_insert(record.fqdn.clone().to_wildcard(), &record.ips)
+                .await;
+            records.push(record.fqdn.clone().to_wildcard().into());
+        }
+
+        if record.custom_name.is_some() {
+            self.match_or_insert(record.custom_name.clone().unwrap(), &record.ips)
+                .await;
+            records.push(record.custom_name.clone().unwrap().into());
+
+            if record.wildcard {
+                self.match_or_insert(record.get_custom_wildcard().unwrap(), &record.ips)
+                    .await;
+                records.push(record.get_custom_wildcard().unwrap().into());
+            }
+        }
+
+        Ok(())
+    }
+
+    // insert_member_ptr is a lot like insert_authority, but for PTRs.
+    async fn insert_member_ptr(
+        &self,
+        records: &mut Vec<LowerName>,
+        record: ZTRecord,
+    ) -> Result<(), anyhow::Error> {
+        for ip in record.ips.clone() {
+            let ip = ip.into_name()?;
+            self.configure_ptr(ip.clone(), record.ptr_name.clone())
+                .await?;
+            records.push(ip.into());
+        }
+
+        if let Ok(ptr) = record.member.rfc4193() {
+            let ptr = ptr.network().into_name()?;
+            self.configure_ptr(ptr.clone(), record.ptr_name.clone())
+                .await?;
+            records.push(ptr.into());
+        }
+
+        Ok(())
+    }
+
+    async fn configure_ptr(&self, ptr: Name, fqdn: Name) -> Result<(), anyhow::Error> {
+        let records = self.authority.records().await.clone();
+
+        match records.get(&RrKey::new(ptr.clone().into(), RecordType::PTR)) {
+            Some(records) => {
+                if !records
+                    .records_without_rrsigs()
+                    .any(|rec| rec.data().unwrap().eq(&RData::PTR(fqdn.clone())))
+                {
+                    self.set_ptr_record(ptr.clone(), fqdn.clone()).await;
+                }
+            }
+            None => self.set_ptr_record(ptr.clone(), fqdn.clone()).await,
+        }
+
+        Ok(())
+    }
+
+    async fn set_ptr_record(&self, ptr: Name, fqdn: Name) {
+        log::info!("Adding/Replacing record {}: ({})", ptr, fqdn);
+
+        let mut records = self.authority.records_mut().await;
+        records.remove(&RrKey::new(
+            ptr.clone()
+                .into_name()
+                .expect("Could not coerce IP address into DNS name")
+                .into(),
+            RecordType::PTR,
+        ));
+        drop(records);
+
+        let serial = self.authority.serial().await;
+        let mut address = Record::with(ptr.clone(), RecordType::PTR, 60);
+        address.set_data(Some(RData::PTR(fqdn.clone())));
+
+        self.authority.upsert(address, serial).await;
+    }
+}
+
+#[async_trait]
+impl AuthorityObject for RecordAuthority {
+    fn box_clone(&self) -> Box<dyn AuthorityObject> {
+        Box::new(self.authority.clone())
+    }
+
+    fn zone_type(&self) -> trust_dns_server::authority::ZoneType {
+        trust_dns_server::authority::ZoneType::Primary
+    }
+
+    fn is_axfr_allowed(&self) -> bool {
+        false
+    }
+
+    async fn update(
+        &self,
+        update: &trust_dns_server::authority::MessageRequest,
+    ) -> trust_dns_server::authority::UpdateResult<bool> {
+        self.authority.update(update).await
+    }
+
+    fn origin(&self) -> &trust_dns_server::client::rr::LowerName {
+        &self.domain_name
+    }
+
+    async fn lookup(
+        &self,
+        name: &trust_dns_server::client::rr::LowerName,
+        rtype: RecordType,
+        lookup_options: trust_dns_server::authority::LookupOptions,
+    ) -> Result<
+        Box<dyn trust_dns_server::authority::LookupObject>,
+        trust_dns_server::authority::LookupError,
+    > {
+        self.authority.lookup(name, rtype, lookup_options).await
+    }
+
+    async fn search(
+        &self,
+        request_info: trust_dns_server::server::RequestInfo<'_>,
+        lookup_options: trust_dns_server::authority::LookupOptions,
+    ) -> Result<
+        Box<dyn trust_dns_server::authority::LookupObject>,
+        trust_dns_server::authority::LookupError,
+    > {
+        self.authority.search(request_info, lookup_options).await
+    }
+
+    async fn get_nsec_records(
+        &self,
+        name: &trust_dns_server::client::rr::LowerName,
+        lookup_options: trust_dns_server::authority::LookupOptions,
+    ) -> Result<
+        Box<dyn trust_dns_server::authority::LookupObject>,
+        trust_dns_server::authority::LookupError,
+    > {
+        self.authority.get_nsec_records(name, lookup_options).await
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ZTRecord {
+    fqdn: Name,
+    custom_name: Option<Name>,
+    ptr_name: Name,
+    ips: Vec<IpAddr>,
+    wildcard: bool,
+    member: Member,
+}
+
+impl ZTRecord {
+    pub fn new(
+        member: &Member,
+        sixplane: Option<IpNetwork>,
+        rfc4193: Option<IpNetwork>,
+        domain_name: Name,
+        wildcard: bool,
+    ) -> Result<Self, anyhow::Error> {
+        let member_name = format!(
+            "zt-{}",
+            member
+                .clone()
+                .node_id
+                .expect("Node ID for member does not exist")
+        );
+
+        let fqdn = member_name.clone().to_fqdn(domain_name.clone())?;
+
+        // this is default the zt-<member id> but can switch to a named name if
+        // tweaked in central. see below.
+        let mut custom_name = None;
+        let mut ptr_name = fqdn.clone();
+
+        if let Some(name) = parse_member_name(member.name.clone(), domain_name.clone()) {
+            custom_name = Some(name.clone());
+            ptr_name = name;
+        }
+
+        let mut ips: Vec<IpAddr> = member
+            .clone()
+            .config
+            .expect("Member config does not exist")
+            .ip_assignments
+            .expect("IP assignments for member do not exist")
+            .into_iter()
+            .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
+            .collect();
+
+        if sixplane.is_some() {
+            ips.push(member.clone().sixplane()?.ip());
+        }
+
+        if rfc4193.is_some() {
+            ips.push(member.clone().rfc4193()?.ip());
+        }
+
+        Ok(Self {
+            member: member.clone(),
+            wildcard,
+            fqdn,
+            custom_name,
+            ptr_name,
+            ips,
+        })
+    }
+
+    pub fn get_custom_wildcard(&self) -> Option<Name> {
+        if self.custom_name.is_none() {
+            return None;
+        }
+
+        Some(self.custom_name.clone().unwrap().to_wildcard())
     }
 }

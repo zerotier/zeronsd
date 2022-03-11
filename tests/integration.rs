@@ -137,6 +137,7 @@ mod sixplane {
                 let lookup = Name::from_str(&host)
                     .unwrap()
                     .append_domain(&Name::from_str(&rec).unwrap())
+                    .unwrap()
                     .to_string();
                 assert_eq!(
                     service.lookup_aaaa(lookup).await.first().unwrap(),
@@ -361,6 +362,7 @@ mod rfc4193 {
                 let lookup = Name::from_str(&host)
                     .unwrap()
                     .append_domain(&Name::from_str(&rec).unwrap())
+                    .unwrap()
                     .to_string();
                 assert_eq!(
                     service.lookup_aaaa(lookup).await.first().unwrap(),
@@ -420,6 +422,7 @@ mod ipv4 {
                 let lookup = Name::from_str(&host)
                     .unwrap()
                     .append_domain(&Name::from_str(&rec).unwrap())
+                    .unwrap()
                     .to_string();
                 assert_eq!(
                     service.lookup_a(lookup).await.first().unwrap(),

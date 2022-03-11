@@ -4,6 +4,7 @@ pub mod cli;
 pub mod hosts;
 pub mod server;
 pub mod supervise;
+pub mod traits;
 pub mod utils;
 
 pub mod init;

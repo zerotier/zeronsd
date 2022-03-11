@@ -3,26 +3,24 @@ use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
 };
-use tokio::net::{TcpListener, UdpSocket};
 
 use openssl::{
     pkey::{PKey, Private},
     stack::Stack,
     x509::X509,
 };
+use tokio::net::{TcpListener, UdpSocket};
 
 use trust_dns_server::server::ServerFuture;
 
-use crate::authority::{init_catalog, TokioZTAuthority};
+use crate::authority::{init_catalog, ZTAuthority};
 
 #[derive(Clone)]
-pub struct Server {
-    zt: TokioZTAuthority,
-}
+pub struct Server(ZTAuthority);
 
 impl Server {
-    pub fn new(zt: TokioZTAuthority) -> Self {
-        return Self { zt };
+    pub fn new(zt: ZTAuthority) -> Self {
+        return Self(zt);
     }
 
     // listener routine for TCP and UDP.
@@ -37,7 +35,7 @@ impl Server {
         let tcp = TcpListener::bind(sa).await?;
         let udp = UdpSocket::bind(sa).await?;
 
-        let mut sf = ServerFuture::new(init_catalog(self.zt.clone()).await?);
+        let mut sf = ServerFuture::new(init_catalog(self.0).await?);
 
         if certs.is_some() && key.is_some() {
             info!("Configuring DoT Listener");

@@ -211,7 +211,7 @@ impl ToHostname for &str {
     }
 
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
-        Ok(self.to_hostname()?.append_domain(&domain))
+        Ok(self.to_hostname()?.append_domain(&domain).unwrap())
     }
 }
 
@@ -237,6 +237,6 @@ impl ToHostname for String {
     }
 
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
-        Ok(self.to_hostname()?.append_domain(&domain))
+        Ok(self.to_hostname()?.append_domain(&domain).unwrap())
     }
 }

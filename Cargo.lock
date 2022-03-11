@@ -1262,8 +1262,6 @@ dependencies = [
 [[package]]
 name = "trust-dns-client"
 version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3be5f2ead860f0d3aabc01433bc6fff0fe5e86bfbe2dd16e32b9c79959310ad"
 dependencies = [
  "cfg-if",
  "data-encoding",
@@ -1283,8 +1281,6 @@ dependencies = [
 [[package]]
 name = "trust-dns-proto"
 version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2861b3ed517888174d13909e675c4e94b3291867512068be59d76533e4d1270c"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -1311,8 +1307,6 @@ dependencies = [
 [[package]]
 name = "trust-dns-resolver"
 version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9e737a252a617bd4774649e245dbf705e207275db0893b9fa824d49f074fc1c"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -1333,8 +1327,6 @@ dependencies = [
 [[package]]
 name = "trust-dns-server"
 version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4058838790565ba870cb800008c7b3b8a3f154afaece824ad9a91a80a4b81dfb"
 dependencies = [
  "async-trait",
  "bytes",

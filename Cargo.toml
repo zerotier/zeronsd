@@ -18,8 +18,8 @@ regex = ">= 0"
 anyhow = ">= 0"
 clap = { version = "^3", features = ["derive"] }
 ipnetwork = ">= 0"
-trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-openssl"] }
-trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-openssl"] } 
+trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-openssl"], path = "../../bluejekyll/trust-dns/crates/resolver" }
+trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-openssl"], path = "../../bluejekyll/trust-dns/crates/server" } 
 tokio = { version = "1", features = ["full"] }
 zerotier-central-api = { version = "= 1.0.3" }
 zerotier-one-api = { version = "= 1.0.5" }
@@ -34,9 +34,9 @@ log = ">=0"
 env_logger = ">=0"
 hex = ">=0"
 openssl = { version = ">= 0", features = [ "vendored" ] }
+async-trait = ">=0"
 
 [dev-dependencies]
-async-trait = ">=0"
 lazy_static = ">=0"
 
 [package.metadata.deb]

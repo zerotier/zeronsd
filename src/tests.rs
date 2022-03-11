@@ -310,7 +310,10 @@ fn test_parse_hosts() {
                     .unwrap()
                     .first()
                     .unwrap(),
-                &Name::from_str("localhost").unwrap().append_domain(domain),
+                &Name::from_str("localhost")
+                    .unwrap()
+                    .append_domain(domain)
+                    .unwrap(),
                 "{}",
                 path.path().display(),
             );
@@ -321,14 +324,17 @@ fn test_parse_hosts() {
                     .unwrap()
                     .first()
                     .unwrap(),
-                &Name::from_str("localhost").unwrap().append_domain(domain),
+                &Name::from_str("localhost")
+                    .unwrap()
+                    .append_domain(domain)
+                    .unwrap(),
                 "{}",
                 path.path().display(),
             );
 
             let mut accounted = vec!["islay.localdomain", "islay"]
                 .into_iter()
-                .map(|s| Name::from_str(s).unwrap().append_domain(domain));
+                .map(|s| Name::from_str(s).unwrap().append_domain(domain).unwrap());
 
             for name in table
                 .remove(&IpAddr::from_str("127.0.1.1").unwrap())
@@ -359,10 +365,16 @@ fn test_parse_hosts_duplicate() {
     assert!(result.is_some());
     let result = result.unwrap();
 
-    assert!(result.contains(&Name::from_str("hostname1").unwrap().append_domain(&domain)));
+    assert!(result.contains(
+        &Name::from_str("hostname1")
+            .unwrap()
+            .append_domain(&domain)
+            .unwrap()
+    ));
     assert!(result.contains(
         &Name::from_str("hostname2.corp")
             .unwrap()
             .append_domain(&domain)
+            .unwrap()
     ));
 }
