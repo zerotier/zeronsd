@@ -501,7 +501,12 @@ async fn create_listeners(
     for ip in listen_ips.clone() {
         let server = Server::new(arc_authority.to_owned());
         info!("Serving {}", ip.clone());
-        servers.push(tokio::spawn(server.listen(ip, Duration::new(0, 500))));
+        servers.push(tokio::spawn(server.listen(
+            ip.ip(),
+            Duration::new(0, 500),
+            None,
+            None,
+        )));
     }
 
     (listen_ips, authority_handle, servers)
@@ -522,6 +527,7 @@ fn create_resolvers(sockets: Vec<SocketAddr>) -> Resolvers {
             protocol: trust_dns_resolver::config::Protocol::Udp,
             tls_dns_name: None,
             trust_nx_responses: true,
+            tls_config: None,
         });
 
         let mut opts = ResolverOpts::default();
