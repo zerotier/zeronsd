@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     net::IpAddr,
     path::PathBuf,
     str::FromStr,
@@ -77,17 +77,7 @@ pub type Authority = Box<Arc<RwLock<InMemoryAuthority>>>;
 pub type PtrAuthorityMap = HashMap<IpNetwork, Authority>;
 
 pub fn new_ptr_authority(ip: IpNetwork) -> Result<Authority, anyhow::Error> {
-    let domain_name = ip.to_ptr_soa_name()?;
-
-    let mut authority = InMemoryAuthority::empty(
-        domain_name.clone(),
-        trust_dns_server::authority::ZoneType::Primary,
-        false,
-    );
-
-    set_soa(&mut authority, domain_name);
-
-    Ok(Box::new(Arc::new(RwLock::new(authority))))
+    Ok(init_trust_dns_authority(ip.to_ptr_soa_name()?))
 }
 
 // find_members waits for the update_interval time, then populates the authority based on the
@@ -281,7 +271,7 @@ fn configure_ptr(
 }
 
 // set_soa should only be called once per authority; it configures the SOA record for the zone.
-pub fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
+pub fn get_soa(domain_name: Name) -> Record {
     let mut soa = Record::new();
     soa.set_name(domain_name.clone());
     soa.set_rr_type(RecordType::SOA);
@@ -290,24 +280,32 @@ pub fn set_soa(authority: &mut InMemoryAuthority, domain_name: Name) {
         Name::from_str("administrator")
             .unwrap()
             .append_domain(&domain_name),
-        authority.serial() + 1,
+        1,
         30,
         0,
         -1,
         0,
     )));
-    authority.upsert(soa, authority.serial() + 1);
+    soa
 }
 
 // init_trust_dns_authority is a really ugly constructor.
 pub fn init_trust_dns_authority(domain_name: Name) -> Authority {
-    let mut authority = InMemoryAuthority::empty(
+    let mut map = BTreeMap::new();
+    let soa = get_soa(domain_name.clone());
+    let mut rs = RecordSet::new(&domain_name, RecordType::SOA, 1);
+    rs.insert(soa, 1);
+
+    map.insert(RrKey::new(domain_name.clone().into(), RecordType::SOA), rs);
+
+    let authority = InMemoryAuthority::new(
         domain_name.clone(),
+        map,
         trust_dns_server::authority::ZoneType::Primary,
         false,
-    );
+    )
+    .expect("could not construct authority");
 
-    set_soa(&mut authority, domain_name.clone());
     Box::new(Arc::new(RwLock::new(authority)))
 }
 
