@@ -17,9 +17,9 @@ use std::{
 use async_trait::async_trait;
 use ipnetwork::IpNetwork;
 use lazy_static::lazy_static;
-use tracing::{info, warn};
 use rand::prelude::{IteratorRandom, SliceRandom};
 use tokio::{sync::Mutex, task::JoinHandle};
+use tracing::{info, warn};
 use trust_dns_resolver::{
     config::{NameServerConfig, ResolverConfig, ResolverOpts},
     name_server::{GenericConnection, GenericConnectionProvider, TokioRuntime},
@@ -504,6 +504,7 @@ async fn create_listeners(
         servers.push(tokio::spawn(server.listen(
             ip.ip(),
             Duration::new(0, 500),
+            None,
             None,
             None,
         )));
