@@ -67,6 +67,9 @@ pub struct StartArgs {
     #[clap(long = "tls-cert", value_name = "PATH")]
     pub tls_cert: Option<PathBuf>,
 
+    #[clap(long = "chain-cert", value_name = "PATH")]
+    pub chain_cert: Option<PathBuf>,
+
     #[clap(long = "tls-key", value_name = "PATH")]
     pub tls_key: Option<PathBuf>,
 }
@@ -92,6 +95,7 @@ impl Into<Launcher> for StartArgs {
                 secret: self.secret,
                 token: self.token,
                 wildcard: self.wildcard,
+                chain_cert: self.chain_cert,
                 tls_cert: self.tls_cert,
                 tls_key: self.tls_key,
                 network_id: Some(self.network_id),
