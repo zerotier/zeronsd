@@ -1,13 +1,12 @@
-use std::{
-    collections::HashMap, io::BufReader, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
 use log::{info, warn};
-use rustls_pemfile::Item;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
+
+use openssl::{pkey::PKey, stack::Stack, x509::X509};
 
 use crate::{addresses::*, authority::*, server::*, utils::*};
 
@@ -17,6 +16,7 @@ pub struct Launcher {
     pub hosts: Option<PathBuf>,
     pub secret: Option<PathBuf>,
     pub token: Option<PathBuf>,
+    pub chain_cert: Option<PathBuf>,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
@@ -55,6 +55,7 @@ impl Default for Launcher {
             hosts: None,
             secret: None,
             token: None,
+            chain_cert: None,
             tls_cert: None,
             tls_key: None,
             wildcard: false,
@@ -172,35 +173,35 @@ impl Launcher {
             for ip in listen_ips {
                 info!("Your IP for this network: {}", ip);
 
-                let certs = if let Some(cert_path) = self.tls_cert.clone() {
-                    Some(
-                        rustls_pemfile::read_all(&mut BufReader::new(std::fs::File::open(
-                            cert_path,
-                        )?))?
-                        .iter()
-                        .filter_map(|i| match i {
-                            Item::X509Certificate(i) => Some(rustls::Certificate(i.clone())),
-                            _ => None,
-                        })
-                        .collect::<Vec<rustls::Certificate>>(),
-                    )
+                let tls_cert = if let Some(tls_cert) = self.tls_cert.clone() {
+                    let pem = std::fs::read(tls_cert)?;
+                    Some(X509::from_pem(&pem)?)
+                } else {
+                    None
+                };
+
+                let chain = if let Some(chain_cert) = self.chain_cert.clone() {
+                    let pem = std::fs::read(chain_cert)?;
+                    Some(X509::stack_from_pem(&pem)?)
                 } else {
                     None
                 };
 
                 let key = if let Some(key_path) = self.tls_key.clone() {
-                    Some(rustls::PrivateKey(
-                        match rustls_pemfile::read_one(&mut BufReader::new(std::fs::File::open(
-                            key_path,
-                        )?))?
-                        .unwrap()
-                        {
-                            Item::RSAKey(i) | Item::ECKey(i) | Item::PKCS8Key(i) => i,
-                            _ => Vec::new(),
-                        },
-                    ))
+                    let pem = std::fs::read(key_path)?;
+                    Some(PKey::private_key_from_pem(&pem)?)
                 } else {
                     None
+                };
+
+                let certs = if chain.is_some() {
+                    let mut stack = Stack::new()?;
+                    for cert in chain.unwrap() {
+                        stack.push(cert)?;
+                    }
+                    Some((tls_cert.unwrap(), Some(stack)))
+                } else {
+                    Some((tls_cert.unwrap(), None))
                 };
 
                 tokio::spawn(server.clone().listen(ip, Duration::new(1, 0), certs, key));
