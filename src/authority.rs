@@ -158,7 +158,11 @@ impl ZTAuthority {
 
             if v6assign.rfc4193.unwrap_or(false) {
                 let s = network.clone().rfc4193()?;
-                rfc4193 = Some(s);
+                rfc4193 = Some(s.clone());
+                reverse_records
+                    .get_mut(&s)
+                    .unwrap()
+                    .push(s.to_ptr_soa_name()?)
             }
         }
 
@@ -175,7 +179,7 @@ impl ZTAuthority {
                 .insert_member(&mut forward_records, record.clone())
                 .await?;
 
-            if let Some(ips) = member.config.and_then(|c| {
+            if let Some(ips) = member.clone().config.and_then(|c| {
                 c.ip_assignments.and_then(|ips| {
                     Some(
                         ips.iter()
@@ -194,6 +198,18 @@ impl ZTAuthority {
                                 )
                                 .await?;
                         }
+                    }
+                }
+            }
+
+            if let Some(ptr) = rfc4193 {
+                if let Some(authority) = self.reverse_authority_map.get(&ptr) {
+                    if let Some(records) = reverse_records.get_mut(&ptr) {
+                        let ptr = member.rfc4193()?.network().into_name()?;
+                        authority
+                            .configure_ptr(ptr.clone(), record.ptr_name.clone())
+                            .await?;
+                        records.push(ptr.into());
                     }
                 }
             }
@@ -454,13 +470,6 @@ impl RecordAuthority {
             records.push(ip.into());
         }
 
-        if let Ok(ptr) = record.member.rfc4193() {
-            let ptr = ptr.network().into_name()?;
-            self.configure_ptr(ptr.clone(), record.ptr_name.clone())
-                .await?;
-            records.push(ptr.into());
-        }
-
         Ok(())
     }
 
@@ -570,7 +579,6 @@ struct ZTRecord {
     ptr_name: Name,
     ips: Vec<IpAddr>,
     wildcard: bool,
-    member: Member,
 }
 
 impl ZTRecord {
@@ -620,7 +628,6 @@ impl ZTRecord {
         }
 
         Ok(Self {
-            member: member.clone(),
             wildcard,
             fqdn,
             custom_name,
