@@ -19,10 +19,7 @@ use ipnetwork::IpNetwork;
 use lazy_static::lazy_static;
 use log::{info, warn};
 use rand::prelude::{IteratorRandom, SliceRandom};
-use tokio::{
-    sync::{Mutex, RwLock},
-    task::JoinHandle,
-};
+use tokio::{sync::Mutex, task::JoinHandle};
 use trust_dns_resolver::{
     config::{NameServerConfig, ResolverConfig, ResolverOpts},
     name_server::{GenericConnection, GenericConnectionProvider, TokioRuntime},
@@ -31,8 +28,9 @@ use trust_dns_resolver::{
 
 use zeronsd::{
     addresses::Calculator,
-    authority::{find_members, init_trust_dns_authority, new_ptr_authority, ZTAuthority},
+    authority::{find_members, RecordAuthority, ZTAuthority},
     server::Server,
+    traits::ToPointerSOA,
     utils::{
         authtoken_path, central_config, domain_or_default, get_listen_ips, parse_ip_from_cidr,
     },
@@ -394,7 +392,7 @@ impl Lookup for Resolver {
             .unwrap()
             .as_lookup()
             .record_iter()
-            .map(|r| r.rdata().clone().into_a().unwrap())
+            .map(|r| r.data().unwrap().clone().into_a().unwrap())
             .collect()
     }
 
@@ -404,7 +402,7 @@ impl Lookup for Resolver {
             .unwrap()
             .as_lookup()
             .record_iter()
-            .map(|r| r.rdata().clone().into_aaaa().unwrap())
+            .map(|r| r.data().unwrap().clone().into_aaaa().unwrap())
             .collect()
     }
 
@@ -414,7 +412,7 @@ impl Lookup for Resolver {
             .unwrap()
             .as_lookup()
             .record_iter()
-            .map(|r| r.rdata().clone().into_ptr().unwrap().to_string())
+            .map(|r| r.data().unwrap().clone().into_ptr().unwrap().to_string())
             .collect()
     }
 }
@@ -443,7 +441,9 @@ async fn create_listeners(
 
     let mut ipmap = HashMap::new();
     let mut authority_map = HashMap::new();
-    let authority = init_trust_dns_authority(domain_or_default(None).unwrap());
+    let authority = RecordAuthority::new(domain_or_default(None).unwrap().into())
+        .await
+        .unwrap();
 
     for cidr in listen_cidrs.clone() {
         let listen_ip = parse_ip_from_cidr(cidr.clone());
@@ -455,7 +455,9 @@ async fn create_listeners(
         }
 
         if !authority_map.contains_key(&cidr) {
-            let ptr_authority = new_ptr_authority(cidr).unwrap();
+            let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
+                .await
+                .unwrap();
             authority_map.insert(cidr, ptr_authority.clone());
         }
     }
@@ -464,7 +466,9 @@ async fn create_listeners(
         if v6assign.rfc4193.unwrap_or(false) {
             let cidr = tn.network.clone().rfc4193().unwrap();
             if !authority_map.contains_key(&cidr) {
-                let ptr_authority = new_ptr_authority(cidr).unwrap();
+                let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
+                    .await
+                    .unwrap();
                 authority_map.insert(cidr, ptr_authority);
             }
         }
@@ -472,34 +476,30 @@ async fn create_listeners(
 
     let update_interval = update_interval.unwrap_or(Duration::new(1, 0));
 
-    let mut ztauthority = ZTAuthority::new(
-        domain_or_default(None).unwrap(),
-        tn.network.clone().id.unwrap(),
-        tn.central(),
-        match hosts {
+    let ztauthority = ZTAuthority {
+        network_id: tn.network.clone().id.unwrap(),
+        config: tn.central(),
+        hosts_file: match hosts {
             HostsType::Fixture(hosts) => Some(
                 Path::new(&format!("{}/{}", zeronsd::utils::TEST_HOSTS_DIR, hosts)).to_path_buf(),
             ),
             HostsType::Path(hosts) => Some(Path::new(hosts).to_path_buf()),
             HostsType::None => None,
         },
-        authority_map,
+        reverse_authority_map: authority_map,
         update_interval,
-        authority.clone(),
-    );
+        forward_authority: authority.clone(),
+        wildcard: wildcard_everything,
+        hosts: None,
+    };
 
-    if wildcard_everything {
-        ztauthority.wildcard_everything();
-    }
-
-    let arc_authority = Arc::new(RwLock::new(ztauthority));
-    let authority_handle = tokio::spawn(find_members(arc_authority.clone()));
+    let authority_handle = tokio::spawn(find_members(ztauthority.clone()));
     let mut servers = Vec::new();
 
     tokio::time::sleep(Duration::new(3, 0)).await;
 
     for ip in listen_ips.clone() {
-        let server = Server::new(arc_authority.to_owned());
+        let server = Server::new(ztauthority.to_owned());
         info!("Serving {}", ip.clone());
         servers.push(tokio::spawn(server.listen(
             ip.ip(),
@@ -523,11 +523,11 @@ fn create_resolvers(sockets: Vec<SocketAddr>) -> Resolvers {
         let mut resolver_config = ResolverConfig::new();
         resolver_config.add_search(domain_or_default(None).unwrap());
         resolver_config.add_name_server(NameServerConfig {
+            bind_addr: None,
             socket_addr: socket,
             protocol: trust_dns_resolver::config::Protocol::Udp,
             tls_dns_name: None,
             trust_nx_responses: true,
-            tls_config: None,
         });
 
         let mut opts = ResolverOpts::default();
