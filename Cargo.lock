@@ -1262,6 +1262,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-client"
 version = "0.21.1"
+source = "git+https://github.com/erikh/trust-dns?branch=rwlock-inmemorystore#7498308e81cfea4646c6e2ecb8f8d03a484a1683"
 dependencies = [
  "cfg-if",
  "data-encoding",
@@ -1281,6 +1282,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-proto"
 version = "0.21.1"
+source = "git+https://github.com/erikh/trust-dns?branch=rwlock-inmemorystore#7498308e81cfea4646c6e2ecb8f8d03a484a1683"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -1307,6 +1309,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-resolver"
 version = "0.21.1"
+source = "git+https://github.com/erikh/trust-dns?branch=rwlock-inmemorystore#7498308e81cfea4646c6e2ecb8f8d03a484a1683"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -1327,6 +1330,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-server"
 version = "0.21.1"
+source = "git+https://github.com/erikh/trust-dns?branch=rwlock-inmemorystore#7498308e81cfea4646c6e2ecb8f8d03a484a1683"
 dependencies = [
  "async-trait",
  "bytes",
