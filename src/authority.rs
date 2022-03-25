@@ -205,7 +205,7 @@ impl ZTAuthority {
             if let Some(ptr) = rfc4193 {
                 if let Some(authority) = self.reverse_authority_map.get(&ptr) {
                     if let Some(records) = reverse_records.get_mut(&ptr) {
-                        let ptr = member.rfc4193()?.network().into_name()?;
+                        let ptr = member.rfc4193()?.ip().into_name()?;
                         authority
                             .configure_ptr(ptr.clone(), record.ptr_name.clone())
                             .await?;
