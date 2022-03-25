@@ -10,6 +10,7 @@ use openssl::{pkey::PKey, stack::Stack, x509::X509};
 use crate::{
     addresses::*,
     authority::{find_members, RecordAuthority, ZTAuthority},
+    log::LevelFilter,
     server::*,
     traits::ToPointerSOA,
     utils::*,
@@ -25,6 +26,7 @@ pub struct Launcher {
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
+    pub log_level: Option<LevelFilter>,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
 }
@@ -63,6 +65,7 @@ impl Default for Launcher {
             tls_key: None,
             wildcard: false,
             network_id: None,
+            log_level: None,
         }
     }
 }
@@ -88,6 +91,8 @@ impl Launcher {
     }
 
     pub async fn start(&self) -> Result<ZTAuthority, anyhow::Error> {
+        crate::utils::init_logger(self.log_level.clone().unwrap_or(LevelFilter::Info).to_log());
+
         if self.network_id.is_none() {
             return Err(anyhow!("network ID is invalid; cannot continue"));
         }

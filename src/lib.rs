@@ -2,6 +2,7 @@ pub mod addresses;
 pub mod authority;
 pub mod cli;
 pub mod hosts;
+pub mod log;
 pub mod server;
 pub mod supervise;
 pub mod traits;

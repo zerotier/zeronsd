@@ -1,8 +1,8 @@
 use crate::{
     init::{ConfigFormat, Launcher},
+    log::LevelFilter,
     supervise::Properties,
 };
-use log::error;
 use std::{path::PathBuf, time::Duration};
 
 use clap::{Args, Parser, Subcommand};
@@ -72,6 +72,10 @@ pub struct StartArgs {
 
     #[clap(long = "tls-key", value_name = "PATH")]
     pub tls_key: Option<PathBuf>,
+
+    /// Log Level to print [off, trace, debug, error, warn, info]
+    #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]
+    pub log_level: Option<LevelFilter>,
 }
 
 impl Into<Launcher> for StartArgs {
@@ -84,7 +88,7 @@ impl Into<Launcher> for StartArgs {
                     res
                 }
                 Err(e) => {
-                    log::error!("{}", e);
+                    eprintln!("{}", e);
                     std::process::exit(1);
                 }
             }
@@ -98,6 +102,7 @@ impl Into<Launcher> for StartArgs {
                 chain_cert: self.chain_cert,
                 tls_cert: self.tls_cert,
                 tls_key: self.tls_key,
+                log_level: self.log_level,
                 network_id: Some(self.network_id),
             }
         }
@@ -111,8 +116,6 @@ pub struct UnsuperviseArgs {
 }
 
 pub async fn init() -> Result<(), anyhow::Error> {
-    crate::utils::init_logger();
-
     let cli = Cli::parse();
 
     let result = match cli.command {
@@ -128,7 +131,7 @@ pub async fn init() -> Result<(), anyhow::Error> {
     };
 
     if result.is_err() {
-        error!("{}", result.unwrap_err())
+        eprintln!("{}", result.unwrap_err())
     }
 
     Ok(())
@@ -136,14 +139,17 @@ pub async fn init() -> Result<(), anyhow::Error> {
 
 async fn start(args: StartArgs) -> Result<(), anyhow::Error> {
     let launcher: Launcher = args.into();
+
     launcher.start().await?;
     Ok(())
 }
 
 fn unsupervise(args: UnsuperviseArgs) -> Result<(), anyhow::Error> {
+    crate::utils::init_logger(log::LevelFilter::Info);
     Properties::from(args).uninstall_supervisor()
 }
 
 fn supervise(args: StartArgs) -> Result<(), anyhow::Error> {
+    crate::utils::init_logger(log::LevelFilter::Info);
     Properties::from(args).install_supervisor()
 }
