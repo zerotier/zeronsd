@@ -20,14 +20,14 @@ pub enum LevelFilter {
 }
 
 impl LevelFilter {
-    pub fn to_log(&self) -> log::LevelFilter {
+    pub fn to_log(&self) -> Option<tracing::Level> {
         match self {
-            LevelFilter::Off => log::LevelFilter::Off,
-            LevelFilter::Error => log::LevelFilter::Error,
-            LevelFilter::Warn => log::LevelFilter::Warn,
-            LevelFilter::Info => log::LevelFilter::Info,
-            LevelFilter::Trace => log::LevelFilter::Trace,
-            LevelFilter::Debug => log::LevelFilter::Debug,
+            LevelFilter::Off => None,
+            LevelFilter::Error => Some(tracing::Level::ERROR),
+            LevelFilter::Warn => Some(tracing::Level::WARN),
+            LevelFilter::Info => Some(tracing::Level::INFO),
+            LevelFilter::Trace => Some(tracing::Level::TRACE),
+            LevelFilter::Debug => Some(tracing::Level::DEBUG),
         }
     }
 }

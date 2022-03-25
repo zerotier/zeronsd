@@ -5,7 +5,7 @@ mod service;
 mod sixplane {
     use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
 
-    use log::info;
+    use tracing::info;
     use rand::prelude::SliceRandom;
     use trust_dns_resolver::{IntoName, Name};
 
@@ -14,7 +14,7 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(ServiceConfig::default().network_filename("6plane-only")).await;
 
         let record = service.member_record();
@@ -33,7 +33,7 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -63,7 +63,7 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -100,7 +100,7 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -151,7 +151,7 @@ mod sixplane {
 mod rfc4193 {
     use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
 
-    use log::info;
+    use tracing::info;
     use rand::{prelude::SliceRandom, thread_rng};
     use trust_dns_resolver::{IntoName, Name};
 
@@ -160,7 +160,7 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(ServiceConfig::default().network_filename("rfc4193-only")).await;
 
         let record = service.member_record();
@@ -239,7 +239,7 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -288,7 +288,7 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -325,7 +325,7 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -376,7 +376,7 @@ mod rfc4193 {
 mod ipv4 {
     use std::time::Duration;
 
-    use log::info;
+    use tracing::info;
     use std::str::FromStr;
     use trust_dns_resolver::Name;
 
@@ -386,7 +386,7 @@ mod ipv4 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -436,7 +436,7 @@ mod ipv4 {
     async fn test_battery_single_domain() {
         use rand::{seq::SliceRandom, thread_rng};
 
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let service = Service::new(ServiceConfig::default().ips(Some(vec![
             "172.16.240.2",
             "172.16.240.3",
@@ -520,7 +520,7 @@ mod ipv4 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -569,7 +569,7 @@ mod ipv4 {
 }
 
 mod all {
-    use log::info;
+    use tracing::info;
     use rand::prelude::SliceRandom;
     use trust_dns_resolver::{IntoName, Name};
 
@@ -590,7 +590,7 @@ mod all {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
         let service = Service::new(
             ServiceConfig::default()
@@ -630,7 +630,7 @@ mod all {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_hosts_file_reloading() {
-        init_logger(log::LevelFilter::Error);
+        init_logger(tracing::LevelFilter::Error);
         let hosts_path = "/tmp/zeronsd-test-hosts";
         std::fs::write(hosts_path, "127.0.0.2 islay\n::2 islay\n").unwrap();
         let service = Service::new(
@@ -686,7 +686,7 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     use service::*;
     use zeronsd::utils::*;
 
-    init_logger(log::LevelFilter::Error);
+    init_logger(tracing::LevelFilter::Error);
 
     let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default().await)
         .await

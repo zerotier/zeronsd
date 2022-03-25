@@ -2,15 +2,14 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
-use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 
 use openssl::{pkey::PKey, stack::Stack, x509::X509};
 
 use crate::{
     addresses::*,
     authority::{find_members, RecordAuthority, ZTAuthority},
-    log::LevelFilter,
     server::*,
     traits::ToPointerSOA,
     utils::*,
@@ -26,7 +25,7 @@ pub struct Launcher {
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
-    pub log_level: Option<LevelFilter>,
+    pub log_level: Option<crate::log::LevelFilter>,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
 }
@@ -91,7 +90,12 @@ impl Launcher {
     }
 
     pub async fn start(&self) -> Result<ZTAuthority, anyhow::Error> {
-        crate::utils::init_logger(self.log_level.clone().unwrap_or(LevelFilter::Info).to_log());
+        crate::utils::init_logger(
+            self.log_level
+                .clone()
+                .unwrap_or(crate::log::LevelFilter::Info)
+                .to_log(),
+        );
 
         if self.network_id.is_none() {
             return Err(anyhow!("network ID is invalid; cannot continue"));
@@ -130,7 +134,7 @@ impl Launcher {
                 }
 
                 if !authority_map.contains_key(&cidr) {
-                    log::debug!("{}", cidr.to_ptr_soa_name()?);
+                    tracing::debug!("{}", cidr.to_ptr_soa_name()?);
                     let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name()?).await?;
                     authority_map.insert(cidr, ptr_authority);
                 }

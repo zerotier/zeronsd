@@ -1,4 +1,4 @@
-use log::info;
+use tracing::info;
 use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
@@ -44,7 +44,7 @@ impl Server {
             match sf.register_tls_listener(tls, tcp_timeout, (certs.unwrap(), key.clone().unwrap()))
             {
                 Ok(_) => {}
-                Err(e) => log::error!("Cannot start DoT listener: {}", e),
+                Err(e) => tracing::error!("Cannot start DoT listener: {}", e),
             }
         }
 

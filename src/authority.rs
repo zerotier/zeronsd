@@ -40,18 +40,18 @@ pub async fn find_members(mut zt: ZTAuthority) {
     loop {
         match zt.configure_hosts().await {
             Ok(_) => {}
-            Err(e) => log::error!("error refreshing hosts file: {}", e),
+            Err(e) => tracing::error!("error refreshing hosts file: {}", e),
         }
 
         match zt.get_members().await {
             Ok((network, members)) => match zt.configure_members(network, members).await {
                 Ok(_) => {}
                 Err(e) => {
-                    log::error!("error configuring authority: {}", e)
+                    tracing::error!("error configuring authority: {}", e)
                 }
             },
             Err(e) => {
-                log::error!("error syncing members: {}", e)
+                tracing::error!("error syncing members: {}", e)
             }
         }
 
@@ -294,7 +294,7 @@ impl RecordAuthority {
         for rdata in rdatas {
             let mut address = Record::with(fqdn.clone(), rdata.to_record_type(), 60);
             address.set_data(Some(rdata.clone()));
-            log::info!("Adding new record {}: ({})", fqdn.clone(), rdata);
+            tracing::info!("Adding new record {}: ({})", fqdn.clone(), rdata);
             self.authority.upsert(address, serial).await;
         }
     }
@@ -353,7 +353,7 @@ impl RecordAuthority {
                         new_rset.add_rdata(rdata);
                     }
 
-                    log::warn!("Replacing host record for {} with {:?}", key, ips);
+                    tracing::warn!("Replacing host record for {} with {:?}", key, ips);
                     rr.remove(&rrkey);
                     rr.insert(rrkey.clone(), Arc::new(new_rset));
                 }
@@ -376,7 +376,7 @@ impl RecordAuthority {
         }
 
         for rrkey in rrkey_list {
-            log::warn!("Removing expired record {}", rrkey.name());
+            tracing::warn!("Removing expired record {}", rrkey.name());
             rr.remove(&rrkey);
         }
 
@@ -492,7 +492,7 @@ impl RecordAuthority {
     }
 
     async fn set_ptr_record(&self, ptr: Name, fqdn: Name) {
-        log::info!("Adding/Replacing record {}: ({})", ptr, fqdn);
+        tracing::info!("Adding/Replacing record {}: ({})", ptr, fqdn);
 
         let mut records = self.authority.records_mut().await;
         records.remove(&RrKey::new(

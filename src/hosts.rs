@@ -1,5 +1,5 @@
 /// functionality to deal with the handling of /etc/hosts formatted files
-use log::warn;
+use tracing::warn;
 use std::{collections::HashMap, net::IpAddr, path::PathBuf, str::FromStr};
 use trust_dns_server::client::rr::Name;
 

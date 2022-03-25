@@ -1,6 +1,5 @@
 use crate::{
     init::{ConfigFormat, Launcher},
-    log::LevelFilter,
     supervise::Properties,
 };
 use std::{path::PathBuf, time::Duration};
@@ -75,7 +74,7 @@ pub struct StartArgs {
 
     /// Log Level to print [off, trace, debug, error, warn, info]
     #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]
-    pub log_level: Option<LevelFilter>,
+    pub log_level: Option<crate::log::LevelFilter>,
 }
 
 impl Into<Launcher> for StartArgs {
@@ -145,11 +144,11 @@ async fn start(args: StartArgs) -> Result<(), anyhow::Error> {
 }
 
 fn unsupervise(args: UnsuperviseArgs) -> Result<(), anyhow::Error> {
-    crate::utils::init_logger(log::LevelFilter::Info);
+    crate::utils::init_logger(Some(tracing::Level::INFO));
     Properties::from(args).uninstall_supervisor()
 }
 
 fn supervise(args: StartArgs) -> Result<(), anyhow::Error> {
-    crate::utils::init_logger(log::LevelFilter::Info);
+    crate::utils::init_logger(Some(tracing::Level::INFO));
     Properties::from(args).install_supervisor()
 }
