@@ -7,6 +7,13 @@ token: "/home/erikh/src/github.com/zerotier/zeronsd/.token"
 #
 # domain: "foo"
 
+# The log level to display. Values are: [off, trace, debug, error, warn, info].
+#
+# Please note that many things in the rust ecosystem use this logging framework
+# and that at lower levels a lot of log output will be sent.
+#
+# log_level: info
+
 # An /etc/hosts style file which contains a static list of host mappings. Does
 # not have to live on the network.
 #
