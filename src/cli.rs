@@ -111,7 +111,7 @@ pub struct UnsuperviseArgs {
 }
 
 pub async fn init() -> Result<(), anyhow::Error> {
-    crate::utils::init_logger();
+    crate::utils::init_logger(log::LevelFilter::Info);
 
     let cli = Cli::parse();
 

@@ -24,10 +24,10 @@ fn version() -> String {
 static LOGGER: Once = Once::new();
 
 // initializes a logger
-pub fn init_logger() {
+pub fn init_logger(level: log::LevelFilter) {
     LOGGER.call_once(|| {
         env_logger::builder()
-            .filter_level(log::LevelFilter::Error)
+            .filter_level(level)
             .parse_default_env()
             .parse_env("ZERONSD_LOG")
             .init();
