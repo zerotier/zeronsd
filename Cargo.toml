@@ -18,8 +18,8 @@ regex = ">= 0"
 anyhow = ">= 0"
 clap = { version = "^3", features = ["derive"] }
 ipnetwork = ">= 0"
-trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-openssl"], git = "https://github.com/erikh/trust-dns", branch = "rwlock-inmemorystore" }
-trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-openssl"], git = "https://github.com/erikh/trust-dns", branch = "rwlock-inmemorystore" }
+trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-openssl"], git = "https://github.com/bluejekyll/trust-dns" }
+trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-openssl"], git = "https://github.com/bluejekyll/trust-dns" }
 tokio = { version = "1", features = ["full"] }
 zerotier-central-api = { version = "= 1.0.3" }
 zerotier-one-api = { version = "= 1.0.5" }
