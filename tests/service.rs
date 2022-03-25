@@ -17,7 +17,7 @@ use std::{
 use async_trait::async_trait;
 use ipnetwork::IpNetwork;
 use lazy_static::lazy_static;
-use log::{info, warn};
+use tracing::{info, warn};
 use rand::prelude::{IteratorRandom, SliceRandom};
 use tokio::{sync::Mutex, task::JoinHandle};
 use trust_dns_resolver::{

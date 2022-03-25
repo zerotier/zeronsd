@@ -1,8 +1,8 @@
 use std::{net::IpAddr, path::Path, str::FromStr, sync::Once};
 
 use ipnetwork::IpNetwork;
-use log::warn;
 use regex::Regex;
+use tracing::warn;
 use trust_dns_resolver::IntoName;
 use trust_dns_server::client::rr::Name;
 use zerotier_central_api::apis::configuration::Configuration;
@@ -24,13 +24,39 @@ fn version() -> String {
 static LOGGER: Once = Once::new();
 
 // initializes a logger
-pub fn init_logger(level: log::LevelFilter) {
+pub fn init_logger(level: Option<tracing::Level>) {
     LOGGER.call_once(|| {
-        env_logger::builder()
-            .filter_level(level)
-            .parse_default_env()
-            .parse_env("ZERONSD_LOG")
-            .init();
+        let loglevel = std::env::var("ZERONSD_LOG");
+        let loglevel = if loglevel.is_err() {
+            let loglevel = std::env::var("RUST_LOG");
+            if loglevel.is_err() {
+                None
+            } else {
+                Some(loglevel.unwrap())
+            }
+        } else {
+            Some(loglevel.unwrap())
+        };
+
+        let level = if loglevel.is_some() {
+            crate::log::LevelFilter::from_str(&loglevel.unwrap())
+                .expect("invalid log level")
+                .to_log()
+        } else {
+            level
+        };
+
+        if let Some(level) = level {
+            let subscriber = tracing_subscriber::FmtSubscriber::builder()
+                // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
+                // will be written to stdout.
+                .with_max_level(level)
+                // completes the builder.
+                .finish();
+
+            tracing::subscriber::set_global_default(subscriber)
+                .expect("setting default subscriber failed");
+        }
     })
 }
 
