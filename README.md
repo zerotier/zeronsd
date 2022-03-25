@@ -82,6 +82,7 @@ zeronsd as of v0.3 takes a configuration file via the `-c` flag which correlates
 The configuration directives are as follows:
 
 - domain: (string) will set a TLD for your records; the default is `home.arpa`.
+- log_level: (string) will tweak the log level in use. Default is `info`, but offerings are `[off, trace, debug, error, warn, info]`. Please note at lower log levels there can be a lot of output!
 - hosts: (string) will parse a file in `/etc/hosts` format and append it to your records.
 - secret: (string) path to `authtoken.secret` which is needed to talk to ZeroTier on localhost. You can provide this file with this argument, but it is auto-detected on multiple platforms including Linux, OS X and Windows.
 - token: (string) path to file containing your [ZeroTier Central token](https://my.zerotier.com/account).
