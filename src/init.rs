@@ -189,7 +189,13 @@ impl Launcher {
 
                 let chain = if let Some(chain_cert) = self.chain_cert.clone() {
                     let pem = std::fs::read(chain_cert)?;
-                    Some(X509::stack_from_pem(&pem)?)
+                    let chain = X509::stack_from_pem(&pem)?;
+
+                    let mut stack = Stack::new()?;
+                    for cert in chain {
+                        stack.push(cert)?;
+                    }
+                    Some(stack)
                 } else {
                     None
                 };
@@ -201,19 +207,11 @@ impl Launcher {
                     None
                 };
 
-                let certs = if chain.is_some() {
-                    let mut stack = Stack::new()?;
-                    for cert in chain.unwrap() {
-                        stack.push(cert)?;
-                    }
-                    Some((tls_cert.unwrap(), Some(stack)))
-                } else if tls_cert.is_some() {
-                    Some((tls_cert.unwrap(), None))
-                } else {
-                    None
-                };
-
-                tokio::spawn(server.clone().listen(ip, Duration::new(1, 0), certs, key));
+                tokio::spawn(
+                    server
+                        .clone()
+                        .listen(ip, Duration::new(1, 0), tls_cert, chain, key),
+                );
             }
 
             return Ok(ztauthority);

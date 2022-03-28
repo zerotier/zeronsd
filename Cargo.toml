@@ -53,7 +53,7 @@ ZeroNS provides names that are a part of ZeroTier Central's
   resolvers that do not match the TLD, similar to `dnsmasq`.
 - Tells Central to point all clients that have the "Manage DNS" settings turned
   **on** to resolve to it.
-- Finally, sets a provided TLD (`.domain` is the default), as well as
+- Finally, sets a provided TLD (`.home.arpa` is the default), as well as
   configuring `A` (IPv4) and `AAAA` (IPv6) records for:
   - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4/v6 addresses for
     them.
