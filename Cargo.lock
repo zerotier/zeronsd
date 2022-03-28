@@ -1761,6 +1761,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+ "tracing-log",
  "tracing-subscriber",
  "trust-dns-resolver",
  "trust-dns-server",
