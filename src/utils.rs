@@ -46,6 +46,8 @@ pub fn init_logger(level: Option<tracing::Level>) {
             level
         };
 
+        tracing_log::log_tracer::LogTracer::init().expect("initializing logger failed");
+
         if let Some(level) = level {
             let subscriber = tracing_subscriber::FmtSubscriber::builder()
                 // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
