@@ -532,7 +532,7 @@ fn create_resolvers(sockets: Vec<SocketAddr>) -> Resolvers {
         });
 
         let mut opts = ResolverOpts::default();
-        opts.timeout = Duration::new(10, 0);
+        opts.attempts = 10;
         opts.cache_size = 0;
         opts.rotate = true;
         opts.use_hosts_file = false;

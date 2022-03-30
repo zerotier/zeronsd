@@ -27,7 +27,7 @@ mod sixplane {
             let mut ips = service.lookup_aaaa(record.clone()).await;
             ips.sort();
 
-            assert_eq!(ips.sort(), listen_ips.clone().to_ipv6_vec().sort());
+            assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
         }
     }
 
@@ -173,7 +173,7 @@ mod rfc4193 {
             let mut ips = service.lookup_aaaa(record.clone()).await;
             ips.sort();
 
-            assert_eq!(ips.sort(), listen_ips.clone().to_ipv6_vec().sort());
+            assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
         }
 
         let ptr_records: Vec<String> = service
@@ -204,10 +204,10 @@ mod rfc4193 {
         for _ in 0..10000 {
             // randomly switch order
             if rand::random::<bool>() {
-                assert_eq!(
-                    service.lookup_aaaa(record.clone()).await.sort(),
-                    listen_ips.clone().to_ipv6_vec().sort()
-                );
+                let mut ips = service.lookup_aaaa(record.clone()).await;
+                ips.sort();
+
+                assert_eq!(ips, listen_ips.clone().to_ipv6_vec(),);
 
                 assert_eq!(
                     service
@@ -229,10 +229,9 @@ mod rfc4193 {
                     &record.to_string()
                 );
 
-                assert_eq!(
-                    service.lookup_aaaa(record.clone()).await.sort(),
-                    listen_ips.clone().to_ipv6_vec().sort()
-                );
+                let mut ips = service.lookup_aaaa(record.clone()).await;
+                ips.sort();
+                assert_eq!(ips, listen_ips.clone().to_ipv6_vec(),);
             }
         }
     }
@@ -454,7 +453,7 @@ mod ipv4 {
             let mut ips = service.lookup_a(record.clone()).await;
             ips.sort();
 
-            assert_eq!(ips.sort(), listen_ips.clone().to_ipv4_vec().sort());
+            assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
         }
 
         let ptr_records: Vec<String> = service
@@ -485,10 +484,9 @@ mod ipv4 {
         for _ in 0..10000 {
             // randomly switch order
             if rand::random::<bool>() {
-                assert_eq!(
-                    service.lookup_a(record.clone()).await.sort(),
-                    listen_ips.clone().to_ipv4_vec().sort()
-                );
+                let mut ips = service.lookup_a(record.clone()).await;
+                ips.sort();
+                assert_eq!(ips, listen_ips.clone().to_ipv4_vec(),);
 
                 assert_eq!(
                     service
@@ -510,10 +508,9 @@ mod ipv4 {
                     &record.to_string()
                 );
 
-                assert_eq!(
-                    service.lookup_a(record.clone()).await.sort(),
-                    listen_ips.clone().to_ipv4_vec().sort()
-                );
+                let mut ips = service.lookup_a(record.clone()).await;
+                ips.sort();
+                assert_eq!(ips, listen_ips.clone().to_ipv4_vec(),);
             }
         }
     }
@@ -705,11 +702,13 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
         TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default().await, ips.clone())
             .await
             .unwrap();
+    ips.sort();
 
     let mut listen_ips =
         get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+    listen_ips.sort();
 
-    assert_eq!(listen_ips.sort(), ips.sort());
+    assert_eq!(listen_ips, ips);
     eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
     let tn = TestNetwork::new("rfc4193-only", &mut TestContext::default().await)
@@ -718,10 +717,12 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
 
     let mut listen_ips =
         get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+    listen_ips.sort();
 
     let mut ips = vec![tn.member().clone().rfc4193()?.ip().to_string()];
+    ips.sort();
 
-    assert_eq!(listen_ips.sort(), ips.sort());
+    assert_eq!(listen_ips, ips);
     eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
     drop(tn);
@@ -732,10 +733,12 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
 
     let mut listen_ips =
         get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+    listen_ips.sort();
 
     let mut ips = vec![tn.member().clone().sixplane()?.ip().to_string()];
+    ips.sort();
 
-    assert_eq!(listen_ips.sort(), ips.sort());
+    assert_eq!(listen_ips, ips);
     eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
     Ok(())
