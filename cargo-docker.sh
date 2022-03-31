@@ -2,9 +2,9 @@
 
 if [ "${IS_LOCAL}" != 0 ]
 then
-  cargo install --path .
+  cargo install --release --path .
 else
-  cargo install --git https://github.com/zerotier/zeronsd \
+  cargo install --release --git https://github.com/zerotier/zeronsd \
     $(if [ "${IS_TAG}" != "0" ]; then echo "--tag"; else echo "--branch"; fi) \
     "${VERSION}"
 fi

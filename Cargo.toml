@@ -34,8 +34,11 @@ tracing = "0.1"
 tracing-log = "0.1"
 tracing-subscriber = "0.2"
 hex = ">=0"
-openssl = { version = ">= 0", features = [ "vendored" ] }
+openssl = ">= 0"
 async-trait = ">=0"
+
+[features]
+vendored-openssl = [ "openssl/vendored" ]
 
 [dev-dependencies]
 lazy_static = ">=0"
