@@ -42,6 +42,7 @@ After=zerotier-one.service
 Type=simple
 ExecStart={binpath} start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
 TimeoutStopSec=30
+Restart=always
 
 [Install]
 WantedBy=default.target
