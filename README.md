@@ -5,6 +5,7 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
 - Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
 - Tells Central to point all clients that have the "Manage DNS" settings turned **on** to resolve to it.
+- Provides UDP, TCP, and DNS-over-TLS support (if configured with certificates).
 - Finally, sets a provided TLD (`.home.arpa` is the default; recommended by IANA), as well as configuring `A` (IPv4) and `AAAA` (IPv6) records for:
   - Member IDs: `zt-<memberid>.<tld>` will resolve to the IPv4 & IPv6 addresses for them.
   - Names: _if_ the names are compatible with DNS names, they will be converted as such: to `<name>.<tld>`.
