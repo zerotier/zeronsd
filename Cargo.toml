@@ -69,3 +69,6 @@ ZeroNS provides names that are a part of ZeroTier Central's
 [package.metadata.generate-rpm]
 assets = [ { source = "target/release/zeronsd", dest = "/usr/bin/zeronsd", mode = "755" } ]
 requires = { openssl-libs = ">= 1.1.1g" }
+
+[target.'cfg(windows)'.dependencies]
+openssl = { version = ">=0", features = [ "vendored" ] }

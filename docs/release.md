@@ -20,6 +20,7 @@ If any of this doesn't work, alert @erikh immediately.
   - [Rust Compiler](https://rustup.rs) -- note that this yields an unsigned binary. Just install it, wimp.
     - Follow the printed instructions on getting the [C++ runtime](https://visualstudio.microsoft.com/visual-cpp-build-tools/). You will need it.
     - If cargo doesn't work after this, you've done it wrong.
+  - [Strawberry Perl](https;//www.strawberryperl.com) needs to be installed to build the openssl dependency.
   - [WIX Toolset](https://github.com/wixtoolset/wix3/releases/tag/wix3112rtm) also needs to be installed.
   - Finally, set up some kind of clone of the tag, or VM shared folders.
   - Run `cargo wix -L -ext -L WixFirewallExtension -C -ext -C WixFirewallExtension` in a windows terminal.
