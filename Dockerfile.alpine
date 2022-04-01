@@ -16,7 +16,7 @@ RUN apk add openssl-dev
 COPY . /zeronsd
 WORKDIR /zeronsd
 
-RUN cargo install --release --path .
+RUN cargo install --path .
 
 FROM alpine:latest
 
