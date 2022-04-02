@@ -11,6 +11,7 @@ steps:
     image: registry.sean.farm/sid-builder
     commands:
       - cargo build
+      - cargo test --lib
   - name: notify-mattermost
     pull: always
     image: registry.sean.farm/mattermost-notify
