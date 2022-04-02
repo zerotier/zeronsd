@@ -704,8 +704,12 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
             .unwrap();
     ips.sort();
 
-    let mut listen_ips =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+    let mut listen_ips: Vec<String> =
+        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            .await?
+            .iter()
+            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+            .collect();
     listen_ips.sort();
 
     assert_eq!(listen_ips, ips);
@@ -715,8 +719,12 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let mut listen_ips =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+    let mut listen_ips: Vec<String> =
+        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            .await?
+            .iter()
+            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+            .collect();
     listen_ips.sort();
 
     let mut ips = vec![tn.member().clone().rfc4193()?.ip().to_string()];
@@ -731,8 +739,12 @@ async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let mut listen_ips =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+    let mut listen_ips: Vec<String> =
+        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            .await?
+            .iter()
+            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+            .collect();
     listen_ips.sort();
 
     let mut ips = vec![tn.member().clone().sixplane()?.ip().to_string()];
