@@ -8,6 +8,7 @@ After=zerotier-one.service
 Type=simple
 ExecStart=zeronsd start -t /proc/cpuinfo 1234567891011121
 TimeoutStopSec=30
+Restart=always
 
 [Install]
 WantedBy=default.target
