@@ -2,10 +2,9 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
+use rustls::{Certificate, PrivateKey};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-
-use openssl::{pkey::PKey, stack::Stack, x509::X509};
 
 use crate::{
     addresses::*,
@@ -181,28 +180,31 @@ impl Launcher {
                 info!("Your IP for this network: {}", ip);
 
                 let tls_cert = if let Some(tls_cert) = self.tls_cert.clone() {
-                    let pem = std::fs::read(tls_cert)?;
-                    Some(X509::from_pem(&pem)?)
-                } else {
-                    None
-                };
-
-                let chain = if let Some(chain_cert) = self.chain_cert.clone() {
-                    let pem = std::fs::read(chain_cert)?;
-                    let chain = X509::stack_from_pem(&pem)?;
-
-                    let mut stack = Stack::new()?;
-                    for cert in chain {
-                        stack.push(cert)?;
-                    }
-                    Some(stack)
+                    let mut pem = std::io::BufReader::new(
+                        std::fs::OpenOptions::new().read(true).open(tls_cert)?,
+                    );
+                    Some(
+                        rustls_pemfile::certs(&mut pem)?
+                            .iter()
+                            .map(|x| Certificate(x.clone()))
+                            .collect::<Vec<Certificate>>(),
+                    )
                 } else {
                     None
                 };
 
                 let key = if let Some(key_path) = self.tls_key.clone() {
-                    let pem = std::fs::read(key_path)?;
-                    Some(PKey::private_key_from_pem(&pem)?)
+                    let mut pem = std::io::BufReader::new(
+                        std::fs::OpenOptions::new().read(true).open(key_path)?,
+                    );
+                    let pkeys = rustls_pemfile::pkcs8_private_keys(&mut pem)?;
+
+                    Some(PrivateKey(
+                        pkeys
+                            .first()
+                            .expect("Invalid or missing private key")
+                            .clone(),
+                    ))
                 } else {
                     None
                 };
@@ -210,7 +212,7 @@ impl Launcher {
                 tokio::spawn(
                     server
                         .clone()
-                        .listen(ip, Duration::new(1, 0), tls_cert, chain, key),
+                        .listen(ip, Duration::new(1, 0), tls_cert, key),
                 );
             }
 

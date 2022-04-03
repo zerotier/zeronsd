@@ -18,8 +18,8 @@ regex = ">= 0"
 anyhow = ">= 0"
 clap = { version = "^3", features = ["derive"] }
 ipnetwork = ">= 0"
-trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-openssl"] }
-trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-openssl"] }
+trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-rustls"] }
+trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-rustls"] }
 tokio = { version = "1", features = ["full"] }
 zerotier-central-api = { version = "= 1.0.3" }
 zerotier-one-api = { version = "= 1.0.5" }
@@ -34,11 +34,9 @@ tracing = "0.1"
 tracing-log = "0.1"
 tracing-subscriber = "0.2"
 hex = ">=0"
-openssl = ">= 0"
+rustls = ">= 0"
+rustls-pemfile = ">=0"
 async-trait = ">=0"
-
-[features]
-vendored-openssl = [ "openssl/vendored" ]
 
 [dev-dependencies]
 lazy_static = ">=0"
@@ -68,7 +66,3 @@ ZeroNS provides names that are a part of ZeroTier Central's
 
 [package.metadata.generate-rpm]
 assets = [ { source = "target/release/zeronsd", dest = "/usr/bin/zeronsd", mode = "755" } ]
-requires = { openssl-libs = ">= 1.1.1g" }
-
-[target.'cfg(windows)'.dependencies]
-openssl = { version = ">=0", features = [ "vendored" ] }
