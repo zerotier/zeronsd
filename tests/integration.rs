@@ -29,7 +29,7 @@ mod sixplane {
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let mut ips = service.lookup_aaaa(record.clone()).await;
             ips.sort();
 
@@ -58,7 +58,7 @@ mod sixplane {
             let mut listen_ips = service.listen_ips.clone();
             listen_ips.sort();
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let mut ips = service.lookup_aaaa(record.clone()).await;
                 ips.sort();
                 assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
@@ -91,7 +91,7 @@ mod sixplane {
         hosts_map.insert(ip, vec![record.clone().into_name().unwrap()]);
 
         let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             hosts.shuffle(&mut rand::thread_rng());
             let host = *hosts.first().unwrap();
             let ip = service.lookup_aaaa(host.to_string()).await;
@@ -176,7 +176,7 @@ mod rfc4193 {
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let mut ips = service.lookup_aaaa(record.clone()).await;
             ips.sort();
 
@@ -193,7 +193,7 @@ mod rfc4193 {
         for ptr_record in ptr_records.clone() {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -208,7 +208,7 @@ mod rfc4193 {
 
         info!("Interleaved lookups of PTR and AAAA records");
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             // randomly switch order
             if rand::random::<bool>() {
                 let mut ips = service.lookup_aaaa(record.clone()).await;
@@ -265,7 +265,7 @@ mod rfc4193 {
             let mut listen_ips = service.listen_ips.clone();
             listen_ips.sort();
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let mut ips = service.lookup_aaaa(record.clone()).await;
                 ips.sort();
                 assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
@@ -277,7 +277,7 @@ mod rfc4193 {
         for ptr_record in ptr_records {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -316,7 +316,7 @@ mod rfc4193 {
         hosts_map.insert(ip, vec![record.clone().into_name().unwrap()]);
 
         let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             hosts.shuffle(&mut rand::thread_rng());
             let host = *hosts.first().unwrap();
             let ip = service.lookup_aaaa(host.to_string()).await;
@@ -453,7 +453,7 @@ mod ipv4 {
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let mut ips = service.lookup_a(record.clone()).await;
             ips.sort();
 
@@ -470,7 +470,7 @@ mod ipv4 {
         for ptr_record in ptr_records.clone() {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -485,12 +485,12 @@ mod ipv4 {
 
         info!("Interleaved lookups of PTR and A records");
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             // randomly switch order
             if rand::random::<bool>() {
                 let mut ips = service.lookup_a(record.clone()).await;
                 ips.sort();
-                assert_eq!(ips, listen_ips.clone().to_ipv4_vec(),);
+                assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
 
                 assert_eq!(
                     service
@@ -514,7 +514,7 @@ mod ipv4 {
 
                 let mut ips = service.lookup_a(record.clone()).await;
                 ips.sort();
-                assert_eq!(ips, listen_ips.clone().to_ipv4_vec(),);
+                assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
             }
         }
     }
@@ -541,7 +541,7 @@ mod ipv4 {
             let mut listen_ips = service.listen_ips.clone();
             listen_ips.sort();
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let mut ips = service.lookup_a(record.clone()).await;
                 ips.sort();
                 assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
@@ -553,7 +553,7 @@ mod ipv4 {
         for ptr_record in ptr_records {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -613,7 +613,7 @@ mod all {
         }
 
         let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             hosts.shuffle(&mut rand::thread_rng());
             let host = *hosts.first().unwrap();
             let ips = service.lookup_a(host.to_string()).await;
