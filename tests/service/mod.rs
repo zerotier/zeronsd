@@ -17,7 +17,6 @@ use std::{
 use async_trait::async_trait;
 use ipnetwork::IpNetwork;
 use rand::prelude::{IteratorRandom, SliceRandom};
-use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::info;
 use trust_dns_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
 
@@ -96,21 +95,6 @@ pub struct Service {
     resolvers: Resolvers,
     update_interval: Option<Duration>,
     pub listen_ips: Vec<SocketAddr>,
-    servers: Arc<Mutex<Vec<JoinHandle<Result<(), anyhow::Error>>>>>,
-    authority_handle: Arc<Mutex<JoinHandle<()>>>,
-}
-
-impl Drop for Service {
-    fn drop(&mut self) {
-        tokio::task::block_in_place(move || {
-            self.authority_handle.blocking_lock().abort();
-            self.servers
-                .blocking_lock()
-                .iter()
-                .map(|x| x.abort())
-                .count();
-        })
-    }
 }
 
 impl Service {
@@ -126,7 +110,7 @@ impl Service {
                 .unwrap()
         };
 
-        let (listen_ips, authority_handle, servers) =
+        let listen_ips =
             Self::create_listeners(&tn, sc.hosts, sc.update_interval, sc.wildcard_everything).await;
 
         Self {
@@ -134,8 +118,6 @@ impl Service {
             resolvers: Self::create_resolvers(listen_ips.clone()),
             listen_ips,
             update_interval: sc.update_interval,
-            servers: Arc::new(Mutex::new(servers)),
-            authority_handle: Arc::new(Mutex::new(authority_handle)),
         }
     }
 
@@ -176,11 +158,7 @@ impl Service {
         hosts: HostsType,
         update_interval: Option<Duration>,
         wildcard_everything: bool,
-    ) -> (
-        Vec<SocketAddr>,
-        JoinHandle<()>,
-        Vec<JoinHandle<Result<(), anyhow::Error>>>,
-    ) {
+    ) -> Vec<SocketAddr> {
         let listen_cidrs = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
             .await
             .unwrap();
@@ -235,24 +213,16 @@ impl Service {
             hosts: None,
         };
 
-        let authority_handle = tokio::spawn(find_members(ztauthority.clone()));
-        let mut servers = Vec::new();
-
+        tokio::spawn(find_members(ztauthority.clone()));
         tokio::time::sleep(update_interval.add(Duration::new(3, 0))).await;
 
         for ip in listen_ips.clone() {
             let server = Server::new(ztauthority.to_owned());
             info!("Serving {}", ip.clone());
-            servers.push(tokio::spawn(server.listen(
-                ip.ip(),
-                Duration::new(1, 0),
-                None,
-                None,
-                None,
-            )));
+            tokio::spawn(server.listen(ip.ip(), Duration::new(1, 0), None, None, None));
         }
 
-        (listen_ips, authority_handle, servers)
+        listen_ips
     }
 
     pub fn any_listen_ip(self) -> IpAddr {
