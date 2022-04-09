@@ -1770,7 +1770,6 @@ dependencies = [
  "clap",
  "hex",
  "ipnetwork",
- "lazy_static",
  "num_cpus",
  "openssl",
  "rand",

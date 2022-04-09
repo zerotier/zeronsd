@@ -15,7 +15,6 @@ use std::{
 
 use async_trait::async_trait;
 use ipnetwork::IpNetwork;
-use lazy_static::lazy_static;
 use rand::prelude::{IteratorRandom, SliceRandom};
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::info;
@@ -42,12 +41,6 @@ pub mod network;
 pub mod resolver;
 pub mod to_ip;
 pub mod utils;
-
-lazy_static! {
-    static ref SERVERS: Arc<Mutex<Vec<JoinHandle<Result<(), anyhow::Error>>>>> =
-        Arc::new(Mutex::new(Vec::new()));
-    static ref AUTHORITY_HANDLE: Arc<Mutex<Option<JoinHandle<()>>>> = Arc::new(Mutex::new(None));
-}
 
 pub struct ServiceConfig {
     hosts: HostsType,
@@ -102,6 +95,21 @@ pub struct Service {
     resolvers: Resolvers,
     update_interval: Option<Duration>,
     pub listen_ips: Vec<SocketAddr>,
+    servers: Arc<Mutex<Vec<JoinHandle<Result<(), anyhow::Error>>>>>,
+    authority_handle: Arc<Mutex<JoinHandle<()>>>,
+}
+
+impl Drop for Service {
+    fn drop(&mut self) {
+        tokio::task::block_in_place(move || {
+            self.authority_handle.blocking_lock().abort();
+            self.servers
+                .blocking_lock()
+                .iter()
+                .map(|x| x.abort())
+                .count();
+        })
+    }
 }
 
 impl Service {
@@ -120,20 +128,13 @@ impl Service {
         let (listen_ips, authority_handle, servers) =
             Self::create_listeners(&tn, sc.hosts, sc.update_interval, sc.wildcard_everything).await;
 
-        let mut lock = SERVERS.lock().await;
-
-        for server in servers {
-            lock.push(server);
-        }
-
-        let mut lock = AUTHORITY_HANDLE.lock().await;
-        lock.replace(authority_handle);
-
         Self {
             tn: Arc::new(tn),
             resolvers: Self::create_resolvers(listen_ips.clone()),
             listen_ips,
             update_interval: sc.update_interval,
+            servers: Arc::new(Mutex::new(servers)),
+            authority_handle: Arc::new(Mutex::new(authority_handle)),
         }
     }
 
