@@ -9,7 +9,7 @@ mod sixplane {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use crate::service::{HostsType, Lookup, Service, ServiceConfig, ToIPv6Vec};
+    use crate::service::{resolver::Lookup, to_ip::ToIPv6Vec, HostsType, Service, ServiceConfig};
     use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
 
     #[tokio::test(flavor = "multi_thread")]
@@ -155,7 +155,11 @@ mod rfc4193 {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use crate::service::{HostsType, Lookup, Service, ServiceConfig, ToIPv6Vec, ToPTRVec};
+    use crate::service::{
+        resolver::Lookup,
+        to_ip::{ToIPv6Vec, ToPTRVec},
+        HostsType, Service, ServiceConfig,
+    };
     use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
 
     #[tokio::test(flavor = "multi_thread")]
@@ -231,7 +235,7 @@ mod rfc4193 {
 
                 let mut ips = service.lookup_aaaa(record.clone()).await;
                 ips.sort();
-                assert_eq!(ips, listen_ips.clone().to_ipv6_vec(),);
+                assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
             }
         }
     }
@@ -381,7 +385,11 @@ mod ipv4 {
 
     use zeronsd::utils::init_logger;
 
-    use crate::service::{Lookup, Service, ServiceConfig, ToIPv4Vec, ToPTRVec};
+    use crate::service::{
+        resolver::Lookup,
+        to_ip::{ToIPv4Vec, ToPTRVec},
+        Service, ServiceConfig,
+    };
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
@@ -575,7 +583,7 @@ mod all {
         utils::{init_logger, TEST_HOSTS_DIR},
     };
 
-    use crate::service::{HostsType, Lookup, Service, ServiceConfig};
+    use crate::service::{resolver::Lookup, HostsType, Service, ServiceConfig};
 
     use std::{
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
@@ -680,7 +688,7 @@ mod all {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    use service::*;
+    use crate::service::{context::TestContext, network::TestNetwork};
     use zeronsd::utils::*;
 
     init_logger(Some(tracing::Level::ERROR));

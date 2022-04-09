@@ -1,0 +1,72 @@
+use std::path::Path;
+
+use zeronsd::utils::authtoken_path;
+
+pub fn randstring(len: u8) -> String {
+    (0..len)
+        .map(|_| (rand::random::<u8>() % 26) + 'a' as u8)
+        .map(|c| {
+            if rand::random::<bool>() {
+                (c as char).to_ascii_uppercase()
+            } else {
+                c as char
+            }
+        })
+        .map(|c| c.to_string())
+        .collect::<Vec<String>>()
+        .join("")
+}
+
+// extract a network definiton from testdata. templates in a new name.
+pub fn network_definition(
+    name: String,
+) -> Result<serde_json::Map<String, serde_json::Value>, anyhow::Error> {
+    let mut res: serde_json::Map<String, serde_json::Value> = serde_json::from_reader(
+        std::fs::File::open(format!("testdata/networks/{}.json", name))?,
+    )?;
+
+    if let serde_json::Value::Object(config) = res.clone().get("config").unwrap() {
+        let mut new_config = config.clone();
+        new_config.insert(
+            "name".to_string(),
+            serde_json::Value::String(randstring(30)),
+        );
+
+        res.insert("config".to_string(), serde_json::Value::Object(new_config));
+    }
+
+    Ok(res)
+}
+
+// returns the public identity of this instance of zerotier
+pub async fn get_identity(
+    configuration: &zerotier_one_api::apis::configuration::Configuration,
+) -> Result<String, anyhow::Error> {
+    let status = zerotier_one_api::apis::status_api::get_status(configuration).await?;
+
+    Ok(status
+        .public_identity
+        .unwrap()
+        .splitn(3, ":")
+        .nth(0)
+        .unwrap()
+        .to_owned())
+}
+
+// unpack the authtoken based on what we're passed
+pub fn get_authtoken(or: Option<&str>) -> Result<String, anyhow::Error> {
+    Ok(std::fs::read_to_string(authtoken_path(
+        or.map(|c| Path::new(c)),
+    ))?)
+}
+
+// zerotier_config returns the openapi configuration required to talk to the local ztone instance
+pub fn zerotier_config(authtoken: String) -> zerotier_one_api::apis::configuration::Configuration {
+    let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
+    zerotier.api_key = Some(zerotier_one_api::apis::configuration::ApiKey {
+        prefix: None,
+        key: authtoken.clone(),
+    });
+
+    zerotier
+}
