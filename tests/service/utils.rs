@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use zeronsd::utils::authtoken_path;
 
@@ -69,4 +69,20 @@ pub fn zerotier_config(authtoken: String) -> zerotier_one_api::apis::configurati
     });
 
     zerotier
+}
+
+pub enum HostsType {
+    Path(&'static str),
+    Fixture(&'static str),
+    None,
+}
+
+pub fn format_hosts_file(hosts: HostsType) -> Option<PathBuf> {
+    match hosts {
+        HostsType::Fixture(hosts) => {
+            Some(Path::new(&format!("{}/{}", zeronsd::utils::TEST_HOSTS_DIR, hosts)).to_path_buf())
+        }
+        HostsType::Path(hosts) => Some(Path::new(hosts).to_path_buf()),
+        HostsType::None => None,
+    }
 }

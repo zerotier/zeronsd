@@ -9,7 +9,9 @@ mod sixplane {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use crate::service::{resolver::Lookup, to_ip::ToIPv6Vec, HostsType, Service, ServiceConfig};
+    use crate::service::{
+        resolver::Lookup, to_ip::ToIPv6Vec, utils::HostsType, Service, ServiceConfig,
+    };
     use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
 
     #[tokio::test(flavor = "multi_thread")]
@@ -158,7 +160,8 @@ mod rfc4193 {
     use crate::service::{
         resolver::Lookup,
         to_ip::{ToIPv6Vec, ToPTRVec},
-        HostsType, Service, ServiceConfig,
+        utils::HostsType,
+        Service, ServiceConfig,
     };
     use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
 
@@ -583,7 +586,7 @@ mod all {
         utils::{init_logger, TEST_HOSTS_DIR},
     };
 
-    use crate::service::{resolver::Lookup, HostsType, Service, ServiceConfig};
+    use crate::service::{resolver::Lookup, utils::HostsType, Service, ServiceConfig};
 
     use std::{
         net::{IpAddr, Ipv4Addr, Ipv6Addr},

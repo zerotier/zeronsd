@@ -8,7 +8,6 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-    path::Path,
     str::FromStr,
     sync::Arc,
     time::Duration,
@@ -34,6 +33,7 @@ use self::{
     context::TestContext,
     network::TestNetwork,
     resolver::{Lookup, Resolver, Resolvers},
+    utils::{format_hosts_file, HostsType},
 };
 
 pub mod context;
@@ -102,12 +102,6 @@ pub struct Service {
     resolvers: Resolvers,
     update_interval: Option<Duration>,
     pub listen_ips: Vec<SocketAddr>,
-}
-
-pub enum HostsType {
-    Path(&'static str),
-    Fixture(&'static str),
-    None,
 }
 
 impl Service {
@@ -231,14 +225,7 @@ impl Service {
         let ztauthority = ZTAuthority {
             network_id: tn.network.clone().id.unwrap(),
             config: tn.central(),
-            hosts_file: match hosts {
-                HostsType::Fixture(hosts) => Some(
-                    Path::new(&format!("{}/{}", zeronsd::utils::TEST_HOSTS_DIR, hosts))
-                        .to_path_buf(),
-                ),
-                HostsType::Path(hosts) => Some(Path::new(hosts).to_path_buf()),
-                HostsType::None => None,
-            },
+            hosts_file: format_hosts_file(hosts),
             reverse_authority_map: authority_map,
             update_interval,
             forward_authority: authority.clone(),
