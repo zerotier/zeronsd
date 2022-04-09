@@ -8,6 +8,7 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    ops::Add,
     str::FromStr,
     sync::Arc,
     time::Duration,
@@ -237,14 +238,14 @@ impl Service {
         let authority_handle = tokio::spawn(find_members(ztauthority.clone()));
         let mut servers = Vec::new();
 
-        tokio::time::sleep(Duration::new(3, 0)).await;
+        tokio::time::sleep(update_interval.add(Duration::new(3, 0))).await;
 
         for ip in listen_ips.clone() {
             let server = Server::new(ztauthority.to_owned());
             info!("Serving {}", ip.clone());
             servers.push(tokio::spawn(server.listen(
                 ip.ip(),
-                Duration::new(0, 500),
+                Duration::new(1, 0),
                 None,
                 None,
                 None,
