@@ -1,4 +1,4 @@
-use zeronsd::{addresses::Calculator, utils::init_logger};
+use zeronsd::utils::init_logger;
 
 mod service;
 
@@ -573,7 +573,7 @@ mod all {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use zeronsd::{hosts::parse_hosts, utils::TEST_HOSTS_DIR};
+    use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::TEST_HOSTS_DIR};
 
     use crate::service::{resolver::Lookup, utils::HostsType, Service, ServiceConfig};
 
@@ -674,80 +674,81 @@ mod all {
             &Ipv6Addr::from_str("::3").unwrap()
         );
     }
-}
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    use crate::service::{context::TestContext, network::TestNetwork};
-    use zeronsd::utils::*;
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
+        use crate::service::{context::TestContext, network::TestNetwork};
+        use zeronsd::utils::*;
 
-    let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default().await)
-        .await
-        .unwrap();
-
-    let listen_ips = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
-
-    eprintln!("My listen IP is {}", listen_ips.first().unwrap());
-    assert_ne!(*listen_ips.first().unwrap(), String::from(""));
-
-    drop(tn);
-
-    // see testdata/networks/basic-ipv4.json
-    let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let tn =
-        TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default().await, ips.clone())
+        let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default().await)
             .await
             .unwrap();
-    ips.sort();
 
-    let mut listen_ips: Vec<String> =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-            .await?
-            .iter()
-            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
-            .collect();
-    listen_ips.sort();
+        let listen_ips =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
 
-    assert_eq!(listen_ips, ips);
-    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+        eprintln!("My listen IP is {}", listen_ips.first().unwrap());
+        assert_ne!(*listen_ips.first().unwrap(), String::from(""));
 
-    let tn = TestNetwork::new("rfc4193-only", &mut TestContext::default().await)
-        .await
-        .unwrap();
+        drop(tn);
 
-    let mut listen_ips: Vec<String> =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-            .await?
-            .iter()
-            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
-            .collect();
-    listen_ips.sort();
+        // see testdata/networks/basic-ipv4.json
+        let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
+        let tn =
+            TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default().await, ips.clone())
+                .await
+                .unwrap();
+        ips.sort();
 
-    let mut ips = vec![tn.member().clone().rfc4193()?.ip().to_string()];
-    ips.sort();
+        let mut listen_ips: Vec<String> =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+                .await?
+                .iter()
+                .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+                .collect();
+        listen_ips.sort();
 
-    assert_eq!(listen_ips, ips);
-    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+        assert_eq!(listen_ips, ips);
+        eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
-    drop(tn);
+        let tn = TestNetwork::new("rfc4193-only", &mut TestContext::default().await)
+            .await
+            .unwrap();
 
-    let tn = TestNetwork::new("6plane-only", &mut TestContext::default().await)
-        .await
-        .unwrap();
+        let mut listen_ips: Vec<String> =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+                .await?
+                .iter()
+                .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+                .collect();
+        listen_ips.sort();
 
-    let mut listen_ips: Vec<String> =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-            .await?
-            .iter()
-            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
-            .collect();
-    listen_ips.sort();
+        let mut ips = vec![tn.member().clone().rfc4193()?.ip().to_string()];
+        ips.sort();
 
-    let mut ips = vec![tn.member().clone().sixplane()?.ip().to_string()];
-    ips.sort();
+        assert_eq!(listen_ips, ips);
+        eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
-    assert_eq!(listen_ips, ips);
-    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+        drop(tn);
 
-    Ok(())
+        let tn = TestNetwork::new("6plane-only", &mut TestContext::default().await)
+            .await
+            .unwrap();
+
+        let mut listen_ips: Vec<String> =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+                .await?
+                .iter()
+                .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+                .collect();
+        listen_ips.sort();
+
+        let mut ips = vec![tn.member().clone().sixplane()?.ip().to_string()];
+        ips.sort();
+
+        assert_eq!(listen_ips, ips);
+        eprintln!("My listen IPs are {}", listen_ips.join(", "));
+
+        Ok(())
+    }
 }
