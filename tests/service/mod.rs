@@ -49,142 +49,6 @@ lazy_static! {
     static ref AUTHORITY_HANDLE: Arc<Mutex<Option<JoinHandle<()>>>> = Arc::new(Mutex::new(None));
 }
 
-#[derive(Clone)]
-pub struct Service {
-    tn: Arc<TestNetwork>,
-    resolvers: Resolvers,
-    update_interval: Option<Duration>,
-    pub listen_ips: Vec<SocketAddr>,
-}
-
-pub enum HostsType {
-    Path(&'static str),
-    Fixture(&'static str),
-    None,
-}
-
-async fn create_listeners(
-    tn: &TestNetwork,
-    hosts: HostsType,
-    update_interval: Option<Duration>,
-    wildcard_everything: bool,
-) -> (
-    Vec<SocketAddr>,
-    JoinHandle<()>,
-    Vec<JoinHandle<Result<(), anyhow::Error>>>,
-) {
-    let listen_cidrs = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-        .await
-        .unwrap();
-
-    let mut listen_ips = Vec::new();
-
-    let mut ipmap = HashMap::new();
-    let mut authority_map = HashMap::new();
-    let authority = RecordAuthority::new(domain_or_default(None).unwrap().into())
-        .await
-        .unwrap();
-
-    for cidr in listen_cidrs.clone() {
-        let listen_ip = parse_ip_from_cidr(cidr.clone());
-        let socket_addr = SocketAddr::new(listen_ip.clone(), 53);
-        listen_ips.push(socket_addr);
-        let cidr = IpNetwork::from_str(&cidr.clone()).unwrap();
-        if !ipmap.contains_key(&listen_ip) {
-            ipmap.insert(listen_ip, cidr.network());
-        }
-
-        if !authority_map.contains_key(&cidr) {
-            let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
-                .await
-                .unwrap();
-            authority_map.insert(cidr, ptr_authority.clone());
-        }
-    }
-
-    if let Some(v6assign) = tn.network.config.clone().unwrap().v6_assign_mode {
-        if v6assign.rfc4193.unwrap_or(false) {
-            let cidr = tn.network.clone().rfc4193().unwrap();
-            if !authority_map.contains_key(&cidr) {
-                let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
-                    .await
-                    .unwrap();
-                authority_map.insert(cidr, ptr_authority);
-            }
-        }
-    }
-
-    let update_interval = update_interval.unwrap_or(Duration::new(1, 0));
-
-    let ztauthority = ZTAuthority {
-        network_id: tn.network.clone().id.unwrap(),
-        config: tn.central(),
-        hosts_file: match hosts {
-            HostsType::Fixture(hosts) => Some(
-                Path::new(&format!("{}/{}", zeronsd::utils::TEST_HOSTS_DIR, hosts)).to_path_buf(),
-            ),
-            HostsType::Path(hosts) => Some(Path::new(hosts).to_path_buf()),
-            HostsType::None => None,
-        },
-        reverse_authority_map: authority_map,
-        update_interval,
-        forward_authority: authority.clone(),
-        wildcard: wildcard_everything,
-        hosts: None,
-    };
-
-    let authority_handle = tokio::spawn(find_members(ztauthority.clone()));
-    let mut servers = Vec::new();
-
-    tokio::time::sleep(Duration::new(3, 0)).await;
-
-    for ip in listen_ips.clone() {
-        let server = Server::new(ztauthority.to_owned());
-        info!("Serving {}", ip.clone());
-        servers.push(tokio::spawn(server.listen(
-            ip.ip(),
-            Duration::new(0, 500),
-            None,
-            None,
-            None,
-        )));
-    }
-
-    (listen_ips, authority_handle, servers)
-}
-
-fn create_resolvers(sockets: Vec<SocketAddr>) -> Resolvers {
-    let mut resolvers = Vec::new();
-
-    for socket in sockets {
-        let mut resolver_config = ResolverConfig::new();
-        resolver_config.add_search(domain_or_default(None).unwrap());
-        resolver_config.add_name_server(NameServerConfig {
-            bind_addr: None,
-            socket_addr: socket,
-            protocol: trust_dns_resolver::config::Protocol::Udp,
-            tls_dns_name: None,
-            trust_nx_responses: true,
-        });
-
-        let mut opts = ResolverOpts::default();
-        opts.attempts = 10;
-        opts.cache_size = 0;
-        opts.rotate = true;
-        opts.use_hosts_file = false;
-        opts.positive_min_ttl = Some(Duration::new(0, 0));
-        opts.positive_max_ttl = Some(Duration::new(0, 0));
-        opts.negative_min_ttl = Some(Duration::new(0, 0));
-        opts.negative_max_ttl = Some(Duration::new(0, 0));
-
-        resolvers.push(Arc::new(
-            trust_dns_resolver::TokioAsyncResolver::tokio(resolver_config, opts).unwrap(),
-        ));
-    }
-
-    resolvers
-}
-
 pub struct ServiceConfig {
     hosts: HostsType,
     update_interval: Option<Duration>,
@@ -232,6 +96,20 @@ impl ServiceConfig {
     }
 }
 
+#[derive(Clone)]
+pub struct Service {
+    tn: Arc<TestNetwork>,
+    resolvers: Resolvers,
+    update_interval: Option<Duration>,
+    pub listen_ips: Vec<SocketAddr>,
+}
+
+pub enum HostsType {
+    Path(&'static str),
+    Fixture(&'static str),
+    None,
+}
+
 impl Service {
     pub async fn new(sc: ServiceConfig) -> Self {
         let network_filename = sc.network_filename.unwrap_or("basic-ipv4");
@@ -246,7 +124,7 @@ impl Service {
         };
 
         let (listen_ips, authority_handle, servers) =
-            create_listeners(&tn, sc.hosts, sc.update_interval, sc.wildcard_everything).await;
+            Self::create_listeners(&tn, sc.hosts, sc.update_interval, sc.wildcard_everything).await;
 
         let mut lock = SERVERS.lock().await;
 
@@ -259,10 +137,133 @@ impl Service {
 
         Self {
             tn: Arc::new(tn),
-            resolvers: create_resolvers(listen_ips.clone()),
+            resolvers: Self::create_resolvers(listen_ips.clone()),
             listen_ips,
             update_interval: sc.update_interval,
         }
+    }
+
+    fn create_resolvers(sockets: Vec<SocketAddr>) -> Resolvers {
+        let mut resolvers = Vec::new();
+
+        for socket in sockets {
+            let mut resolver_config = ResolverConfig::new();
+            resolver_config.add_search(domain_or_default(None).unwrap());
+            resolver_config.add_name_server(NameServerConfig {
+                bind_addr: None,
+                socket_addr: socket,
+                protocol: trust_dns_resolver::config::Protocol::Udp,
+                tls_dns_name: None,
+                trust_nx_responses: true,
+            });
+
+            let mut opts = ResolverOpts::default();
+            opts.attempts = 10;
+            opts.cache_size = 0;
+            opts.rotate = true;
+            opts.use_hosts_file = false;
+            opts.positive_min_ttl = Some(Duration::new(0, 0));
+            opts.positive_max_ttl = Some(Duration::new(0, 0));
+            opts.negative_min_ttl = Some(Duration::new(0, 0));
+            opts.negative_max_ttl = Some(Duration::new(0, 0));
+
+            resolvers.push(Arc::new(
+                trust_dns_resolver::TokioAsyncResolver::tokio(resolver_config, opts).unwrap(),
+            ));
+        }
+
+        resolvers
+    }
+
+    async fn create_listeners(
+        tn: &TestNetwork,
+        hosts: HostsType,
+        update_interval: Option<Duration>,
+        wildcard_everything: bool,
+    ) -> (
+        Vec<SocketAddr>,
+        JoinHandle<()>,
+        Vec<JoinHandle<Result<(), anyhow::Error>>>,
+    ) {
+        let listen_cidrs = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            .await
+            .unwrap();
+
+        let mut listen_ips = Vec::new();
+
+        let mut ipmap = HashMap::new();
+        let mut authority_map = HashMap::new();
+        let authority = RecordAuthority::new(domain_or_default(None).unwrap().into())
+            .await
+            .unwrap();
+
+        for cidr in listen_cidrs.clone() {
+            let listen_ip = parse_ip_from_cidr(cidr.clone());
+            let socket_addr = SocketAddr::new(listen_ip.clone(), 53);
+            listen_ips.push(socket_addr);
+            let cidr = IpNetwork::from_str(&cidr.clone()).unwrap();
+            if !ipmap.contains_key(&listen_ip) {
+                ipmap.insert(listen_ip, cidr.network());
+            }
+
+            if !authority_map.contains_key(&cidr) {
+                let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
+                    .await
+                    .unwrap();
+                authority_map.insert(cidr, ptr_authority.clone());
+            }
+        }
+
+        if let Some(v6assign) = tn.network.config.clone().unwrap().v6_assign_mode {
+            if v6assign.rfc4193.unwrap_or(false) {
+                let cidr = tn.network.clone().rfc4193().unwrap();
+                if !authority_map.contains_key(&cidr) {
+                    let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
+                        .await
+                        .unwrap();
+                    authority_map.insert(cidr, ptr_authority);
+                }
+            }
+        }
+
+        let update_interval = update_interval.unwrap_or(Duration::new(1, 0));
+
+        let ztauthority = ZTAuthority {
+            network_id: tn.network.clone().id.unwrap(),
+            config: tn.central(),
+            hosts_file: match hosts {
+                HostsType::Fixture(hosts) => Some(
+                    Path::new(&format!("{}/{}", zeronsd::utils::TEST_HOSTS_DIR, hosts))
+                        .to_path_buf(),
+                ),
+                HostsType::Path(hosts) => Some(Path::new(hosts).to_path_buf()),
+                HostsType::None => None,
+            },
+            reverse_authority_map: authority_map,
+            update_interval,
+            forward_authority: authority.clone(),
+            wildcard: wildcard_everything,
+            hosts: None,
+        };
+
+        let authority_handle = tokio::spawn(find_members(ztauthority.clone()));
+        let mut servers = Vec::new();
+
+        tokio::time::sleep(Duration::new(3, 0)).await;
+
+        for ip in listen_ips.clone() {
+            let server = Server::new(ztauthority.to_owned());
+            info!("Serving {}", ip.clone());
+            servers.push(tokio::spawn(server.listen(
+                ip.ip(),
+                Duration::new(0, 500),
+                None,
+                None,
+                None,
+            )));
+        }
+
+        (listen_ips, authority_handle, servers)
     }
 
     pub fn any_listen_ip(self) -> IpAddr {
