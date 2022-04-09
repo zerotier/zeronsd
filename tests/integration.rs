@@ -1,6 +1,11 @@
-use zeronsd::addresses::Calculator;
+use zeronsd::{addresses::Calculator, utils::init_logger};
 
 mod service;
+
+#[ctor::ctor]
+fn init() {
+    init_logger(Some(tracing::Level::ERROR));
+}
 
 mod sixplane {
     use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
@@ -12,11 +17,10 @@ mod sixplane {
     use crate::service::{
         resolver::Lookup, to_ip::ToIPv6Vec, utils::HostsType, Service, ServiceConfig,
     };
-    use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
+    use zeronsd::{addresses::Calculator, hosts::parse_hosts};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(ServiceConfig::default().network_filename("6plane-only")).await;
 
         let record = service.member_record();
@@ -35,7 +39,6 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(Some(tracing::Level::ERROR));
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -65,7 +68,6 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -102,7 +104,6 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -156,6 +157,7 @@ mod rfc4193 {
     use rand::{prelude::SliceRandom, thread_rng};
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
+    use zeronsd::{addresses::Calculator, hosts::parse_hosts};
 
     use crate::service::{
         resolver::Lookup,
@@ -163,11 +165,9 @@ mod rfc4193 {
         utils::HostsType,
         Service, ServiceConfig,
     };
-    use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(ServiceConfig::default().network_filename("rfc4193-only")).await;
 
         let record = service.member_record();
@@ -245,7 +245,6 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(Some(tracing::Level::ERROR));
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -294,7 +293,6 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -331,7 +329,6 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -386,8 +383,6 @@ mod ipv4 {
     use tracing::info;
     use trust_dns_resolver::Name;
 
-    use zeronsd::utils::init_logger;
-
     use crate::service::{
         resolver::Lookup,
         to_ip::{ToIPv4Vec, ToPTRVec},
@@ -396,7 +391,6 @@ mod ipv4 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -446,7 +440,6 @@ mod ipv4 {
     async fn test_battery_single_domain() {
         use rand::{seq::SliceRandom, thread_rng};
 
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(ServiceConfig::default().ips(Some(vec![
             "172.16.240.2",
             "172.16.240.3",
@@ -528,7 +521,6 @@ mod ipv4 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(Some(tracing::Level::ERROR));
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -581,10 +573,7 @@ mod all {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use zeronsd::{
-        hosts::parse_hosts,
-        utils::{init_logger, TEST_HOSTS_DIR},
-    };
+    use zeronsd::{hosts::parse_hosts, utils::TEST_HOSTS_DIR};
 
     use crate::service::{resolver::Lookup, utils::HostsType, Service, ServiceConfig};
 
@@ -598,7 +587,6 @@ mod all {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(Some(tracing::Level::ERROR));
         let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
         let service = Service::new(
             ServiceConfig::default()
@@ -638,7 +626,6 @@ mod all {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_hosts_file_reloading() {
-        init_logger(Some(tracing::Level::ERROR));
         let hosts_path = "/tmp/zeronsd-test-hosts";
         std::fs::write(hosts_path, "127.0.0.2 islay\n::2 islay\n").unwrap();
         let service = Service::new(
@@ -693,8 +680,6 @@ mod all {
 async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
     use crate::service::{context::TestContext, network::TestNetwork};
     use zeronsd::utils::*;
-
-    init_logger(Some(tracing::Level::ERROR));
 
     let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default().await)
         .await
