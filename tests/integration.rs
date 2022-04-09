@@ -1,6 +1,11 @@
-use zeronsd::addresses::Calculator;
+use zeronsd::utils::init_logger;
 
 mod service;
+
+#[ctor::ctor]
+fn init() {
+    init_logger(Some(tracing::Level::ERROR));
+}
 
 mod sixplane {
     use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
@@ -9,12 +14,13 @@ mod sixplane {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use crate::service::{HostsType, Lookup, Service, ServiceConfig, ToIPv6Vec};
-    use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
+    use crate::service::{
+        resolver::Lookup, to_ip::ToIPv6Vec, utils::HostsType, Service, ServiceConfig,
+    };
+    use zeronsd::{addresses::Calculator, hosts::parse_hosts};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(ServiceConfig::default().network_filename("6plane-only")).await;
 
         let record = service.member_record();
@@ -23,7 +29,7 @@ mod sixplane {
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let mut ips = service.lookup_aaaa(record.clone()).await;
             ips.sort();
 
@@ -33,7 +39,6 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(Some(tracing::Level::ERROR));
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -53,7 +58,7 @@ mod sixplane {
             let mut listen_ips = service.listen_ips.clone();
             listen_ips.sort();
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let mut ips = service.lookup_aaaa(record.clone()).await;
                 ips.sort();
                 assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
@@ -63,7 +68,6 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -87,7 +91,7 @@ mod sixplane {
         hosts_map.insert(ip, vec![record.clone().into_name().unwrap()]);
 
         let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             hosts.shuffle(&mut rand::thread_rng());
             let host = *hosts.first().unwrap();
             let ip = service.lookup_aaaa(host.to_string()).await;
@@ -100,7 +104,6 @@ mod sixplane {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -154,13 +157,17 @@ mod rfc4193 {
     use rand::{prelude::SliceRandom, thread_rng};
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
+    use zeronsd::{addresses::Calculator, hosts::parse_hosts};
 
-    use crate::service::{HostsType, Lookup, Service, ServiceConfig, ToIPv6Vec, ToPTRVec};
-    use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::init_logger};
+    use crate::service::{
+        resolver::Lookup,
+        to_ip::{ToIPv6Vec, ToPTRVec},
+        utils::HostsType,
+        Service, ServiceConfig,
+    };
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(ServiceConfig::default().network_filename("rfc4193-only")).await;
 
         let record = service.member_record();
@@ -169,7 +176,7 @@ mod rfc4193 {
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let mut ips = service.lookup_aaaa(record.clone()).await;
             ips.sort();
 
@@ -186,7 +193,7 @@ mod rfc4193 {
         for ptr_record in ptr_records.clone() {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -201,7 +208,7 @@ mod rfc4193 {
 
         info!("Interleaved lookups of PTR and AAAA records");
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             // randomly switch order
             if rand::random::<bool>() {
                 let mut ips = service.lookup_aaaa(record.clone()).await;
@@ -231,14 +238,13 @@ mod rfc4193 {
 
                 let mut ips = service.lookup_aaaa(record.clone()).await;
                 ips.sort();
-                assert_eq!(ips, listen_ips.clone().to_ipv6_vec(),);
+                assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
             }
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(Some(tracing::Level::ERROR));
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -259,7 +265,7 @@ mod rfc4193 {
             let mut listen_ips = service.listen_ips.clone();
             listen_ips.sort();
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let mut ips = service.lookup_aaaa(record.clone()).await;
                 ips.sort();
                 assert_eq!(ips, listen_ips.clone().to_ipv6_vec());
@@ -271,7 +277,7 @@ mod rfc4193 {
         for ptr_record in ptr_records {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -287,7 +293,6 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .hosts(HostsType::Fixture("basic-ipv6"))
@@ -311,7 +316,7 @@ mod rfc4193 {
         hosts_map.insert(ip, vec![record.clone().into_name().unwrap()]);
 
         let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             hosts.shuffle(&mut rand::thread_rng());
             let host = *hosts.first().unwrap();
             let ip = service.lookup_aaaa(host.to_string()).await;
@@ -324,7 +329,6 @@ mod rfc4193 {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -379,13 +383,14 @@ mod ipv4 {
     use tracing::info;
     use trust_dns_resolver::Name;
 
-    use zeronsd::utils::init_logger;
-
-    use crate::service::{Lookup, Service, ServiceConfig, ToIPv4Vec, ToPTRVec};
+    use crate::service::{
+        resolver::Lookup,
+        to_ip::{ToIPv4Vec, ToPTRVec},
+        Service, ServiceConfig,
+    };
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_wildcard_central() {
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(
             ServiceConfig::default()
                 .update_interval(Some(Duration::new(5, 0)))
@@ -435,7 +440,6 @@ mod ipv4 {
     async fn test_battery_single_domain() {
         use rand::{seq::SliceRandom, thread_rng};
 
-        init_logger(Some(tracing::Level::ERROR));
         let service = Service::new(ServiceConfig::default().ips(Some(vec![
             "172.16.240.2",
             "172.16.240.3",
@@ -449,7 +453,7 @@ mod ipv4 {
         let mut listen_ips = service.listen_ips.clone();
         listen_ips.sort();
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let mut ips = service.lookup_a(record.clone()).await;
             ips.sort();
 
@@ -466,7 +470,7 @@ mod ipv4 {
         for ptr_record in ptr_records.clone() {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -481,12 +485,12 @@ mod ipv4 {
 
         info!("Interleaved lookups of PTR and A records");
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             // randomly switch order
             if rand::random::<bool>() {
                 let mut ips = service.lookup_a(record.clone()).await;
                 ips.sort();
-                assert_eq!(ips, listen_ips.clone().to_ipv4_vec(),);
+                assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
 
                 assert_eq!(
                     service
@@ -510,14 +514,13 @@ mod ipv4 {
 
                 let mut ips = service.lookup_a(record.clone()).await;
                 ips.sort();
-                assert_eq!(ips, listen_ips.clone().to_ipv4_vec(),);
+                assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
             }
         }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_single_domain_named() {
-        init_logger(Some(tracing::Level::ERROR));
         let update_interval = Duration::new(2, 0);
         let service = Service::new(
             ServiceConfig::default()
@@ -538,7 +541,7 @@ mod ipv4 {
             let mut listen_ips = service.listen_ips.clone();
             listen_ips.sort();
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let mut ips = service.lookup_a(record.clone()).await;
                 ips.sort();
                 assert_eq!(ips, listen_ips.clone().to_ipv4_vec());
@@ -550,7 +553,7 @@ mod ipv4 {
         for ptr_record in ptr_records {
             info!("Looking up {}", ptr_record);
 
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let service = service.clone();
                 assert_eq!(
                     service
@@ -570,12 +573,9 @@ mod all {
     use tracing::info;
     use trust_dns_resolver::{IntoName, Name};
 
-    use zeronsd::{
-        hosts::parse_hosts,
-        utils::{init_logger, TEST_HOSTS_DIR},
-    };
+    use zeronsd::{addresses::Calculator, hosts::parse_hosts, utils::TEST_HOSTS_DIR};
 
-    use crate::service::{HostsType, Lookup, Service, ServiceConfig};
+    use crate::service::{resolver::Lookup, utils::HostsType, Service, ServiceConfig};
 
     use std::{
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
@@ -587,7 +587,6 @@ mod all {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_battery_multi_domain_hosts_file() {
-        init_logger(Some(tracing::Level::ERROR));
         let ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
         let service = Service::new(
             ServiceConfig::default()
@@ -614,7 +613,7 @@ mod all {
         }
 
         let mut hosts = hosts_map.values().flatten().collect::<Vec<&Name>>();
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             hosts.shuffle(&mut rand::thread_rng());
             let host = *hosts.first().unwrap();
             let ips = service.lookup_a(host.to_string()).await;
@@ -627,7 +626,6 @@ mod all {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_hosts_file_reloading() {
-        init_logger(Some(tracing::Level::ERROR));
         let hosts_path = "/tmp/zeronsd-test-hosts";
         std::fs::write(hosts_path, "127.0.0.2 islay\n::2 islay\n").unwrap();
         let service = Service::new(
@@ -676,82 +674,81 @@ mod all {
             &Ipv6Addr::from_str("::3").unwrap()
         );
     }
-}
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
-    use service::*;
-    use zeronsd::utils::*;
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_listen_ip() -> Result<(), anyhow::Error> {
+        use crate::service::{context::TestContext, network::TestNetwork};
+        use zeronsd::utils::*;
 
-    init_logger(Some(tracing::Level::ERROR));
-
-    let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default().await)
-        .await
-        .unwrap();
-
-    let listen_ips = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
-
-    eprintln!("My listen IP is {}", listen_ips.first().unwrap());
-    assert_ne!(*listen_ips.first().unwrap(), String::from(""));
-
-    drop(tn);
-
-    // see testdata/networks/basic-ipv4.json
-    let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
-    let tn =
-        TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default().await, ips.clone())
+        let tn = TestNetwork::new("basic-ipv4", &mut TestContext::default().await)
             .await
             .unwrap();
-    ips.sort();
 
-    let mut listen_ips: Vec<String> =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-            .await?
-            .iter()
-            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
-            .collect();
-    listen_ips.sort();
+        let listen_ips =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
 
-    assert_eq!(listen_ips, ips);
-    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+        eprintln!("My listen IP is {}", listen_ips.first().unwrap());
+        assert_ne!(*listen_ips.first().unwrap(), String::from(""));
 
-    let tn = TestNetwork::new("rfc4193-only", &mut TestContext::default().await)
-        .await
-        .unwrap();
+        drop(tn);
 
-    let mut listen_ips: Vec<String> =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-            .await?
-            .iter()
-            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
-            .collect();
-    listen_ips.sort();
+        // see testdata/networks/basic-ipv4.json
+        let mut ips = vec!["172.16.240.2", "172.16.240.3", "172.16.240.4"];
+        let tn =
+            TestNetwork::new_multi_ip("basic-ipv4", &mut TestContext::default().await, ips.clone())
+                .await
+                .unwrap();
+        ips.sort();
 
-    let mut ips = vec![tn.member().clone().rfc4193()?.ip().to_string()];
-    ips.sort();
+        let mut listen_ips: Vec<String> =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+                .await?
+                .iter()
+                .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+                .collect();
+        listen_ips.sort();
 
-    assert_eq!(listen_ips, ips);
-    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+        assert_eq!(listen_ips, ips);
+        eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
-    drop(tn);
+        let tn = TestNetwork::new("rfc4193-only", &mut TestContext::default().await)
+            .await
+            .unwrap();
 
-    let tn = TestNetwork::new("6plane-only", &mut TestContext::default().await)
-        .await
-        .unwrap();
+        let mut listen_ips: Vec<String> =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+                .await?
+                .iter()
+                .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+                .collect();
+        listen_ips.sort();
 
-    let mut listen_ips: Vec<String> =
-        get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
-            .await?
-            .iter()
-            .map(|x| parse_ip_from_cidr(x.clone()).to_string())
-            .collect();
-    listen_ips.sort();
+        let mut ips = vec![tn.member().clone().rfc4193()?.ip().to_string()];
+        ips.sort();
 
-    let mut ips = vec![tn.member().clone().sixplane()?.ip().to_string()];
-    ips.sort();
+        assert_eq!(listen_ips, ips);
+        eprintln!("My listen IPs are {}", listen_ips.join(", "));
 
-    assert_eq!(listen_ips, ips);
-    eprintln!("My listen IPs are {}", listen_ips.join(", "));
+        drop(tn);
 
-    Ok(())
+        let tn = TestNetwork::new("6plane-only", &mut TestContext::default().await)
+            .await
+            .unwrap();
+
+        let mut listen_ips: Vec<String> =
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+                .await?
+                .iter()
+                .map(|x| parse_ip_from_cidr(x.clone()).to_string())
+                .collect();
+        listen_ips.sort();
+
+        let mut ips = vec![tn.member().clone().sixplane()?.ip().to_string()];
+        ips.sort();
+
+        assert_eq!(listen_ips, ips);
+        eprintln!("My listen IPs are {}", listen_ips.join(", "));
+
+        Ok(())
+    }
 }

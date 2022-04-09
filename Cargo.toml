@@ -41,7 +41,7 @@ async-trait = ">=0"
 vendored-openssl = [ "openssl/vendored" ]
 
 [dev-dependencies]
-lazy_static = ">=0"
+ctor = ">=0"
 
 [package.metadata.deb]
 copyright = "ZeroTier, Inc"
