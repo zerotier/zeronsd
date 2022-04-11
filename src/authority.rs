@@ -253,14 +253,22 @@ pub struct RecordAuthority {
 }
 
 impl RecordAuthority {
-    pub async fn new(domain_name: LowerName) -> Result<Self, anyhow::Error> {
+    pub async fn new(
+        domain_name: LowerName,
+        member_name: LowerName,
+    ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            authority: Arc::new(Self::configure_authority(domain_name.clone().into()).await?),
+            authority: Arc::new(
+                Self::configure_authority(domain_name.clone().into(), member_name.into()).await?,
+            ),
             domain_name,
         })
     }
 
-    async fn configure_authority(domain_name: Name) -> Result<InMemoryAuthority, anyhow::Error> {
+    async fn configure_authority(
+        domain_name: Name,
+        member_name: Name,
+    ) -> Result<InMemoryAuthority, anyhow::Error> {
         let mut map = BTreeMap::new();
         let mut soa = Record::with(domain_name.clone(), RecordType::SOA, 30);
 
@@ -274,9 +282,22 @@ impl RecordAuthority {
             0,
         ))));
 
-        let mut rs = RecordSet::new(&domain_name.clone(), RecordType::SOA, 1);
-        rs.insert(soa, 1);
-        map.insert(RrKey::new(domain_name.clone().into(), RecordType::SOA), rs);
+        let mut soa_rs = RecordSet::new(&domain_name.clone(), RecordType::SOA, 1);
+        soa_rs.insert(soa, 1);
+        map.insert(
+            RrKey::new(domain_name.clone().into(), RecordType::SOA),
+            soa_rs,
+        );
+
+        let mut ns = Record::with(domain_name.clone(), RecordType::NS, 30);
+        ns.set_data(Some(RData::NS(member_name.clone())));
+        let mut ns_rs = RecordSet::new(&domain_name.clone(), RecordType::NS, 1);
+        ns_rs.insert(ns, 1);
+
+        map.insert(
+            RrKey::new(domain_name.clone().into(), RecordType::NS),
+            ns_rs,
+        );
 
         let authority = InMemoryAuthority::new(
             domain_name.clone(),

@@ -25,7 +25,7 @@ use zeronsd::{
     authority::{find_members, RecordAuthority, ZTAuthority},
     server::Server,
     traits::ToPointerSOA,
-    utils::{authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr},
+    utils::{authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr, ToHostname},
 };
 
 use self::{
@@ -167,9 +167,6 @@ impl Service {
 
         let mut ipmap = HashMap::new();
         let mut authority_map = HashMap::new();
-        let authority = RecordAuthority::new(domain_or_default(None).unwrap().into())
-            .await
-            .unwrap();
 
         for cidr in listen_cidrs.clone() {
             let listen_ip = parse_ip_from_cidr(cidr.clone());
@@ -181,9 +178,12 @@ impl Service {
             }
 
             if !authority_map.contains_key(&cidr) {
-                let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
-                    .await
-                    .unwrap();
+                let ptr_authority = RecordAuthority::new(
+                    cidr.to_ptr_soa_name().unwrap(),
+                    cidr.to_ptr_soa_name().unwrap(),
+                )
+                .await
+                .unwrap();
                 authority_map.insert(cidr, ptr_authority.clone());
             }
         }
@@ -192,13 +192,26 @@ impl Service {
             if v6assign.rfc4193.unwrap_or(false) {
                 let cidr = tn.network.clone().rfc4193().unwrap();
                 if !authority_map.contains_key(&cidr) {
-                    let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name().unwrap())
-                        .await
-                        .unwrap();
+                    let ptr_authority = RecordAuthority::new(
+                        cidr.to_ptr_soa_name().unwrap(),
+                        cidr.to_ptr_soa_name().unwrap(),
+                    )
+                    .await
+                    .unwrap();
                     authority_map.insert(cidr, ptr_authority);
                 }
             }
         }
+
+        let authority = RecordAuthority::new(
+            domain_or_default(None).unwrap().into(),
+            tn.member()
+                .to_fqdn(domain_or_default(None).unwrap().into())
+                .unwrap()
+                .into(),
+        )
+        .await
+        .unwrap();
 
         let update_interval = update_interval.unwrap_or(Duration::new(1, 0));
 
