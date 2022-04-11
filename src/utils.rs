@@ -4,10 +4,11 @@ use ipnetwork::IpNetwork;
 use regex::Regex;
 use tracing::warn;
 use trust_dns_resolver::IntoName;
-use trust_dns_server::client::rr::Name;
-use zerotier_central_api::apis::configuration::Configuration;
+use trust_dns_server::client::rr::{LowerName, Name};
+use zerotier_central_api::{apis::configuration::Configuration, models::Member};
 
 use anyhow::anyhow;
+use zerotier_one_api::apis::configuration::Configuration as ZTOneConfiguration;
 
 // collections of test hosts files
 pub const TEST_HOSTS_DIR: &str = "testdata/hosts-files";
@@ -150,14 +151,25 @@ pub fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name
     None
 }
 
-// get_listen_ips returns the IPs that the network is providing to the instance running zeronsd.
-// 4193 and 6plane are handled up the stack.
-pub async fn get_listen_ips(
+pub async fn get_member_name(
     authtoken_path: &Path,
-    network_id: &str,
-) -> Result<Vec<String>, anyhow::Error> {
+    domain_name: Name,
+) -> Result<LowerName, anyhow::Error> {
+    let configuration = get_local_config(authtoken_path)?;
+
+    let status = zerotier_one_api::apis::status_api::get_status(&configuration).await?;
+    if let Some(address) = status.address {
+        return Ok(("zt-".to_string() + &address).to_fqdn(domain_name)?.into());
+    }
+
+    Err(anyhow!(
+        "No member found for this instance; is zerotier connected to this network?"
+    ))
+}
+
+fn get_local_config(authtoken_path: &Path) -> Result<ZTOneConfiguration, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
-    let mut configuration = zerotier_one_api::apis::configuration::Configuration::default();
+    let mut configuration = ZTOneConfiguration::default();
     let api_key = zerotier_one_api::apis::configuration::ApiKey {
         prefix: None,
         key: authtoken,
@@ -165,6 +177,16 @@ pub async fn get_listen_ips(
 
     configuration.user_agent = Some(version());
     configuration.api_key = Some(api_key);
+    Ok(configuration)
+}
+
+// get_listen_ips returns the IPs that the network is providing to the instance running zeronsd.
+// 4193 and 6plane are handled up the stack.
+pub async fn get_listen_ips(
+    authtoken_path: &Path,
+    network_id: &str,
+) -> Result<Vec<String>, anyhow::Error> {
+    let configuration = get_local_config(authtoken_path)?;
 
     match zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await {
         Err(error) => {
@@ -240,6 +262,26 @@ impl ToHostname for &str {
 
     fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
         Ok(self.to_hostname()?.append_domain(&domain).unwrap())
+    }
+}
+
+impl ToHostname for IpAddr {
+    fn to_hostname(self) -> Result<Name, anyhow::Error> {
+        self.to_string().to_hostname()
+    }
+
+    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
+        self.to_string().to_fqdn(domain)
+    }
+}
+
+impl ToHostname for Member {
+    fn to_hostname(self) -> Result<Name, anyhow::Error> {
+        ("zt-".to_string() + &self.node_id.unwrap()).to_hostname()
+    }
+
+    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
+        ("zt-".to_string() + &self.node_id.unwrap()).to_fqdn(domain)
     }
 }
 

@@ -123,7 +123,6 @@ impl Launcher {
             let mut listen_ips = Vec::new();
             let mut ipmap = HashMap::new();
             let mut authority_map = HashMap::new();
-            let authority = RecordAuthority::new(domain_name.clone().into()).await?;
 
             for cidr in ips.clone() {
                 let listen_ip = parse_ip_from_cidr(cidr.clone());
@@ -135,10 +134,14 @@ impl Launcher {
 
                 if !authority_map.contains_key(&cidr) {
                     tracing::debug!("{}", cidr.to_ptr_soa_name()?);
-                    let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name()?).await?;
+                    let ptr_authority =
+                        RecordAuthority::new(cidr.to_ptr_soa_name()?, cidr.to_ptr_soa_name()?)
+                            .await?;
                     authority_map.insert(cidr, ptr_authority);
                 }
             }
+
+            let member_name = get_member_name(authtoken, domain_name.clone()).await?;
 
             let network = zerotier_central_api::apis::network_api::get_network_by_id(
                 &config,
@@ -146,10 +149,7 @@ impl Launcher {
             )
             .await?;
 
-            let v6assign = network.config.clone().unwrap().v6_assign_mode;
-            if v6assign.is_some() {
-                let v6assign = v6assign.unwrap().clone();
-
+            if let Some(v6assign) = network.config.clone().unwrap().v6_assign_mode {
                 if v6assign.var_6plane.unwrap_or(false) {
                     warn!("6PLANE PTR records are not yet supported");
                 }
@@ -157,11 +157,16 @@ impl Launcher {
                 if v6assign.rfc4193.unwrap_or(false) {
                     let cidr = network.clone().rfc4193().unwrap();
                     if !authority_map.contains_key(&cidr) {
-                        let ptr_authority = RecordAuthority::new(cidr.to_ptr_soa_name()?).await?;
+                        let ptr_authority =
+                            RecordAuthority::new(cidr.to_ptr_soa_name()?, cidr.to_ptr_soa_name()?)
+                                .await?;
                         authority_map.insert(cidr, ptr_authority);
                     }
                 }
             }
+
+            let authority =
+                RecordAuthority::new(domain_name.clone().into(), member_name.clone()).await?;
 
             let ztauthority = ZTAuthority {
                 config,
