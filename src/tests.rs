@@ -4,7 +4,8 @@ use std::{
     str::FromStr,
 };
 
-use crate::utils::{domain_or_default, ToHostname};
+use crate::traits::ToHostname;
+use crate::utils::domain_or_default;
 
 #[test]
 fn test_parse_member_name() {

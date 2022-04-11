@@ -24,8 +24,8 @@ use zeronsd::{
     addresses::Calculator,
     authority::{find_members, RecordAuthority, ZTAuthority},
     server::Server,
-    traits::ToPointerSOA,
-    utils::{authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr, ToHostname},
+    traits::{ToHostname, ToPointerSOA},
+    utils::{authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr},
 };
 
 use self::{

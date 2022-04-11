@@ -30,8 +30,8 @@ use zerotier_central_api::{
 use crate::{
     addresses::Calculator,
     hosts::{parse_hosts, HostsFile},
-    traits::{ToPointerSOA, ToWildcard},
-    utils::{parse_member_name, ToHostname},
+    traits::{ToHostname, ToPointerSOA, ToWildcard},
+    utils::parse_member_name,
 };
 
 pub async fn find_members(mut zt: ZTAuthority) {

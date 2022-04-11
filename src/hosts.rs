@@ -1,9 +1,9 @@
 /// functionality to deal with the handling of /etc/hosts formatted files
-use tracing::warn;
 use std::{collections::HashMap, net::IpAddr, path::PathBuf, str::FromStr};
+use tracing::warn;
 use trust_dns_server::client::rr::Name;
 
-use crate::utils::ToHostname;
+use crate::traits::ToHostname;
 
 pub type HostsFile = HashMap<IpAddr, Vec<Name>>;
 
