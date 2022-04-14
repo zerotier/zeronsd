@@ -1,7 +1,8 @@
-use std::{net::IpAddr, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
+use lazy_static::lazy_static;
 use regex::Regex;
 use trust_dns_resolver::{proto::error::ProtoError, IntoName, Name};
 use trust_dns_server::client::rr::LowerName;
@@ -39,56 +40,44 @@ impl ToWildcard for Name {
     }
 }
 
-// translation_table should also be lazy_static and provides a small match set to find and correct
-// problems with member namesl.
-fn translation_table() -> Vec<(Regex, &'static str)> {
-    vec![
+lazy_static! {
+    static ref TRANSLATION_TABLE: Box<[(Regex, &'static str)]> = Box::new([
         (Regex::new(r"\s+").unwrap(), "-"), // translate whitespace to `-`
         (Regex::new(r"[^.\s\w\d-]+").unwrap(), ""), // catch-all at the end
-    ]
+    ]);
 }
 
 pub trait ToHostname {
-    fn to_hostname(self) -> Result<Name, anyhow::Error>;
-    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error>;
+    fn to_hostname(&self) -> Result<Name, anyhow::Error>;
+    fn to_fqdn(&self, domain: Name) -> Result<Name, anyhow::Error>;
 }
 
 impl ToHostname for &str {
-    fn to_hostname(self) -> Result<Name, anyhow::Error> {
+    fn to_hostname(&self) -> Result<Name, anyhow::Error> {
         self.to_string().to_hostname()
     }
 
-    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
+    fn to_fqdn(&self, domain: Name) -> Result<Name, anyhow::Error> {
         Ok(self.to_hostname()?.append_domain(&domain).unwrap())
     }
 }
 
-impl ToHostname for IpAddr {
-    fn to_hostname(self) -> Result<Name, anyhow::Error> {
-        self.to_string().to_hostname()
-    }
-
-    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
-        self.to_string().to_fqdn(domain)
-    }
-}
-
 impl ToHostname for Member {
-    fn to_hostname(self) -> Result<Name, anyhow::Error> {
-        ("zt-".to_string() + &self.node_id.unwrap()).to_hostname()
+    fn to_hostname(&self) -> Result<Name, anyhow::Error> {
+        ("zt-".to_string() + &self.node_id.clone().unwrap()).to_hostname()
     }
 
-    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
-        ("zt-".to_string() + &self.node_id.unwrap()).to_fqdn(domain)
+    fn to_fqdn(&self, domain: Name) -> Result<Name, anyhow::Error> {
+        ("zt-".to_string() + &self.node_id.clone().unwrap()).to_fqdn(domain)
     }
 }
 
 impl ToHostname for String {
     // to_hostname turns member names into trust-dns compatible dns names.
-    fn to_hostname(self) -> Result<Name, anyhow::Error> {
+    fn to_hostname(&self) -> Result<Name, anyhow::Error> {
         let mut s = self.trim().to_string();
-        for (regex, replacement) in translation_table() {
-            s = regex.replace_all(&s, replacement).to_string();
+        for (regex, replacement) in TRANSLATION_TABLE.iter() {
+            s = regex.replace_all(&s, *replacement).to_string();
         }
 
         let s = s.trim();
@@ -104,7 +93,84 @@ impl ToHostname for String {
         Ok(s.trim().into_name()?)
     }
 
-    fn to_fqdn(self, domain: Name) -> Result<Name, anyhow::Error> {
+    fn to_fqdn(&self, domain: Name) -> Result<Name, anyhow::Error> {
         Ok(self.to_hostname()?.append_domain(&domain).unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::ToHostname;
+    use trust_dns_resolver::Name;
+    use zerotier_central_api::models::Member;
+
+    #[test]
+    fn test_to_hostname_member() {
+        let mut member = Member::new();
+        member.node_id = Some("foo".to_string());
+        let hostname = member.to_hostname().unwrap();
+        assert!(hostname == Name::from_str("zt-foo").unwrap());
+        let fqdn = member
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .unwrap();
+        assert!(fqdn == Name::from_str("zt-foo.home.arpa").unwrap());
+
+        member.node_id = Some("Joe Sixpack's iMac".to_string());
+        let hostname = member.to_hostname().unwrap();
+        assert!(hostname == Name::from_str("zt-joe-sixpacks-imac").unwrap());
+        let fqdn = member
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .unwrap();
+        assert!(fqdn == Name::from_str("zt-joe-sixpacks-imac.home.arpa").unwrap());
+
+        member.node_id = Some("abc.".to_string());
+        assert!(member.to_hostname().is_err());
+        assert!(member
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .is_err());
+    }
+
+    #[test]
+    fn test_to_hostname_string_str() {
+        let hostname = "foo".to_hostname().unwrap();
+        assert!(hostname == Name::from_str("foo").unwrap());
+        let fqdn = "foo".to_fqdn(Name::from_str("home.arpa").unwrap()).unwrap();
+        assert!(fqdn == Name::from_str("foo.home.arpa").unwrap());
+
+        let hostname = "foo".to_string().to_hostname().unwrap();
+        assert!(hostname == Name::from_str("foo").unwrap());
+        let fqdn = "foo"
+            .to_string()
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .unwrap();
+        assert!(fqdn == Name::from_str("foo.home.arpa").unwrap());
+
+        let hostname = "Joe Sixpack's iMac".to_hostname().unwrap();
+        assert!(hostname == Name::from_str("joe-sixpacks-imac").unwrap());
+        let fqdn = "Joe Sixpack's iMac"
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .unwrap();
+        assert!(fqdn == Name::from_str("joe-sixpacks-imac.home.arpa").unwrap());
+
+        let hostname = "Joe Sixpack's iMac".to_string().to_hostname().unwrap();
+        assert!(hostname == Name::from_str("joe-sixpacks-imac").unwrap());
+        let fqdn = "Joe Sixpack's iMac"
+            .to_string()
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .unwrap();
+        assert!(fqdn == Name::from_str("joe-sixpacks-imac.home.arpa").unwrap());
+
+        assert!("abc.".to_hostname().is_err());
+        assert!("abc."
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .is_err());
+
+        assert!("abc.".to_string().to_hostname().is_err());
+        assert!("abc."
+            .to_string()
+            .to_fqdn(Name::from_str("home.arpa").unwrap())
+            .is_err());
     }
 }
