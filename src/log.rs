@@ -63,3 +63,39 @@ impl FromStr for LevelFilter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::LevelFilter;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_level_from_str() {
+        for item in vec![
+            ("off", LevelFilter::Off),
+            ("error", LevelFilter::Error),
+            ("warn", LevelFilter::Warn),
+            ("info", LevelFilter::Info),
+            ("trace", LevelFilter::Trace),
+            ("debug", LevelFilter::Debug),
+        ] {
+            assert_eq!(LevelFilter::from_str(item.0).unwrap(), item.1)
+        }
+
+        assert!(LevelFilter::from_str("foo").is_err());
+    }
+
+    #[test]
+    fn test_level_to_string() {
+        for item in vec![
+            (LevelFilter::Off, "off"),
+            (LevelFilter::Error, "error"),
+            (LevelFilter::Warn, "warn"),
+            (LevelFilter::Info, "info"),
+            (LevelFilter::Trace, "trace"),
+            (LevelFilter::Debug, "debug"),
+        ] {
+            assert_eq!(item.0.to_string(), item.1)
+        }
+    }
+}

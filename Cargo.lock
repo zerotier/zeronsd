@@ -1781,6 +1781,7 @@ dependencies = [
  "ctor",
  "hex",
  "ipnetwork",
+ "lazy_static",
  "num_cpus",
  "openssl",
  "rand",
