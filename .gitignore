@@ -5,3 +5,5 @@ test-token.txt
 /*.pem
 /*.crt
 /*.key
+/*.csr
+/*.srl
