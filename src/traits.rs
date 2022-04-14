@@ -30,11 +30,11 @@ impl ToPointerSOA for IpNetwork {
 }
 
 pub trait ToWildcard {
-    fn to_wildcard(self) -> Name;
+    fn to_wildcard(&self) -> Name;
 }
 
 impl ToWildcard for Name {
-    fn to_wildcard(self) -> Name {
+    fn to_wildcard(&self) -> Name {
         let name = Self::from_str("*").unwrap();
         name.append_domain(&self).unwrap().into_wildcard()
     }
@@ -102,28 +102,38 @@ impl ToHostname for String {
 mod tests {
     use std::str::FromStr;
 
-    use super::ToHostname;
+    use super::{ToHostname, ToWildcard};
     use trust_dns_resolver::Name;
     use zerotier_central_api::models::Member;
+
+    #[test]
+    fn test_to_wildcard() {
+        let hostname = "test.home.arpa".to_hostname().unwrap();
+        let wildcard = hostname.to_wildcard();
+        assert_eq!(wildcard.to_string(), "*.test.home.arpa.");
+    }
 
     #[test]
     fn test_to_hostname_member() {
         let mut member = Member::new();
         member.node_id = Some("foo".to_string());
         let hostname = member.to_hostname().unwrap();
-        assert!(hostname == Name::from_str("zt-foo").unwrap());
+        assert_eq!(hostname, Name::from_str("zt-foo").unwrap());
         let fqdn = member
             .to_fqdn(Name::from_str("home.arpa").unwrap())
             .unwrap();
-        assert!(fqdn == Name::from_str("zt-foo.home.arpa").unwrap());
+        assert_eq!(fqdn, Name::from_str("zt-foo.home.arpa").unwrap());
 
         member.node_id = Some("Joe Sixpack's iMac".to_string());
         let hostname = member.to_hostname().unwrap();
-        assert!(hostname == Name::from_str("zt-joe-sixpacks-imac").unwrap());
+        assert_eq!(hostname, Name::from_str("zt-joe-sixpacks-imac").unwrap());
         let fqdn = member
             .to_fqdn(Name::from_str("home.arpa").unwrap())
             .unwrap();
-        assert!(fqdn == Name::from_str("zt-joe-sixpacks-imac.home.arpa").unwrap());
+        assert_eq!(
+            fqdn,
+            Name::from_str("zt-joe-sixpacks-imac.home.arpa").unwrap()
+        );
 
         member.node_id = Some("abc.".to_string());
         assert!(member.to_hostname().is_err());
@@ -135,32 +145,32 @@ mod tests {
     #[test]
     fn test_to_hostname_string_str() {
         let hostname = "foo".to_hostname().unwrap();
-        assert!(hostname == Name::from_str("foo").unwrap());
+        assert_eq!(hostname, Name::from_str("foo").unwrap());
         let fqdn = "foo".to_fqdn(Name::from_str("home.arpa").unwrap()).unwrap();
-        assert!(fqdn == Name::from_str("foo.home.arpa").unwrap());
+        assert_eq!(fqdn, Name::from_str("foo.home.arpa").unwrap());
 
         let hostname = "foo".to_string().to_hostname().unwrap();
-        assert!(hostname == Name::from_str("foo").unwrap());
+        assert_eq!(hostname, Name::from_str("foo").unwrap());
         let fqdn = "foo"
             .to_string()
             .to_fqdn(Name::from_str("home.arpa").unwrap())
             .unwrap();
-        assert!(fqdn == Name::from_str("foo.home.arpa").unwrap());
+        assert_eq!(fqdn, Name::from_str("foo.home.arpa").unwrap());
 
         let hostname = "Joe Sixpack's iMac".to_hostname().unwrap();
-        assert!(hostname == Name::from_str("joe-sixpacks-imac").unwrap());
+        assert_eq!(hostname, Name::from_str("joe-sixpacks-imac").unwrap());
         let fqdn = "Joe Sixpack's iMac"
             .to_fqdn(Name::from_str("home.arpa").unwrap())
             .unwrap();
-        assert!(fqdn == Name::from_str("joe-sixpacks-imac.home.arpa").unwrap());
+        assert_eq!(fqdn, Name::from_str("joe-sixpacks-imac.home.arpa").unwrap());
 
         let hostname = "Joe Sixpack's iMac".to_string().to_hostname().unwrap();
-        assert!(hostname == Name::from_str("joe-sixpacks-imac").unwrap());
+        assert_eq!(hostname, Name::from_str("joe-sixpacks-imac").unwrap());
         let fqdn = "Joe Sixpack's iMac"
             .to_string()
             .to_fqdn(Name::from_str("home.arpa").unwrap())
             .unwrap();
-        assert!(fqdn == Name::from_str("joe-sixpacks-imac.home.arpa").unwrap());
+        assert_eq!(fqdn, Name::from_str("joe-sixpacks-imac.home.arpa").unwrap());
 
         assert!("abc.".to_hostname().is_err());
         assert!("abc."
