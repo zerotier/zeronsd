@@ -5,7 +5,7 @@ build: test
 	cargo build
 
 test:
-	cargo test
+	cargo test --lib
 
 test-integration:
 ifneq (${SKIP},)
