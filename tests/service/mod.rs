@@ -8,7 +8,7 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-    ops::Add,
+    ops::{Add, AddAssign},
     str::FromStr,
     sync::Arc,
     time::Duration,
@@ -93,7 +93,7 @@ impl ServiceConfig {
 pub struct Service {
     tn: Arc<TestNetwork>,
     resolvers: Resolvers,
-    update_interval: Option<Duration>,
+    update_interval: Duration,
     pub listen_ips: Vec<SocketAddr>,
 }
 
@@ -110,14 +110,19 @@ impl Service {
                 .unwrap()
         };
 
+        let mut update_interval = Duration::new(4, 0);
+        if let Some(interval) = sc.update_interval {
+            update_interval += interval
+        }
+
         let listen_ips =
-            Self::create_listeners(&tn, sc.hosts, sc.update_interval, sc.wildcard_everything).await;
+            Self::create_listeners(&tn, sc.hosts, update_interval, sc.wildcard_everything).await;
 
         Self {
             tn: Arc::new(tn),
             resolvers: Self::create_resolvers(listen_ips.clone()),
             listen_ips,
-            update_interval: sc.update_interval,
+            update_interval,
         }
     }
 
@@ -156,7 +161,7 @@ impl Service {
     async fn create_listeners(
         tn: &TestNetwork,
         hosts: HostsType,
-        update_interval: Option<Duration>,
+        update_interval: Duration,
         wildcard_everything: bool,
     ) -> Vec<SocketAddr> {
         let listen_cidrs = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
@@ -213,8 +218,6 @@ impl Service {
         .await
         .unwrap();
 
-        let update_interval = update_interval.unwrap_or(Duration::new(1, 0));
-
         let ztauthority = ZTAuthority {
             network_id: tn.network.clone().id.unwrap(),
             config: tn.central(),
@@ -227,7 +230,7 @@ impl Service {
         };
 
         tokio::spawn(find_members(ztauthority.clone()));
-        tokio::time::sleep(update_interval.add(Duration::new(3, 0))).await;
+        tokio::time::sleep(update_interval).await;
 
         for ip in listen_ips.clone() {
             let server = Server::new(ztauthority.to_owned());
@@ -288,9 +291,7 @@ impl Service {
         .await
         .unwrap();
 
-        if self.update_interval.is_some() {
-            tokio::time::sleep(self.update_interval.unwrap()).await; // wait for it to update
-        }
+        tokio::time::sleep(self.update_interval).await; // wait for it to update
     }
 
     pub fn test_network(&self) -> Arc<TestNetwork> {
