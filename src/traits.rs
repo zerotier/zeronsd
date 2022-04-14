@@ -9,11 +9,11 @@ use trust_dns_server::client::rr::LowerName;
 use zerotier_central_api::models::Member;
 
 pub trait ToPointerSOA {
-    fn to_ptr_soa_name(self) -> Result<LowerName, ProtoError>;
+    fn to_ptr_soa_name(&self) -> Result<LowerName, ProtoError>;
 }
 
 impl ToPointerSOA for IpNetwork {
-    fn to_ptr_soa_name(self) -> Result<LowerName, ProtoError> {
+    fn to_ptr_soa_name(&self) -> Result<LowerName, ProtoError> {
         // how many bits in each ptr octet
         let octet_factor = match self {
             IpNetwork::V4(_) => 8,
@@ -102,9 +102,47 @@ impl ToHostname for String {
 mod tests {
     use std::str::FromStr;
 
-    use super::{ToHostname, ToWildcard};
+    use super::{ToHostname, ToPointerSOA, ToWildcard};
+    use ipnetwork::IpNetwork;
     use trust_dns_resolver::Name;
+    use trust_dns_server::client::rr::LowerName;
     use zerotier_central_api::models::Member;
+
+    #[test]
+    fn test_to_ptr_soa_name() {
+        for item in vec![
+            (
+                IpNetwork::from_str("1.2.3.4/24").unwrap(),
+                LowerName::from_str("3.2.1.in-addr.arpa").unwrap(),
+            ),
+            (
+                IpNetwork::from_str("1.2.3.4/16").unwrap(),
+                LowerName::from_str("2.1.in-addr.arpa").unwrap(),
+            ),
+            (
+                IpNetwork::from_str("1.2.3.4/8").unwrap(),
+                LowerName::from_str("1.in-addr.arpa").unwrap(),
+            ),
+            (
+                IpNetwork::from_str("1.2.3.4/12").unwrap(),
+                LowerName::from_str("1.in-addr.arpa").unwrap(),
+            ),
+            (
+                IpNetwork::from_str("1.2.3.4/22").unwrap(),
+                LowerName::from_str("2.1.in-addr.arpa").unwrap(),
+            ),
+            (
+                IpNetwork::from_str("1.2.3.4/26").unwrap(),
+                LowerName::from_str("3.2.1.in-addr.arpa").unwrap(),
+            ),
+            (
+                IpNetwork::from_str("1.2.3.4/32").unwrap(),
+                LowerName::from_str("4.3.2.1.in-addr.arpa").unwrap(),
+            ),
+        ] {
+            assert_eq!(item.0.to_ptr_soa_name().unwrap(), item.1);
+        }
+    }
 
     #[test]
     fn test_to_wildcard() {
