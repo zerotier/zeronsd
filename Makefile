@@ -39,13 +39,16 @@ docker-image-push: docker-image-package
 
 packages:
 	make docker-image-package
+	mkdir -p target/packages
+	docker build -f Dockerfile.ubuntu -t zeronsd-packages-ubuntu .
+	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages-ubuntu bash -c "cargo deb --deb-version ${CARGO_VERSION}-ubuntu22 && mv /code/target/debian/*.deb /code/target/packages"
 	docker build -f Dockerfile.packages -t zeronsd-packages .
-	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages bash -c "cargo deb && cargo-generate-rpm"
+	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages bash -c "cargo deb && cargo-generate-rpm && mv /code/target/debian/*.deb /code/target/generate-rpm/*.rpm /code/target/packages "
 	make packages-out
 
 packages-out:
 	@echo
-	@find target -name '*.deb' -o -name '*.rpm'
+	@find target/packages -name '*.deb' -o -name '*.rpm'
 	@echo docker image "zerotier/zeronsd:$(CARGO_VERSION)" was tagged
 	@echo
 	@echo "The files were written as root. Please ensure they fit your needed permissions manually."
@@ -60,11 +63,10 @@ clean:
 
 test-packages: clean
 	make packages
-	docker run -v ${PWD}:/code --rm -it centos rpm -ivh /code/target/generate-rpm/\*.rpm
-	for image in debian ubuntu; do \
-		docker run -v ${PWD}:/code --rm -it $$image \
-			bash -c "apt update -qq && apt install libssl1.1 -y && dpkg -i /code/$$(find target -name '*.deb')"; \
-	done
+	docker run -v ${PWD}:/code --rm -it centos rpm -ivh /code/target/packages/\*.rpm
+	docker run -v ${PWD}:/code --rm -it debian:latest bash -c "apt update -qq && apt install libssl1.1 && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb"
+	docker run -v ${PWD}:/code --rm -it ubuntu:focal bash -c "apt update -qq && apt install libssl1.1 && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb"
+	docker run -v ${PWD}:/code --rm -it ubuntu:jammy bash -c "apt update -qq && apt install libssl3 && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}-ubuntu22_amd64.deb"
 	[ "$$(docker run --rm zerotier/zeronsd:$(CARGO_VERSION) --version)" = "zeronsd $(CARGO_VERSION)" ]
 	make packages-out
 
