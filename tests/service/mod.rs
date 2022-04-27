@@ -192,8 +192,8 @@ impl Service {
             }
         }
 
-        if let Some(v6assign) = tn.network.config.clone().unwrap().v6_assign_mode {
-            if v6assign.rfc4193.unwrap_or(false) {
+        if let Some(v6assign) = tn.network.config.clone().unwrap().v_6_assign_mode {
+            if v6assign.rfc_4193.unwrap_or(false) {
                 let cidr = tn.network.clone().rfc4193().unwrap();
                 if !authority_map.contains_key(&cidr) {
                     let ptr_authority = RecordAuthority::new(
@@ -219,7 +219,7 @@ impl Service {
 
         let ztauthority = ZTAuthority {
             network_id: tn.network.clone().id.unwrap(),
-            config: tn.central(),
+            client: tn.central(),
             hosts_file: format_hosts_file(hosts),
             reverse_authority_map: authority_map,
             update_interval,
@@ -271,24 +271,28 @@ impl Service {
     }
 
     pub async fn change_name(&self, name: &'static str) {
-        let mut member = zerotier_central_api::apis::network_member_api::get_network_member(
-            &self.network().central(),
-            &self.network().network.clone().id.unwrap(),
-            &self.network().identity(),
-        )
-        .await
-        .unwrap();
+        let mut member = self
+            .network()
+            .central()
+            .get_network_member(
+                &self.network().network.clone().id.unwrap(),
+                &self.network().identity(),
+            )
+            .await
+            .unwrap();
 
         member.name = Some(name.to_string());
 
-        zerotier_central_api::apis::network_member_api::update_network_member(
-            &self.network().central(),
-            &self.network().network.clone().id.unwrap(),
-            &self.network().identity(),
-            member,
-        )
-        .await
-        .unwrap();
+        let _ = &self
+            .network()
+            .central()
+            .update_network_member(
+                &self.network().network.clone().id.unwrap(),
+                &self.network().identity(),
+                &member.to_owned(),
+            )
+            .await
+            .unwrap();
 
         tokio::time::sleep(self.update_interval).await; // wait for it to update
     }

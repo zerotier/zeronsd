@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use zeronsd::utils::authtoken_path;
 
@@ -22,8 +25,8 @@ pub fn randstring(len: u8) -> String {
 // extract a network definiton from testdata. templates in a new name.
 pub fn network_definition(
     name: String,
-) -> Result<serde_json::Map<String, serde_json::Value>, anyhow::Error> {
-    let mut res: serde_json::Map<String, serde_json::Value> = serde_json::from_reader(
+) -> Result<HashMap<String, serde_json::Value>, anyhow::Error> {
+    let mut res: HashMap<String, serde_json::Value> = serde_json::from_reader(
         std::fs::File::open(format!("testdata/networks/{}.json", name))?,
     )?;
 
@@ -41,12 +44,11 @@ pub fn network_definition(
 }
 
 // returns the public identity of this instance of zerotier
-pub async fn get_identity(
-    configuration: &zerotier_one_api::apis::configuration::Configuration,
-) -> Result<String, anyhow::Error> {
-    let status = zerotier_one_api::apis::status_api::get_status(configuration).await?;
+pub async fn get_identity(client: &zerotier_one_api::Client) -> Result<String, anyhow::Error> {
+    let status = client.get_status().await?;
 
     Ok(status
+        .to_owned()
         .public_identity
         .unwrap()
         .splitn(3, ":")
@@ -60,17 +62,6 @@ pub fn get_authtoken(or: Option<&str>) -> Result<String, anyhow::Error> {
     Ok(std::fs::read_to_string(authtoken_path(
         or.map(|c| Path::new(c)),
     ))?)
-}
-
-// zerotier_config returns the openapi configuration required to talk to the local ztone instance
-pub fn zerotier_config(authtoken: String) -> zerotier_one_api::apis::configuration::Configuration {
-    let mut zerotier = zerotier_one_api::apis::configuration::Configuration::default();
-    zerotier.api_key = Some(zerotier_one_api::apis::configuration::ApiKey {
-        prefix: None,
-        key: authtoken.clone(),
-    });
-
-    zerotier
 }
 
 pub enum HostsType {

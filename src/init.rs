@@ -103,7 +103,7 @@ impl Launcher {
 
         let domain_name = domain_or_default(self.domain.as_deref())?;
         let authtoken = authtoken_path(self.secret.as_deref());
-        let config = central_config(central_token(self.token.as_deref())?);
+        let client = central_client(central_token(self.token.as_deref())?)?;
 
         info!("Welcome to ZeroNS!");
         let ips = get_listen_ips(&authtoken, &self.network_id.clone().unwrap()).await?;
@@ -115,7 +115,7 @@ impl Launcher {
                 ips.iter()
                     .map(|i| parse_ip_from_cidr(i.clone()).to_string())
                     .collect(),
-                config.clone(),
+                client.clone(),
                 self.network_id.clone().unwrap(),
             )
             .await?;
@@ -143,18 +143,16 @@ impl Launcher {
 
             let member_name = get_member_name(authtoken, domain_name.clone()).await?;
 
-            let network = zerotier_central_api::apis::network_api::get_network_by_id(
-                &config,
-                &self.network_id.clone().unwrap(),
-            )
-            .await?;
+            let network = client
+                .get_network_by_id(&self.network_id.clone().unwrap())
+                .await?;
 
-            if let Some(v6assign) = network.config.clone().unwrap().v6_assign_mode {
-                if v6assign.var_6plane.unwrap_or(false) {
+            if let Some(v6assign) = network.config.clone().unwrap().v_6_assign_mode {
+                if v6assign._6_plane.unwrap_or(false) {
                     warn!("6PLANE PTR records are not yet supported");
                 }
 
-                if v6assign.rfc4193.unwrap_or(false) {
+                if v6assign.rfc_4193.unwrap_or(false) {
                     let cidr = network.clone().rfc4193().unwrap();
                     if !authority_map.contains_key(&cidr) {
                         let ptr_authority =
@@ -169,7 +167,7 @@ impl Launcher {
                 RecordAuthority::new(domain_name.clone().into(), member_name.clone()).await?;
 
             let ztauthority = ZTAuthority {
-                config,
+                client,
                 network_id: self.network_id.clone().unwrap(),
                 hosts: None, // this will be parsed later.
                 hosts_file: self.hosts.clone(),

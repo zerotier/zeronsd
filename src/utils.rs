@@ -1,12 +1,11 @@
 use std::{net::IpAddr, path::Path, str::FromStr, sync::Once};
 
 use ipnetwork::IpNetwork;
+use reqwest::header::{HeaderMap, HeaderValue};
 use tracing::warn;
 use trust_dns_server::client::rr::{LowerName, Name};
-use zerotier_central_api::apis::configuration::Configuration;
 
 use anyhow::anyhow;
-use zerotier_one_api::apis::configuration::Configuration as ZTOneConfiguration;
 
 use crate::traits::ToHostname;
 
@@ -16,6 +15,10 @@ pub const TEST_HOSTS_DIR: &str = "testdata/hosts-files";
 pub const DOMAIN_NAME: &str = "home.arpa.";
 // zeronsd version calculated from Cargo.toml
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
+// address of Central
+pub const CENTRAL_BASEURL: &str = "https://my.zerotier.com/api/v1";
+// address of local zerotier instance
+pub const ZEROTIER_LOCAL_URL: &str = "http://127.0.0.1:9993";
 
 // this really needs to be replaced with lazy_static! magic
 fn version() -> String {
@@ -64,18 +67,21 @@ pub fn init_logger(level: Option<tracing::Level>) {
 }
 
 // this provides the production configuration for talking to central through the openapi libraries.
-pub fn central_config(token: String) -> Configuration {
-    let mut config = Configuration {
-        user_agent: Some(version()),
-        bearer_access_token: Some(token),
-        ..Default::default()
-    };
+pub fn central_client(token: String) -> Result<zerotier_central_api::Client, anyhow::Error> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "Authorization",
+        HeaderValue::from_str(&format!("bearer {}", token))?,
+    );
 
-    if let Ok(instance) = std::env::var("ZEROTIER_CENTRAL_INSTANCE") {
-        config.base_path = instance;
-    }
-
-    config
+    Ok(zerotier_central_api::Client::new_with_client(
+        &std::env::var("ZEROTIER_CENTRAL_INSTANCE").unwrap_or(CENTRAL_BASEURL.to_string()),
+        reqwest::Client::builder()
+            .user_agent(version())
+            .https_only(true)
+            .default_headers(headers)
+            .build()?,
+    ))
 }
 
 // extracts the ip from the CIDR. 10.0.0.1/32 becomes 10.0.0.1
@@ -155,11 +161,11 @@ pub async fn get_member_name(
     authtoken_path: &Path,
     domain_name: Name,
 ) -> Result<LowerName, anyhow::Error> {
-    let configuration = get_local_config(authtoken_path)?;
+    let client = local_client_from_file(authtoken_path)?;
 
-    let status = zerotier_one_api::apis::status_api::get_status(&configuration).await?;
-    if let Some(address) = status.address {
-        return Ok(("zt-".to_string() + &address).to_fqdn(domain_name)?.into());
+    let status = client.get_status().await?;
+    if let Some(address) = &status.address {
+        return Ok(("zt-".to_string() + address).to_fqdn(domain_name)?.into());
     }
 
     Err(anyhow!(
@@ -167,17 +173,24 @@ pub async fn get_member_name(
     ))
 }
 
-fn get_local_config(authtoken_path: &Path) -> Result<ZTOneConfiguration, anyhow::Error> {
+fn local_client_from_file(
+    authtoken_path: &Path,
+) -> Result<zerotier_one_api::Client, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
-    let mut configuration = ZTOneConfiguration::default();
-    let api_key = zerotier_one_api::apis::configuration::ApiKey {
-        prefix: None,
-        key: authtoken,
-    };
+    local_client(authtoken)
+}
 
-    configuration.user_agent = Some(version());
-    configuration.api_key = Some(api_key);
-    Ok(configuration)
+pub fn local_client(authtoken: String) -> Result<zerotier_one_api::Client, anyhow::Error> {
+    let mut headers = HeaderMap::new();
+    headers.insert("X-ZT1-Auth", HeaderValue::from_str(&authtoken)?);
+
+    Ok(zerotier_one_api::Client::new_with_client(
+        "http://127.0.0.1:9993",
+        reqwest::Client::builder()
+            .user_agent(version())
+            .default_headers(headers)
+            .build()?,
+    ))
 }
 
 // get_listen_ips returns the IPs that the network is providing to the instance running zeronsd.
@@ -186,29 +199,21 @@ pub async fn get_listen_ips(
     authtoken_path: &Path,
     network_id: &str,
 ) -> Result<Vec<String>, anyhow::Error> {
-    let configuration = get_local_config(authtoken_path)?;
+    let client = local_client_from_file(authtoken_path)?;
 
-    match zerotier_one_api::apis::network_api::get_network(&configuration, network_id).await {
-        Err(error) => {
-            match error {
-                zerotier_one_api::apis::Error::ResponseError(_) => {
-                    Err(anyhow!("Are you joined to {}?", network_id))
-                }
-                zerotier_one_api::apis::Error::Reqwest(_) => Err(anyhow!(
-                    "Can't connect to zerotier-one at {:}. Is it installed and running?",
-                    configuration.base_path
-                )),
-                // TODO ERROR - error in response: status code 403 Forbidden (wrong authtoken)
-                other_error => Err(anyhow!(other_error)),
-            }
-        }
+    match client.get_network(network_id).await {
+        Err(error) => Err(anyhow!(
+            "Error: {}. Are you joined to {}?",
+            error,
+            network_id
+        )),
         Ok(listen) => {
-            if let Some(assigned) = listen.assigned_addresses {
-                if assigned.len() > 0 {
-                    return Ok(assigned);
-                }
+            let assigned = listen.subtype_1.assigned_addresses.to_owned();
+            if assigned.len() > 0 {
+                Ok(assigned)
+            } else {
+                Err(anyhow!("No listen IPs available on this network"))
             }
-            Err(anyhow!("No listen IPs available on this network"))
         }
     }
 }
@@ -217,16 +222,15 @@ pub async fn get_listen_ips(
 pub async fn update_central_dns(
     domain_name: Name,
     ips: Vec<String>,
-    config: Configuration,
+    client: zerotier_central_api::Client,
     network: String,
 ) -> Result<(), anyhow::Error> {
-    let mut zt_network =
-        zerotier_central_api::apis::network_api::get_network_by_id(&config, &network).await?;
+    let mut zt_network = client.get_network_by_id(&network).await?;
 
     let mut domain_name = domain_name;
     domain_name.set_fqdn(false);
 
-    let dns = Some(zerotier_central_api::models::Dns {
+    let dns = Some(zerotier_central_api::types::Dns {
         domain: Some(domain_name.to_string()),
         servers: Some(ips),
     });
@@ -234,8 +238,7 @@ pub async fn update_central_dns(
     if let Some(mut zt_network_config) = zt_network.config.to_owned() {
         zt_network_config.dns = dns;
         zt_network.config = Some(zt_network_config);
-        zerotier_central_api::apis::network_api::update_network(&config, &network, zt_network)
-            .await?;
+        client.update_network(&network, &zt_network).await?;
     }
 
     Ok(())

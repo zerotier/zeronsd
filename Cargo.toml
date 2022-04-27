@@ -21,11 +21,11 @@ ipnetwork = ">=0"
 trust-dns-resolver = { version = "^0.21.0", features = ["tokio-runtime", "dns-over-openssl"] }
 trust-dns-server = { version = "^0.21.0", features = ["trust-dns-resolver", "dns-over-openssl"] }
 tokio = { version = "1", features = ["full"] }
-zerotier-central-api = { version = "=1.0.3" }
-zerotier-one-api = { version = "=1.0.5" }
 serde = ">=0"
 serde_json = ">=0"
 serde_yaml = ">=0"
+zerotier-central-api = { version = "= 1.0.5", path = "../zerotier-rust-api/zerotier-central-api" }
+zerotier-one-api = { version = "= 1.0.6", path = "../zerotier-rust-api/zerotier-one-api" }
 toml = ">=0"
 tinytemplate = ">=0"
 rand = ">=0"
@@ -36,6 +36,7 @@ hex = ">=0"
 openssl = ">=0"
 async-trait = ">=0"
 lazy_static = ">=0"
+reqwest = ">=0"
 
 [features]
 vendored-openssl = [ "openssl/vendored" ]

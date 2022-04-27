@@ -1,24 +1,38 @@
-use zerotier_central_api::models::{Member, MemberConfig};
+use zerotier_central_api::types::{Member, MemberConfig};
 
 // monkeypatches to Member
 pub trait MemberUtil {
     // set some member defaults for testing
-    fn set_defaults(&mut self, network_id: String, identity: String);
+    fn new(network_id: String, identity: String) -> Self;
 }
 
 // monkeypatches to MemberConfig
 pub trait MemberConfigUtil {
     fn set_ip_assignments(&mut self, ips: Vec<&str>);
-    fn set_defaults(&mut self, identity: String);
+    fn new(identity: String) -> Self;
 }
 
 impl MemberUtil for Member {
-    fn set_defaults(&mut self, network_id: String, identity: String) {
-        self.node_id = Some(identity.clone());
-        self.network_id = Some(network_id);
-        let mut mc = MemberConfig::new();
-        mc.set_defaults(identity);
-        self.config = Some(Box::new(mc));
+    fn new(network_id: String, identity: String) -> Self {
+        let mut s = Self {
+            protocol_version: None,
+            supports_rules_engine: None,
+            physical_address: None,
+            name: None,
+            last_online: None,
+            id: None,
+            hidden: None,
+            description: None,
+            controller_id: None,
+            config: None,
+            clock: None,
+            client_version: None,
+            node_id: Some(identity.clone()),
+            network_id: Some(network_id),
+        };
+
+        s.config = Some(MemberConfig::new(identity));
+        s
     }
 }
 
@@ -27,22 +41,24 @@ impl MemberConfigUtil for MemberConfig {
         self.ip_assignments = Some(ips.into_iter().map(|s| s.to_string()).collect())
     }
 
-    fn set_defaults(&mut self, identity: String) {
-        self.v_rev = None;
-        self.v_major = None;
-        self.v_proto = None;
-        self.v_minor = None;
-        self.tags = None;
-        self.revision = None;
-        self.no_auto_assign_ips = Some(false);
-        self.last_authorized_time = None;
-        self.last_deauthorized_time = None;
-        self.id = None;
-        self.creation_time = None;
-        self.capabilities = None;
-        self.ip_assignments = None;
-        self.authorized = Some(true);
-        self.active_bridge = None;
-        self.identity = Some(identity);
+    fn new(identity: String) -> Self {
+        Self {
+            v_rev: None,
+            v_major: None,
+            v_proto: None,
+            v_minor: None,
+            tags: Some(Vec::new()),
+            revision: None,
+            no_auto_assign_ips: Some(false),
+            last_authorized_time: None,
+            last_deauthorized_time: None,
+            id: None,
+            creation_time: None,
+            capabilities: Some(Vec::new()),
+            ip_assignments: Some(Vec::new()),
+            authorized: Some(true),
+            active_bridge: None,
+            identity: Some(identity),
+        }
     }
 }
