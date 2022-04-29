@@ -1769,7 +1769,7 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 [[package]]
 name = "typify"
 version = "0.0.6-dev"
-source = "git+https://github.com/oxidecomputer/typify#6617df9800c81954ef2aa630f117f66e824f104d"
+source = "git+https://github.com/oxidecomputer/typify#437785a40091f9619586382878c9ccc745d28038"
 dependencies = [
  "typify-impl",
  "typify-macro",
@@ -1778,7 +1778,7 @@ dependencies = [
 [[package]]
 name = "typify-impl"
 version = "0.0.6-dev"
-source = "git+https://github.com/oxidecomputer/typify#6617df9800c81954ef2aa630f117f66e824f104d"
+source = "git+https://github.com/oxidecomputer/typify#437785a40091f9619586382878c9ccc745d28038"
 dependencies = [
  "convert_case",
  "log",
@@ -1795,7 +1795,7 @@ dependencies = [
 [[package]]
 name = "typify-macro"
 version = "0.0.6-dev"
-source = "git+https://github.com/oxidecomputer/typify#6617df9800c81954ef2aa630f117f66e824f104d"
+source = "git+https://github.com/oxidecomputer/typify#437785a40091f9619586382878c9ccc745d28038"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2129,7 +2129,8 @@ dependencies = [
 
 [[package]]
 name = "zerotier-central-api"
-version = "1.0.5"
+version = "1.1.0"
+source = "git+https://github.com/erikh/zerotier-rust-api?branch=openapiv3#724646b3ff0669f65820df92264306513969b771"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2144,7 +2145,8 @@ dependencies = [
 
 [[package]]
 name = "zerotier-one-api"
-version = "1.0.6"
+version = "1.1.0"
+source = "git+https://github.com/erikh/zerotier-rust-api?branch=openapiv3#724646b3ff0669f65820df92264306513969b771"
 dependencies = [
  "anyhow",
  "chrono",
