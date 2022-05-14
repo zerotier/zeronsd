@@ -144,12 +144,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -923,8 +917,9 @@ dependencies = [
 
 [[package]]
 name = "progenitor"
-version = "0.0.0"
-source = "git+https://github.com/erikh/progenitor?branch=fix-reqwest-features#87affcd1b12d5921943da9c6441afb61f8e665d0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54484468975e18aa57ed3e9a13ac0468160a433af89eee1189f681292eafc5d1"
 dependencies = [
  "anyhow",
  "getopts",
@@ -938,8 +933,9 @@ dependencies = [
 
 [[package]]
 name = "progenitor-client"
-version = "0.0.0"
-source = "git+https://github.com/erikh/progenitor?branch=fix-reqwest-features#87affcd1b12d5921943da9c6441afb61f8e665d0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45c7752120152426ce577c3de6b341fecdaae59883f31296d91871a6d7843206"
 dependencies = [
  "bytes",
  "futures-core",
@@ -951,11 +947,12 @@ dependencies = [
 
 [[package]]
 name = "progenitor-impl"
-version = "0.0.0"
-source = "git+https://github.com/erikh/progenitor?branch=fix-reqwest-features#87affcd1b12d5921943da9c6441afb61f8e665d0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1980a31d714128082fe8dd6a7cb6086c15080cdb9a693feba171361fb961b034"
 dependencies = [
- "convert_case",
  "getopts",
+ "heck",
  "indexmap",
  "openapiv3",
  "proc-macro2",
@@ -973,8 +970,9 @@ dependencies = [
 
 [[package]]
 name = "progenitor-macro"
-version = "0.0.0"
-source = "git+https://github.com/erikh/progenitor?branch=fix-reqwest-features#87affcd1b12d5921943da9c6441afb61f8e665d0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0993b8f5bbcf35ec130f9d305cefbbd81f00c014c049bf298bd218529989b054"
 dependencies = [
  "openapiv3",
  "proc-macro2",
@@ -1768,8 +1766,9 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
 name = "typify"
-version = "0.0.6-dev"
-source = "git+https://github.com/oxidecomputer/typify#437785a40091f9619586382878c9ccc745d28038"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75e642ba5bfa5a7b2e085a700f5f5111b069a833156f82c53a365210e545258d"
 dependencies = [
  "typify-impl",
  "typify-macro",
@@ -1777,10 +1776,11 @@ dependencies = [
 
 [[package]]
 name = "typify-impl"
-version = "0.0.6-dev"
-source = "git+https://github.com/oxidecomputer/typify#437785a40091f9619586382878c9ccc745d28038"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54b1b5a377f1e0dceb8a18b25c86c80b32d0882b01e1585fd520354a56b7c30c"
 dependencies = [
- "convert_case",
+ "heck",
  "log",
  "proc-macro2",
  "quote",
@@ -1794,8 +1794,9 @@ dependencies = [
 
 [[package]]
 name = "typify-macro"
-version = "0.0.6-dev"
-source = "git+https://github.com/oxidecomputer/typify#437785a40091f9619586382878c9ccc745d28038"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25cad3517ce4190a7f108cd6360da245c7e289060003d077156f2da7dcf1f568"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2130,7 +2131,6 @@ dependencies = [
 [[package]]
 name = "zerotier-central-api"
 version = "1.1.0"
-source = "git+https://github.com/erikh/zerotier-rust-api?branch=openapiv3#724646b3ff0669f65820df92264306513969b771"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2146,7 +2146,6 @@ dependencies = [
 [[package]]
 name = "zerotier-one-api"
 version = "1.1.0"
-source = "git+https://github.com/erikh/zerotier-rust-api?branch=openapiv3#724646b3ff0669f65820df92264306513969b771"
 dependencies = [
  "anyhow",
  "chrono",

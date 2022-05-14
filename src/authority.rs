@@ -144,15 +144,15 @@ impl ZTAuthority {
 
         let (mut sixplane, mut rfc4193) = (None, None);
 
-        let v6assign = network.config.clone().unwrap().v_6_assign_mode;
+        let v6assign = network.config.clone().unwrap().v6_assign_mode;
         if v6assign.is_some() {
             let v6assign = v6assign.unwrap().clone();
-            if v6assign._6_plane.unwrap_or(false) {
+            if v6assign._6plane.unwrap_or(false) {
                 let s = network.clone().sixplane()?;
                 sixplane = Some(s);
             }
 
-            if v6assign.rfc_4193.unwrap_or(false) {
+            if v6assign.rfc4193.unwrap_or(false) {
                 let s = network.clone().rfc4193()?;
                 rfc4193 = Some(s.clone());
                 reverse_records

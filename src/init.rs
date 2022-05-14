@@ -147,12 +147,12 @@ impl Launcher {
                 .get_network_by_id(&self.network_id.clone().unwrap())
                 .await?;
 
-            if let Some(v6assign) = network.config.clone().unwrap().v_6_assign_mode {
-                if v6assign._6_plane.unwrap_or(false) {
+            if let Some(v6assign) = network.config.clone().unwrap().v6_assign_mode {
+                if v6assign._6plane.unwrap_or(false) {
                     warn!("6PLANE PTR records are not yet supported");
                 }
 
-                if v6assign.rfc_4193.unwrap_or(false) {
+                if v6assign.rfc4193.unwrap_or(false) {
                     let cidr = network.clone().rfc4193().unwrap();
                     if !authority_map.contains_key(&cidr) {
                         let ptr_authority =

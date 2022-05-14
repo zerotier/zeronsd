@@ -24,8 +24,8 @@ tokio = { version = "1", features = ["full"] }
 serde = ">=0"
 serde_json = ">=0"
 serde_yaml = ">=0"
-zerotier-central-api = { version = "= 1.0.5", path = "../zerotier-rust-api/zerotier-central-api" }
-zerotier-one-api = { version = "= 1.0.6", path = "../zerotier-rust-api/zerotier-one-api" }
+zerotier-central-api = { version = "= 1.1.0", path = "../zerotier-rust-api/zerotier-central-api" }
+zerotier-one-api = { version = "= 1.1.0", path = "../zerotier-rust-api/zerotier-one-api" }
 toml = ">=0"
 tinytemplate = ">=0"
 rand = ">=0"
