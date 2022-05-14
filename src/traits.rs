@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use trust_dns_resolver::{proto::error::ProtoError, IntoName, Name};
 use trust_dns_server::client::rr::LowerName;
-use zerotier_central_api::models::Member;
+use zerotier_central_api::types::Member;
 
 pub trait ToPointerSOA {
     fn to_ptr_soa_name(&self) -> Result<LowerName, ProtoError>;
@@ -106,7 +106,7 @@ mod tests {
     use ipnetwork::IpNetwork;
     use trust_dns_resolver::Name;
     use trust_dns_server::client::rr::LowerName;
-    use zerotier_central_api::models::Member;
+    use zerotier_central_api::types::Member;
 
     #[test]
     fn test_to_ptr_soa_name() {
@@ -153,7 +153,22 @@ mod tests {
 
     #[test]
     fn test_to_hostname_member() {
-        let mut member = Member::new();
+        let mut member = Member {
+            supports_rules_engine: None,
+            protocol_version: None,
+            physical_address: None,
+            node_id: None,
+            network_id: None,
+            name: None,
+            last_online: None,
+            id: None,
+            hidden: None,
+            description: None,
+            controller_id: None,
+            config: None,
+            client_version: None,
+            clock: None,
+        };
         member.node_id = Some("foo".to_string());
         let hostname = member.to_hostname().unwrap();
         assert_eq!(hostname, Name::from_str("zt-foo").unwrap());

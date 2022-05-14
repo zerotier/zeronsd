@@ -2,10 +2,8 @@ use std::time::Duration;
 
 use tracing::warn;
 use zeronsd::utils::{authtoken_path, get_listen_ips};
-use zerotier_central_api::{
-    apis::configuration::Configuration,
-    models::{Member, MemberConfig, Network},
-};
+use zerotier_central_api::types::{Member, MemberConfig, Network};
+use zerotier_one_api::types::{NetworkSubtype0, NetworkSubtype1};
 
 use super::{context::TestContext, member::MemberConfigUtil, utils::network_definition};
 
@@ -25,35 +23,29 @@ impl TestNetwork {
         tc: &mut TestContext,
         ips: Vec<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let mut mc = MemberConfig::new();
-        mc.set_defaults(tc.identity.clone());
+        let mut mc = MemberConfig::new(tc.identity.clone());
         mc.set_ip_assignments(ips);
-        tc.member_config = Some(Box::new(mc));
+        tc.member_config = Some(mc);
         Self::new(network_def, tc).await
     }
 
     // constructor.
     pub async fn new(network_def: &str, tc: &mut TestContext) -> Result<Self, anyhow::Error> {
-        let network = zerotier_central_api::apis::network_api::new_network(
-            &tc.central,
-            serde_json::Value::Object(network_definition(network_def.to_string())?),
-        )
-        .await
-        .unwrap();
+        let network = tc
+            .central
+            .new_network(&network_definition(network_def.to_string())?)
+            .await
+            .unwrap();
 
         let member = tc.get_member(network.clone().id.unwrap());
 
-        zerotier_central_api::apis::network_member_api::update_network_member(
-            &tc.central,
-            &network.clone().id.unwrap(),
-            &tc.identity,
-            member.clone(),
-        )
-        .await
-        .unwrap();
+        tc.central
+            .update_network_member(&network.clone().id.unwrap(), &tc.identity, &member)
+            .await
+            .unwrap();
 
         let s = Self {
-            network,
+            network: network.to_owned(),
             member,
             context: tc.clone(),
         };
@@ -65,13 +57,40 @@ impl TestNetwork {
 
     // join zerotier-one to the test network
     pub async fn join(&self) -> Result<(), anyhow::Error> {
-        let network = zerotier_one_api::models::Network::new();
-        zerotier_one_api::apis::network_api::update_network(
-            &self.context.zerotier,
-            &self.network.id.clone().unwrap(),
-            network,
-        )
-        .await?;
+        let network = zerotier_one_api::types::Network {
+            subtype_0: NetworkSubtype0 {
+                allow_dns: Some(true),
+                allow_global: Some(false),
+                allow_default: Some(false),
+                allow_managed: Some(true),
+            },
+            subtype_1: NetworkSubtype1 {
+                status: None,
+                type_: None,
+                routes: Vec::new(),
+                port_error: None,
+                port_device_name: None,
+                netconf_revision: None,
+                name: None,
+                multicast_subscriptions: Vec::new(),
+                mtu: None,
+                mac: None,
+                id: None,
+                dns: None,
+                broadcast_enabled: None,
+                bridge: None,
+                assigned_addresses: Vec::new(),
+                allow_dns: Some(true),
+                allow_global: Some(false),
+                allow_default: Some(false),
+                allow_managed: Some(true),
+            },
+        };
+
+        self.context
+            .zerotier
+            .update_network(&self.network.id.clone().unwrap(), &network)
+            .await?;
 
         let id = self.network.id.clone().unwrap();
         let mut count = 0;
@@ -89,18 +108,19 @@ impl TestNetwork {
 
     // leave the test network
     pub async fn leave(&self) -> Result<(), anyhow::Error> {
-        Ok(zerotier_one_api::apis::network_api::delete_network(
-            &self.context.zerotier,
-            &self.network.id.clone().unwrap(),
-        )
-        .await?)
+        Ok(self
+            .context
+            .zerotier
+            .delete_network(&self.network.id.clone().unwrap())
+            .await?
+            .to_owned())
     }
 
     pub fn identity(&self) -> String {
         self.context.identity.clone()
     }
 
-    pub fn central(&self) -> Configuration {
+    pub fn central(&self) -> zerotier_central_api::Client {
         self.context.central.clone()
     }
 
@@ -113,12 +133,10 @@ impl TestNetwork {
             tokio::runtime::Handle::current().block_on(async {
                 self.leave().await.unwrap();
                 let central = self.central();
-                zerotier_central_api::apis::network_api::delete_network(
-                    &central,
-                    &self.network.id.clone().unwrap(),
-                )
-                .await
-                .unwrap();
+                central
+                    .delete_network(&self.network.id.clone().unwrap())
+                    .await
+                    .unwrap();
             })
         })
     }

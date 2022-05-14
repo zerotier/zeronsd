@@ -7,6 +7,13 @@ use std::{
     time::Duration,
 };
 
+use crate::{
+    addresses::Calculator,
+    hosts::{parse_hosts, HostsFile},
+    traits::{ToHostname, ToPointerSOA, ToWildcard},
+    utils::parse_member_name,
+};
+
 use async_trait::async_trait;
 use ipnetwork::IpNetwork;
 use trust_dns_resolver::{
@@ -21,17 +28,6 @@ use trust_dns_server::{
         forwarder::{ForwardAuthority, ForwardConfig},
         in_memory::InMemoryAuthority,
     },
-};
-use zerotier_central_api::{
-    apis::configuration::Configuration,
-    models::{Member, Network},
-};
-
-use crate::{
-    addresses::Calculator,
-    hosts::{parse_hosts, HostsFile},
-    traits::{ToHostname, ToPointerSOA, ToWildcard},
-    utils::parse_member_name,
 };
 
 pub async fn find_members(mut zt: ZTAuthority) {
@@ -101,7 +97,7 @@ pub async fn init_catalog(zt: ZTAuthority) -> Result<Catalog, anyhow::Error> {
 pub struct ZTAuthority {
     pub network_id: String,
     pub hosts_file: Option<PathBuf>,
-    pub config: Configuration,
+    pub client: zerotier_central_api::Client,
     pub reverse_authority_map: HashMap<IpNetwork, RecordAuthority>,
     pub forward_authority: RecordAuthority,
     pub wildcard: bool,
@@ -129,8 +125,8 @@ impl ZTAuthority {
 
     pub async fn configure_members(
         &self,
-        network: Network,
-        members: Vec<Member>,
+        network: zerotier_central_api::types::Network,
+        members: Vec<zerotier_central_api::types::Member>,
     ) -> Result<(), anyhow::Error> {
         let mut forward_records = vec![self.forward_authority.domain_name.clone()];
         let mut reverse_records = HashMap::new();
@@ -151,7 +147,7 @@ impl ZTAuthority {
         let v6assign = network.config.clone().unwrap().v6_assign_mode;
         if v6assign.is_some() {
             let v6assign = v6assign.unwrap().clone();
-            if v6assign.var_6plane.unwrap_or(false) {
+            if v6assign._6plane.unwrap_or(false) {
                 let s = network.clone().sixplane()?;
                 sixplane = Some(s);
             }
@@ -180,9 +176,9 @@ impl ZTAuthority {
                 .await?;
 
             if let Some(ips) = member.clone().config.and_then(|c| {
-                c.ip_assignments.and_then(|ips| {
+                c.ip_assignments.map_or(None, |v| {
                     Some(
-                        ips.iter()
+                        v.iter()
                             .filter_map(|ip| IpAddr::from_str(ip).map_or(None, |ip| Some(ip)))
                             .collect::<Vec<IpAddr>>(),
                     )
@@ -228,21 +224,22 @@ impl ZTAuthority {
         Ok(())
     }
 
-    pub async fn get_members(&self) -> Result<(Network, Vec<Member>), anyhow::Error> {
-        let config = self.config.clone();
+    pub async fn get_members(
+        &self,
+    ) -> Result<
+        (
+            zerotier_central_api::types::Network,
+            Vec<zerotier_central_api::types::Member>,
+        ),
+        anyhow::Error,
+    > {
+        let client = self.client.clone();
         let network_id = self.network_id.clone();
 
-        let members = zerotier_central_api::apis::network_member_api::get_network_member_list(
-            &config,
-            &network_id,
-        )
-        .await?;
+        let members = client.get_network_member_list(&network_id).await?;
+        let network = client.get_network_by_id(&network_id).await?;
 
-        let network =
-            zerotier_central_api::apis::network_api::get_network_by_id(&config, &network_id)
-                .await?;
-
-        Ok((network, members))
+        Ok((network.to_owned(), members.to_owned()))
     }
 }
 
@@ -604,7 +601,7 @@ struct ZTRecord {
 
 impl ZTRecord {
     pub fn new(
-        member: &Member,
+        member: &zerotier_central_api::types::Member,
         sixplane: Option<IpNetwork>,
         rfc4193: Option<IpNetwork>,
         domain_name: Name,
@@ -630,15 +627,16 @@ impl ZTRecord {
             ptr_name = name;
         }
 
-        let mut ips: Vec<IpAddr> = member
+        let mut ips = member
             .clone()
             .config
             .expect("Member config does not exist")
             .ip_assignments
-            .expect("IP assignments for member do not exist")
-            .into_iter()
-            .map(|s| IpAddr::from_str(&s).expect("Could not parse IP address"))
-            .collect();
+            .map_or(Vec::new(), |v| {
+                v.iter()
+                    .map(|s| IpAddr::from_str(s).expect("Could not parse IP address"))
+                    .collect()
+            });
 
         if sixplane.is_some() {
             ips.push(member.clone().sixplane()?.ip());
