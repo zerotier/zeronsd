@@ -8,15 +8,20 @@
 
 FROM alpine:latest as builder
 
-RUN apk add rust
-RUN apk add cargo
+RUN apk add gcc
+RUN apk add libgcc
+RUN apk add musl-dev
 RUN apk add openssl
 RUN apk add openssl-dev
+RUN apk add curl
+
+RUN curl -sSL sh.rustup.rs >/usr/local/bin/rustup-dl && chmod +x /usr/local/bin/rustup-dl && /usr/local/bin/rustup-dl -y --default-toolchain stable
 
 COPY . /zeronsd
 WORKDIR /zeronsd
 
-RUN cargo install --path .
+ENV PATH=/root/.cargo/bin:${PATH}
+RUN . /root/.cargo/env && cargo install --path .
 
 FROM alpine:latest
 

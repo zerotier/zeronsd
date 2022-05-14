@@ -1,3 +1,8 @@
-FROM rust
+FROM debian:latest as rustenv
 
-RUN cargo install cargo-deb cargo-generate-rpm
+RUN apt-get update -qq && apt-get install curl pkg-config build-essential libssl1.1 ca-certificates -y && apt-get autoclean -y && apt-get clean -y
+RUN curl -sSL sh.rustup.rs >/usr/local/bin/rustup-dl && chmod +x /usr/local/bin/rustup-dl && /usr/local/bin/rustup-dl -y --default-toolchain stable
+
+FROM rustenv as buildenv
+
+RUN . /root/.cargo/env && cargo install cargo-deb cargo-generate-rpm

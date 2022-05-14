@@ -1,4 +1,4 @@
-FROM ubuntu:latest as rustenv
+FROM debian:latest as rustenv
 
 ARG IS_LOCAL=0
 ARG VERSION=main
