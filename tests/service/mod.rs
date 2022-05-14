@@ -192,8 +192,8 @@ impl Service {
             }
         }
 
-        if let Some(v6assign) = tn.network.config.clone().unwrap().v_6_assign_mode {
-            if v6assign.rfc_4193.unwrap_or(false) {
+        if let Some(v6assign) = tn.network.config.clone().unwrap().v6_assign_mode {
+            if v6assign.rfc4193.unwrap_or(false) {
                 let cidr = tn.network.clone().rfc4193().unwrap();
                 if !authority_map.contains_key(&cidr) {
                     let ptr_authority = RecordAuthority::new(
