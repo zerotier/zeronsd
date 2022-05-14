@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export PATH="${HOME}/.cargo/bin:${PATH}"
+
 if [ "${IS_LOCAL}" != 0 ]
 then
   cargo install --path .

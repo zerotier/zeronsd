@@ -2,5 +2,6 @@ target
 .git
 test-token.txt
 .token
-Dockerfile.*
+Dockerfile*
+Dockerfile
 Makefile
