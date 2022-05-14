@@ -1364,9 +1364,9 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "syn"
-version = "1.0.93"
+version = "1.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04066589568b72ec65f42d65a1a52436e954b168773148893c020269563decf2"
+checksum = "a07e33e919ebcd69113d5be0e4d70c5707004ff45188910106854f38b960df4a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2131,6 +2131,8 @@ dependencies = [
 [[package]]
 name = "zerotier-central-api"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0ba5b7104ad0ac89d5c4a7f6f371a8ffaf0bee6da4e34ca6b41799b74793301"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2146,6 +2148,8 @@ dependencies = [
 [[package]]
 name = "zerotier-one-api"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7988d9fb9b4f8f0679c05f49c785d23e7de7e6d671d48a7d1c07f616ad7cc4a0"
 dependencies = [
  "anyhow",
  "chrono",
