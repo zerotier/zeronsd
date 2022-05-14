@@ -2,6 +2,7 @@
 .token
 test-token.txt
 /test.yaml
+/windows.yaml
 /*.pem
 /*.crt
 /*.key
