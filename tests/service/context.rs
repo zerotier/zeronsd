@@ -18,8 +18,8 @@ pub struct TestContext {
 impl TestContext {
     pub fn get_member(&mut self, network_id: String) -> Member {
         let mut member = Member::new(network_id, self.identity.clone());
-        if self.member_config.is_some() {
-            member.config = self.member_config.clone();
+        if let cfg @ Some(_) = self.member_config.clone() {
+            member.config = cfg;
         }
 
         member

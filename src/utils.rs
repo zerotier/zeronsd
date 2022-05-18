@@ -30,20 +30,10 @@ static LOGGER: Once = Once::new();
 // initializes a logger
 pub fn init_logger(level: Option<tracing::Level>) {
     LOGGER.call_once(|| {
-        let loglevel = std::env::var("ZERONSD_LOG");
-        let loglevel = if loglevel.is_err() {
-            let loglevel = std::env::var("RUST_LOG");
-            if loglevel.is_err() {
-                None
-            } else {
-                Some(loglevel.unwrap())
-            }
-        } else {
-            Some(loglevel.unwrap())
-        };
+        let loglevel = std::env::var("ZERONSD_LOG").or_else(|_| std::env::var("RUST_LOG"));
 
-        let level = if loglevel.is_some() {
-            crate::log::LevelFilter::from_str(&loglevel.unwrap())
+        let level = if let Ok(loglevel) = loglevel {
+            crate::log::LevelFilter::from_str(&loglevel)
                 .expect("invalid log level")
                 .to_log()
         } else {
