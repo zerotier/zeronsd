@@ -37,15 +37,22 @@ docker-image-push: docker-image-package
 	docker push zerotier/zeronsd:latest
 	docker push zerotier/zeronsd:alpine-latest
 
-packages:
-	make docker-image-package
+packagedir:
 	mkdir -p target/packages
+
+package-ubi: packagedir packages-out
 	docker build -f Dockerfile.ubi -t zeronsd-packages-ubi .
 	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages-ubi bash -c ". /root/.cargo/env && cargo build --release && cargo generate-rpm && mv /code/target/generate-rpm/*.rpm /code/target/packages"
+
+package-ubuntu22: packagedir packages-out
 	docker build -f Dockerfile.ubuntu -t zeronsd-packages-ubuntu .
 	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages-ubuntu bash -c "cargo deb --deb-version ${CARGO_VERSION}-ubuntu22 && mv /code/target/debian/*.deb /code/target/packages"
+
+package-debian: packagedir packages-out
 	docker build -f Dockerfile.packages -t zeronsd-packages .
 	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages bash -c ". /root/.cargo/env && cargo deb && mv /code/target/debian/*.deb /code/target/packages"
+
+packages: docker-image-package package-ubi package-ubuntu22 package-debian
 	make packages-out
 
 packages-out:
@@ -74,4 +81,5 @@ test-packages: clean packages
 .PHONY: generate central service \
 	docker-image docker-image-package \
 	packages packages-out test-packages \
-	clean
+	clean package-debian package-ubuntu22 \
+	package-ubi packagedir

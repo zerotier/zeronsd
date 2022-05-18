@@ -45,6 +45,7 @@ vendored-openssl = [ "openssl/vendored" ]
 ctor = ">=0"
 
 [package.metadata.deb]
+features = [ "vendored-openssl" ]
 copyright = "ZeroTier, Inc"
 
 extended-description = """
