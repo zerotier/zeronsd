@@ -44,8 +44,10 @@ vendored-openssl = [ "openssl/vendored" ]
 [dev-dependencies]
 ctor = ">=0"
 
-[package.metadata.deb]
+[package.metadata.deb.variants.ubuntu22]
 features = [ "vendored-openssl" ]
+
+[package.metadata.deb]
 copyright = "ZeroTier, Inc"
 
 extended-description = """
@@ -70,7 +72,7 @@ ZeroNS provides names that are a part of ZeroTier Central's
 
 [package.metadata.generate-rpm]
 assets = [ { source = "target/release/zeronsd", dest = "/usr/bin/zeronsd", mode = "755" } ]
-requires = { openssl-libs = ">= 1.1.1g" }
+features = [ "vendored-openssl" ]
 
 [target.'cfg(windows)'.dependencies]
 openssl = { version = ">=0", features = [ "vendored" ] }

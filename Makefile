@@ -46,7 +46,7 @@ package-ubi: packagedir packages-out
 
 package-ubuntu22: packagedir packages-out
 	docker build -f Dockerfile.ubuntu -t zeronsd-packages-ubuntu .
-	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages-ubuntu bash -c "cargo deb --deb-version ${CARGO_VERSION}-ubuntu22 && mv /code/target/debian/*.deb /code/target/packages"
+	docker run -it -v ${PWD}:/code -w /code --rm zeronsd-packages-ubuntu bash -c "cargo deb --variant ubuntu22 && mv /code/target/debian/*.deb /code/target/packages"
 
 package-debian: packagedir packages-out
 	docker build -f Dockerfile.packages -t zeronsd-packages .
@@ -71,10 +71,10 @@ clean:
 	cargo clean
 
 test-packages: clean packages
-	docker run -v ${PWD}:/code --rm -it redhat/ubi8 bash -c "rpm -ivh /code/target/packages/\*.rpm"
-	docker run -v ${PWD}:/code --rm -it debian:latest bash -c "apt update -qq && apt install libssl1.1 && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb"
-	docker run -v ${PWD}:/code --rm -it ubuntu:focal bash -c "apt update -qq && apt install libssl1.1 && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb"
-	docker run -v ${PWD}:/code --rm -it ubuntu:jammy bash -c "apt update -qq && apt install libssl3 && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}-ubuntu22_amd64.deb"
+	docker run -v ${PWD}:/code --rm -it redhat/ubi8 bash -c "rpm -ivh /code/target/packages/\*.rpm && zeronsd --version"
+	docker run -v ${PWD}:/code --rm -it debian:latest bash -c "dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb && zeronsd --version"
+	docker run -v ${PWD}:/code --rm -it ubuntu:focal bash -c "apt update -qq && apt install libssl1.1 libc6 -y && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb && zeronsd --version"
+	docker run -v ${PWD}:/code --rm -it ubuntu:jammy bash -c "dpkg -i /code/target/packages/zeronsd-ubuntu22_${CARGO_VERSION}_amd64.deb && zeronsd --version"
 	[ "$$(docker run --rm zerotier/zeronsd:$(CARGO_VERSION) --version)" = "zeronsd $(CARGO_VERSION)" ]
 	make packages-out
 
