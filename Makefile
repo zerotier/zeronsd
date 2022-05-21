@@ -14,14 +14,6 @@ else
 	TOKEN=$$(cat test-token.txt) sudo -E bash -c "$$(which cargo) test ${RUN_TEST} -- --nocapture --test-threads 1"
 endif
 
-generate: central service
-
-central:
-	bash generate.sh central zerotier-central-api
-
-service:
-	bash generate.sh service zerotier-one-api
-
 docker-image:
 	docker build -t zerotier/zeronsd .
 
@@ -78,8 +70,7 @@ test-packages: clean packages
 	[ "$$(docker run --rm zerotier/zeronsd:$(CARGO_VERSION) --version)" = "zeronsd $(CARGO_VERSION)" ]
 	make packages-out
 
-.PHONY: generate central service \
-	docker-image docker-image-package \
+.PHONY: docker-image docker-image-package \
 	packages packages-out test-packages \
 	clean package-debian package-ubuntu22 \
 	package-ubi packagedir
