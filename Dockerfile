@@ -14,6 +14,7 @@ FROM rustenv as buildenv
 RUN sh cargo-docker.sh
 
 FROM debian:latest
+RUN apt-get update -qq && apt-get install ca-certificates -y && apt-get autoclean -y && apt-get clean -y
 COPY --from=buildenv /root/.cargo/bin/zeronsd /usr/bin/zeronsd
 
 ENTRYPOINT ["/usr/bin/zeronsd"]
