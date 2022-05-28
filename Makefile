@@ -68,6 +68,7 @@ test-packages: clean packages
 	docker run -v ${PWD}:/code --rm -it ubuntu:focal bash -c "apt update -qq && apt install libssl1.1 libc6 -y && dpkg -i /code/target/packages/zeronsd_${CARGO_VERSION}_amd64.deb && zeronsd --version"
 	docker run -v ${PWD}:/code --rm -it ubuntu:jammy bash -c "dpkg -i /code/target/packages/zeronsd-ubuntu22_${CARGO_VERSION}_amd64.deb && zeronsd --version"
 	[ "$$(docker run --rm zerotier/zeronsd:$(CARGO_VERSION) --version)" = "zeronsd $(CARGO_VERSION)" ]
+	[ "$$(docker run --rm zerotier/zeronsd:alpine-$(CARGO_VERSION) --version)" = "zeronsd $(CARGO_VERSION)" ]
 	make packages-out
 
 .PHONY: docker-image docker-image-package \
