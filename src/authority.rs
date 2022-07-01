@@ -145,8 +145,7 @@ impl ZTAuthority {
         let (mut sixplane, mut rfc4193) = (None, None);
 
         let v6assign = network.config.clone().unwrap().v6_assign_mode;
-        if v6assign.is_some() {
-            let v6assign = v6assign.unwrap().clone();
+        if let Some(v6assign) = v6assign {
             if v6assign._6plane.unwrap_or(false) {
                 let s = network.clone().sixplane()?;
                 sixplane = Some(s);
@@ -154,7 +153,7 @@ impl ZTAuthority {
 
             if v6assign.rfc4193.unwrap_or(false) {
                 let s = network.clone().rfc4193()?;
-                rfc4193 = Some(s.clone());
+                rfc4193 = Some(s);
                 reverse_records
                     .get_mut(&s)
                     .unwrap()
@@ -460,10 +459,9 @@ impl RecordAuthority {
             records.push(record.fqdn.clone().to_wildcard().into());
         }
 
-        if record.custom_name.is_some() {
-            self.match_or_insert(record.custom_name.clone().unwrap(), &record.ips)
-                .await;
-            records.push(record.custom_name.clone().unwrap().into());
+        if let Some(name) = &record.custom_name {
+            self.match_or_insert(name.clone(), &record.ips).await;
+            records.push(name.clone().into());
 
             if record.wildcard {
                 self.match_or_insert(record.get_custom_wildcard().unwrap(), &record.ips)
@@ -656,10 +654,6 @@ impl ZTRecord {
     }
 
     pub fn get_custom_wildcard(&self) -> Option<Name> {
-        if self.custom_name.is_none() {
-            return None;
-        }
-
-        Some(self.custom_name.clone().unwrap().to_wildcard())
+        self.custom_name.as_ref().map(ToWildcard::to_wildcard)
     }
 }

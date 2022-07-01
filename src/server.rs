@@ -38,14 +38,14 @@ impl Server {
 
         let mut sf = ServerFuture::new(init_catalog(self.0).await?);
 
-        if certs.is_some() && key.is_some() {
+        if let (Some(certs), Some(key)) = (certs.clone(), key.clone()) {
             info!("Configuring DoT Listener");
             let tls = TcpListener::bind(SocketAddr::new(ip, 853)).await?;
 
             match sf.register_tls_listener(
                 tls,
                 tcp_timeout,
-                ((certs.clone().unwrap(), cert_chain), key.clone().unwrap()),
+                ((certs, cert_chain), key),
             ) {
                 Ok(_) => {}
                 Err(e) => tracing::error!("Cannot start DoT listener: {}", e),
