@@ -152,6 +152,8 @@ Records currently have a TTL of 60s, and Central's records are refreshed every 3
 
 OS X and Windows users get this functionality by default, so there is no need for it. Please note at this point in time, however, that PTR resolution does not properly work on either platform. This is a defect in ZeroTier and should be corrected soon.
 
+Make sure the enable "Allow DNS" in the ZeroTier client through menubar app or with `zerotier-cli set $NETWORK_ID allowDNS=1`.
+
 Linux users are strongly encouraged to use `systemd-networkd` along with `systemd-resolved` to get per-interface resolvers that you can isolate to the domain you want to use. If you'd like to try something that can assist with getting you going quickly, check out the [zerotier-systemd-manager repository](https://github.com/zerotier/zerotier-systemd-manager).
 
 BSD systems still need a bit of work; work that we could really use your help with if you know the lay of the land on your BSD of choice. Set up an issue if this interests you.
