@@ -2115,7 +2115,7 @@ dependencies = [
 
 [[package]]
 name = "zeronsd"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2125,6 +2125,7 @@ dependencies = [
  "ipnetwork",
  "lazy_static",
  "openssl",
+ "percent-encoding",
  "rand",
  "regex",
  "reqwest",
@@ -2146,8 +2147,7 @@ dependencies = [
 [[package]]
 name = "zerotier-central-api"
 version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbcbbc3ebfe848d2305d8f4bec2ae68d81bcdde1d9ff2f14e7957e8608a9a0c7"
+source = "git+https://github.com/zerotier/zerotier-rust-api#ba2609cec50662f1d4023c7778d7c760a370f17d"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2163,8 +2163,7 @@ dependencies = [
 [[package]]
 name = "zerotier-one-api"
 version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df22f59fd0537dc76b31474d1b2af45f0a8fafa1b7edaa0f2127c2688bfb1795"
+source = "git+https://github.com/zerotier/zerotier-rust-api#ba2609cec50662f1d4023c7778d7c760a370f17d"
 dependencies = [
  "anyhow",
  "chrono",

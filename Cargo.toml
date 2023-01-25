@@ -1,6 +1,6 @@
 [package]
 name = "zeronsd"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Erik Hollensbe <linux@hollensbe.org>", "Adam Ierymenko <adam.ierymenko@zerotier.com>"]
 description = "Unicast DNS resolver for ZeroTier networks"
 homepage = "https://github.com/zerotier/zeronsd"
@@ -24,8 +24,8 @@ tokio = { version = "1", features = ["full"] }
 serde = ">=0"
 serde_json = ">=0"
 serde_yaml = ">=0"
-zerotier-central-api = "=1.2.1"
-zerotier-one-api = "=1.2.1"
+zerotier-central-api = {version = "=1.2.1", git = "https://github.com/zerotier/zerotier-rust-api"}
+zerotier-one-api = {version = "=1.2.1", git = "https://github.com/zerotier/zerotier-rust-api"}
 toml = ">=0"
 tinytemplate = ">=0"
 rand = ">=0"
@@ -37,6 +37,7 @@ openssl = ">=0"
 async-trait = ">=0"
 lazy_static = ">=0"
 reqwest = ">=0"
+percent-encoding = "^2.2"
 
 [features]
 vendored-openssl = [ "openssl/vendored" ]
