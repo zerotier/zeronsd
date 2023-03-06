@@ -1,6 +1,7 @@
 use crate::{
     init::{ConfigFormat, Launcher},
     supervise::Properties,
+    utils::ZEROTIER_LOCAL_URL,
 };
 use std::{path::PathBuf, time::Duration};
 
@@ -72,9 +73,9 @@ pub struct StartArgs {
     #[clap(long = "tls-key", value_name = "PATH")]
     pub tls_key: Option<PathBuf>,
 
-    /// Provide a different URL for contacting the local zerotier-one service.
-    #[clap(long = "local-url", value_name = "LOCAL_URL")]
-    pub local_url: Option<String>,
+    /// Provide a different URL for contacting the local zerotier-one service. Default:
+    #[clap(long = "local-url", value_name = "LOCAL_URL", default_value = ZEROTIER_LOCAL_URL)]
+    pub local_url: String,
 
     /// Log Level to print [off, trace, debug, error, warn, info]
     #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]

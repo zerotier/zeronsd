@@ -31,7 +31,7 @@ pub struct Launcher {
     pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
     pub log_level: Option<crate::log::LevelFilter>,
-    pub local_url: Option<String>,
+    pub local_url: String,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
 }
@@ -71,7 +71,7 @@ impl Default for Launcher {
             wildcard: false,
             network_id: None,
             log_level: None,
-            local_url: None,
+            local_url: ZEROTIER_LOCAL_URL.to_string(),
         }
     }
 }
