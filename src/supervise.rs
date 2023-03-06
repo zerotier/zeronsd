@@ -14,7 +14,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use crate::{
     cli::{StartArgs, UnsuperviseArgs},
-    init::ConfigFormat,
+    init::{ConfigFormat, Launcher},
 };
 
 #[cfg(target_os = "windows")]
@@ -127,16 +127,11 @@ const SERVICE_TEMPLATE: &str = r#"
 
 #[derive(Serialize)]
 pub struct Properties {
+    pub launcher: Launcher,
     pub binpath: String,
-    pub domain: Option<String>,
-    pub network: String,
-    pub hosts_file: Option<PathBuf>,
-    pub authtoken: Option<PathBuf>,
-    pub token: PathBuf,
     pub config: Option<PathBuf>,
     pub config_type: ConfigFormat,
     pub config_type_supplied: bool,
-    pub wildcard_names: bool,
     pub distro: Option<String>,
 }
 
@@ -145,62 +140,37 @@ impl From<StartArgs> for Properties {
         let launcher: crate::init::Launcher = args.clone().into();
 
         // FIXME rewrite this to use a struct init later
-        Self::new(
-            launcher.domain.as_deref(),
-            &launcher.network_id.unwrap(),
-            launcher.hosts.as_deref(),
-            launcher.secret.as_deref(),
-            launcher.token.as_deref(),
-            launcher.wildcard,
-            args.config.as_deref(),
-            args.config_type,
-        )
-        .unwrap()
+        Self::new(launcher, args.config.as_deref(), args.config_type).unwrap()
     }
 }
 
 impl From<UnsuperviseArgs> for Properties {
     fn from(args: UnsuperviseArgs) -> Self {
-        Self::new(
-            None,
-            &args.network_id,
-            None,
-            None,
-            None,
-            false,
-            None,
-            ConfigFormat::YAML,
-        )
-        .unwrap()
+        let l = Launcher {
+            network_id: Some(args.network_id),
+            ..Default::default()
+        };
+
+        Self::new(l, None, ConfigFormat::YAML).unwrap()
     }
 }
 
 impl Default for Properties {
     fn default() -> Self {
         Self {
-            wildcard_names: false,
+            launcher: Launcher::default(),
             binpath: "zeronsd".to_string(),
-            domain: None,
-            network: String::new(),
-            hosts_file: None,
-            authtoken: None,
             config: None,
             config_type: ConfigFormat::YAML,
             config_type_supplied: false,
-            token: PathBuf::new(),
             distro: None,
         }
     }
 }
 
-impl<'a> Properties {
+impl Properties {
     pub fn new(
-        domain: Option<&'_ str>,
-        network: &'_ str,
-        hosts_file: Option<&'_ Path>,
-        authtoken: Option<&'_ Path>,
-        token: Option<&'_ Path>,
-        wildcard_names: bool,
+        launcher: Launcher,
         config: Option<&'_ Path>,
         config_type: ConfigFormat,
     ) -> Result<Self, anyhow::Error> {
@@ -208,11 +178,8 @@ impl<'a> Properties {
             if let Ok(release) = std::fs::read_to_string(OS_RELEASE_FILE) {
                 let id_regex = Regex::new(r#"\nID=(.+)\n"#)?;
                 if let Some(caps) = id_regex.captures(&release) {
-                    if let Some(distro) = caps.get(1) {
-                        Some(distro.clone().as_str().to_string())
-                    } else {
-                        None
-                    }
+                    caps.get(1)
+                        .map(|distro| distro.clone().as_str().to_string())
                 } else {
                     return Err(anyhow!("Could not determine Linux distribution; you'll need to configure supervision manually. Sorry!"));
                 }
@@ -225,29 +192,11 @@ impl<'a> Properties {
 
         Ok(Self {
             distro,
-            wildcard_names,
             binpath: String::from(std::env::current_exe()?.to_string_lossy()),
-            // make this garbage a macro later
-            domain: match domain {
-                Some(domain) => Some(String::from(domain)),
-                None => None,
-            },
-            network: network.into(),
-            hosts_file: match hosts_file {
-                Some(hosts_file) => Some(hosts_file.to_owned()),
-                None => None,
-            },
-            authtoken: match authtoken {
-                Some(authtoken) => Some(authtoken.to_owned()),
-                None => None,
-            },
-            token: token.unwrap_or(Path::new("")).to_owned(),
             config_type: config_type.clone(),
             config_type_supplied: config_type != ConfigFormat::YAML,
-            config: match config {
-                Some(config) => Some(config.to_owned()),
-                None => None,
-            },
+            config: config.map(|config| config.to_owned()),
+            launcher,
         })
     }
 
@@ -260,31 +209,40 @@ impl<'a> Properties {
             None => None,
         };
 
-        self.token = match self.token.canonicalize() {
-            Ok(res) => res,
-            Err(e) => return Err(anyhow!("Could not find token file: {}", e)),
-        };
+        let token = self
+            .launcher
+            .token
+            .clone()
+            .expect("Could not find token file: {}")
+            .canonicalize()?;
 
-        let tstat = match std::fs::metadata(self.token.clone()) {
+        let tstat = match std::fs::metadata(token.clone()) {
             Ok(ts) => ts,
             Err(e) => {
                 return Err(anyhow!(
                     "Could not stat token file {}: {}",
-                    self.token.display(),
+                    token.display(),
                     e
                 ))
             }
         };
 
         if !tstat.is_file() {
-            return Err(anyhow!("Token file {} is not a file", self.token.display()));
+            return Err(anyhow!("Token file {} is not a file", token.display()));
         }
 
-        if self.network.len() != 16 {
+        if self
+            .launcher
+            .network_id
+            .clone()
+            .expect("network_id is not provided")
+            .len()
+            != 16
+        {
             return Err(anyhow!("Network ID must be 16 characters"));
         }
 
-        if let Some(hosts_file) = self.hosts_file.clone() {
+        if let Some(hosts_file) = self.launcher.hosts.clone() {
             let hstat = match std::fs::metadata(hosts_file.clone()) {
                 Ok(hs) => hs,
                 Err(e) => {
@@ -300,11 +258,11 @@ impl<'a> Properties {
                 return Err(anyhow!("Hosts file {} is not a file", hosts_file.display()));
             }
 
-            self.hosts_file = Some(hosts_file.canonicalize()?);
+            self.launcher.hosts = Some(hosts_file.canonicalize()?);
         }
 
-        if let Some(domain) = self.domain.clone() {
-            if domain.trim().len() == 0 {
+        if let Some(domain) = self.launcher.domain.clone() {
+            if domain.trim().is_empty() {
                 return Err(anyhow!("Domain name cannot be empty"));
             }
 
@@ -313,7 +271,7 @@ impl<'a> Properties {
             }
         }
 
-        if let Some(authtoken) = self.authtoken.clone() {
+        if let Some(authtoken) = self.launcher.secret.clone() {
             let hstat = match std::fs::metadata(authtoken.clone()) {
                 Ok(hs) => hs,
                 Err(e) => {
@@ -332,7 +290,7 @@ impl<'a> Properties {
                 ));
             }
 
-            self.authtoken = Some(authtoken.canonicalize()?);
+            self.launcher.secret = Some(authtoken.canonicalize()?);
         }
 
         Ok(())
@@ -374,15 +332,23 @@ impl<'a> Properties {
 
     #[cfg(target_os = "linux")]
     fn service_name(&self) -> String {
+        let network_id = self
+            .launcher
+            .network_id
+            .clone()
+            .expect("network_id missing");
         match self.distro.as_deref() {
-            Some("alpine") => format!("zeronsd-{}", self.network),
-            _ => format!("zeronsd-{}.service", self.network),
+            Some("alpine") => format!("zeronsd-{}", network_id),
+            _ => format!("zeronsd-{}.service", network_id),
         }
     }
 
     #[cfg(target_os = "macos")]
     fn service_name(&self) -> String {
-        format!("com.zerotier.nsd.{}.plist", self.network)
+        format!(
+            "com.zerotier.nsd.{}.plist",
+            self.launcher.network_id.expect("network_id missing")
+        )
     }
 
     fn service_path(&self) -> PathBuf {
@@ -423,10 +389,15 @@ impl<'a> Properties {
                 std::fs::set_permissions(service_path.clone(), perms)?;
             }
 
-            let systemd_help = format!("Don't forget to `systemctl daemon-reload`, `systemctl enable zeronsd-{}` and `systemctl start zeronsd-{}`.", self.network, self.network);
+            let network = self
+                .launcher
+                .network_id
+                .clone()
+                .expect("network_id missing");
+            let systemd_help = format!("Don't forget to `systemctl daemon-reload`, `systemctl enable zeronsd-{}` and `systemctl start zeronsd-{}`.", network, network);
             let alpine_help = format!(
                 "Don't forget to `rc-update add zeronsd-{}` and `rc-service zeronsd-{} start`",
-                self.network, self.network
+                network, network
             );
 
             let help = match self.distro.as_deref() {

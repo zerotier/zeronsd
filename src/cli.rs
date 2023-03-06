@@ -77,13 +77,13 @@ pub struct StartArgs {
     pub log_level: Option<crate::log::LevelFilter>,
 }
 
-impl Into<Launcher> for StartArgs {
-    fn into(self) -> Launcher {
-        if let Some(config) = self.config {
-            let res = Launcher::new_from_config(config.to_str().unwrap(), self.config_type);
+impl From<StartArgs> for Launcher {
+    fn from(sa: StartArgs) -> Self {
+        if let Some(config) = sa.config {
+            let res = Launcher::new_from_config(config.to_str().unwrap(), sa.config_type);
             match res {
                 Ok(mut res) => {
-                    res.network_id = Some(self.network_id.clone());
+                    res.network_id = Some(sa.network_id.clone());
                     res
                 }
                 Err(e) => {
@@ -93,16 +93,16 @@ impl Into<Launcher> for StartArgs {
             }
         } else {
             Launcher {
-                domain: self.domain,
-                hosts: self.hosts,
-                secret: self.secret,
-                token: self.token,
-                wildcard: self.wildcard,
-                chain_cert: self.chain_cert,
-                tls_cert: self.tls_cert,
-                tls_key: self.tls_key,
-                log_level: self.log_level,
-                network_id: Some(self.network_id),
+                domain: sa.domain,
+                hosts: sa.hosts,
+                secret: sa.secret,
+                token: sa.token,
+                wildcard: sa.wildcard,
+                chain_cert: sa.chain_cert,
+                tls_cert: sa.tls_cert,
+                tls_key: sa.tls_key,
+                log_level: sa.log_level,
+                network_id: Some(sa.network_id),
             }
         }
     }

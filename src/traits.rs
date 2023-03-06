@@ -36,7 +36,7 @@ pub trait ToWildcard {
 impl ToWildcard for Name {
     fn to_wildcard(&self) -> Name {
         let name = Self::from_str("*").unwrap();
-        name.append_domain(&self).unwrap().into_wildcard()
+        name.append_domain(self).unwrap().into_wildcard()
     }
 }
 
@@ -82,11 +82,11 @@ impl ToHostname for String {
 
         let s = s.trim();
 
-        if s == "." || s.ends_with(".") {
+        if s == "." || s.ends_with('.') {
             return Err(anyhow!("Record {} not entered into catalog: '.' and records that ends in '.' are disallowed", s));
         }
 
-        if s.len() == 0 {
+        if s.is_empty() {
             return Err(anyhow!("translated hostname {} is an empty string", self));
         }
 

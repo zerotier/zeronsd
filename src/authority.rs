@@ -82,12 +82,12 @@ pub async fn init_catalog(zt: ZTAuthority) -> Result<Catalog, anyhow::Error> {
     catalog.upsert(Name::root().into(), Box::new(Arc::new(forwarder)));
 
     catalog.upsert(
-        zt.forward_authority.domain_name.clone().into(),
+        zt.forward_authority.domain_name.clone(),
         zt.forward_authority.box_clone(),
     );
 
     for (network, authority) in zt.reverse_authority_map {
-        catalog.upsert(network.to_ptr_soa_name()?.into(), authority.box_clone())
+        catalog.upsert(network.to_ptr_soa_name()?, authority.box_clone())
     }
 
     Ok(catalog)
@@ -175,12 +175,10 @@ impl ZTAuthority {
                 .await?;
 
             if let Some(ips) = member.clone().config.and_then(|c| {
-                c.ip_assignments.map_or(None, |v| {
-                    Some(
-                        v.iter()
-                            .filter_map(|ip| IpAddr::from_str(ip).map_or(None, |ip| Some(ip)))
-                            .collect::<Vec<IpAddr>>(),
-                    )
+                c.ip_assignments.map(|v| {
+                    v.iter()
+                        .filter_map(|ip| IpAddr::from_str(ip).ok())
+                        .collect::<Vec<IpAddr>>()
                 })
             }) {
                 for (network, authority) in self.reverse_authority_map.clone() {
@@ -270,7 +268,7 @@ impl RecordAuthority {
 
         soa.set_data(Some(RData::SOA(SOA::new(
             domain_name.clone(),
-            Name::from_str("administrator")?.append_domain(&domain_name.clone().into())?,
+            Name::from_str("administrator")?.append_domain(&domain_name)?,
             1,
             30,
             0,
@@ -278,7 +276,7 @@ impl RecordAuthority {
             0,
         ))));
 
-        let mut soa_rs = RecordSet::new(&domain_name.clone(), RecordType::SOA, 1);
+        let mut soa_rs = RecordSet::new(&domain_name, RecordType::SOA, 1);
         soa_rs.insert(soa, 1);
         map.insert(
             RrKey::new(domain_name.clone().into(), RecordType::SOA),
@@ -286,8 +284,8 @@ impl RecordAuthority {
         );
 
         let mut ns = Record::with(domain_name.clone(), RecordType::NS, 30);
-        ns.set_data(Some(RData::NS(member_name.clone())));
-        let mut ns_rs = RecordSet::new(&domain_name.clone(), RecordType::NS, 1);
+        ns.set_data(Some(RData::NS(member_name)));
+        let mut ns_rs = RecordSet::new(&domain_name, RecordType::NS, 1);
         ns_rs.insert(ns, 1);
 
         map.insert(
@@ -296,7 +294,7 @@ impl RecordAuthority {
         );
 
         let authority = InMemoryAuthority::new(
-            domain_name.clone(),
+            domain_name,
             map,
             trust_dns_server::authority::ZoneType::Primary,
             false,
@@ -322,7 +320,7 @@ impl RecordAuthority {
 
         let mut hosts_map = HashMap::new();
 
-        for (ip, hosts) in hosts.to_owned().into_iter() {
+        for (ip, hosts) in hosts.into_iter() {
             for host in hosts {
                 if !hosts_map.contains_key(&host) {
                     hosts_map.insert(host.clone(), vec![]);
@@ -430,10 +428,9 @@ impl RecordAuthority {
                         || !name_records
                             .records_without_rrsigs()
                             .all(|r| rdatas.clone().contains(r.data().unwrap()))
+                            && !type_ips.is_empty()
                     {
-                        if !type_ips.is_empty() {
-                            self.replace_ip_record(name.clone(), rdatas.clone()).await;
-                        }
+                        self.replace_ip_record(name.clone(), rdatas.clone()).await;
                     }
                 }
                 None => {
@@ -613,14 +610,14 @@ impl ZTRecord {
                 .expect("Node ID for member does not exist")
         );
 
-        let fqdn = member_name.clone().to_fqdn(domain_name.clone())?;
+        let fqdn = member_name.to_fqdn(domain_name.clone())?;
 
         // this is default the zt-<member id> but can switch to a named name if
         // tweaked in central. see below.
         let mut custom_name = None;
         let mut ptr_name = fqdn.clone();
 
-        if let Some(name) = parse_member_name(member.name.clone(), domain_name.clone()) {
+        if let Some(name) = parse_member_name(member.name.clone(), domain_name) {
             custom_name = Some(name.clone());
             ptr_name = name;
         }

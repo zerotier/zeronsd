@@ -91,7 +91,7 @@ pub fn central_token(arg: Option<&Path>) -> Result<String, anyhow::Error> {
     }
 
     if let Ok(token) = std::env::var("ZEROTIER_CENTRAL_TOKEN") {
-        if token.len() > 0 {
+        if !token.is_empty() {
             return Ok(token);
         }
     }
@@ -119,7 +119,7 @@ pub fn authtoken_path(arg: Option<&Path>) -> &Path {
 // use the default tld if none is supplied.
 pub fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
     if let Some(tld) = tld {
-        if tld.len() > 0 {
+        if !tld.is_empty() {
             return Ok(Name::from_str(&format!("{}.", tld))?);
         } else {
             return Err(anyhow!("Domain name must not be empty if provided."));
@@ -133,7 +133,7 @@ pub fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
 pub fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name> {
     if let Some(name) = name {
         let name = name.trim();
-        if name.len() > 0 {
+        if !name.is_empty() {
             match name.to_fqdn(domain_name) {
                 Ok(record) => return Some(record),
                 Err(e) => {
@@ -199,7 +199,7 @@ pub async fn get_listen_ips(
         )),
         Ok(listen) => {
             let assigned = listen.subtype_1.assigned_addresses.to_owned();
-            if assigned.len() > 0 {
+            if !assigned.is_empty() {
                 Ok(assigned)
             } else {
                 Err(anyhow!("No listen IPs available on this network"))

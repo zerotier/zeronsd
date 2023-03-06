@@ -14,7 +14,7 @@ fn digest_hex(code: String) -> Result<u64, FromHexError> {
 fn get_parts(member: Member) -> Result<(u64, u64), anyhow::Error> {
     Ok((
         digest_hex(member.network_id.clone().unwrap_or(String::new()))?,
-        digest_hex(member.node_id.clone().unwrap_or(String::new()))?,
+        digest_hex(member.node_id.unwrap_or(String::new()))?,
     ))
 }
 
@@ -25,7 +25,7 @@ pub trait Calculator {
 
 impl Calculator for Network {
     fn sixplane(self) -> Result<IpNetwork, anyhow::Error> {
-        let mut net_parts = digest_hex(self.id.clone().unwrap_or(String::new()))?;
+        let mut net_parts = digest_hex(self.id.unwrap_or(String::new()))?;
 
         net_parts ^= net_parts >> 32;
 
@@ -45,7 +45,7 @@ impl Calculator for Network {
     }
 
     fn rfc4193(self) -> Result<IpNetwork, anyhow::Error> {
-        let net_parts = digest_hex(self.id.clone().unwrap_or(String::new()))?;
+        let net_parts = digest_hex(self.id.unwrap_or(String::new()))?;
         Ok(IpNetwork::new(
             IpAddr::V6(Ipv6Addr::new(
                 0xfd00 | (net_parts >> 56 & 0xff) as u16,
