@@ -174,8 +174,18 @@ pub fn local_client(authtoken: String) -> Result<zerotier_one_api::Client, anyho
     let mut headers = HeaderMap::new();
     headers.insert("X-ZT1-Auth", HeaderValue::from_str(&authtoken)?);
 
+    let local_url = if let Ok(url) = std::env::var("ZEROTIER_LOCAL_URL") {
+        if url.len() > 0 {
+            url
+        } else {
+            ZEROTIER_LOCAL_URL.to_string()
+        }
+    } else {
+        ZEROTIER_LOCAL_URL.to_string()
+    };
+
     Ok(zerotier_one_api::Client::new_with_client(
-        "http://127.0.0.1:9993",
+        &local_url,
         reqwest::Client::builder()
             .user_agent(version())
             .default_headers(headers)
