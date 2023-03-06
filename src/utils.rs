@@ -150,8 +150,9 @@ pub fn parse_member_name(name: Option<String>, domain_name: Name) -> Option<Name
 pub async fn get_member_name(
     authtoken_path: &Path,
     domain_name: Name,
+    local_url: Option<String>,
 ) -> Result<LowerName, anyhow::Error> {
-    let client = local_client_from_file(authtoken_path)?;
+    let client = local_client_from_file(authtoken_path, local_url)?;
 
     let status = client.get_status().await?;
     if let Some(address) = &status.address {
@@ -165,16 +166,26 @@ pub async fn get_member_name(
 
 fn local_client_from_file(
     authtoken_path: &Path,
+    local_url: Option<String>,
 ) -> Result<zerotier_one_api::Client, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
-    local_client(authtoken)
+    local_client(authtoken, local_url)
 }
 
-pub fn local_client(authtoken: String) -> Result<zerotier_one_api::Client, anyhow::Error> {
+pub fn local_client(
+    authtoken: String,
+    local_url: Option<String>,
+) -> Result<zerotier_one_api::Client, anyhow::Error> {
     let mut headers = HeaderMap::new();
     headers.insert("X-ZT1-Auth", HeaderValue::from_str(&authtoken)?);
 
-    let local_url = if let Ok(url) = std::env::var("ZEROTIER_LOCAL_URL") {
+    let local_url = if let Some(url) = local_url {
+        if url.len() > 0 {
+            url
+        } else {
+            ZEROTIER_LOCAL_URL.to_string()
+        }
+    } else if let Ok(url) = std::env::var("ZEROTIER_LOCAL_URL") {
         if url.len() > 0 {
             url
         } else {
@@ -198,8 +209,9 @@ pub fn local_client(authtoken: String) -> Result<zerotier_one_api::Client, anyho
 pub async fn get_listen_ips(
     authtoken_path: &Path,
     network_id: &str,
+    local_url: Option<String>,
 ) -> Result<Vec<String>, anyhow::Error> {
-    let client = local_client_from_file(authtoken_path)?;
+    let client = local_client_from_file(authtoken_path, local_url)?;
 
     match client.get_network(network_id).await {
         Err(error) => Err(anyhow!(

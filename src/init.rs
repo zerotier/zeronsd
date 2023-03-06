@@ -20,7 +20,7 @@ use crate::{
     utils::*,
 };
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Launcher {
     pub domain: Option<String>,
     pub hosts: Option<PathBuf>,
@@ -31,6 +31,7 @@ pub struct Launcher {
     pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
     pub log_level: Option<crate::log::LevelFilter>,
+    pub local_url: Option<String>,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
 }
@@ -53,6 +54,24 @@ impl FromStr for ConfigFormat {
             _ => Err(anyhow!(
                 "invalid format: allowed values: [json, yaml, toml]"
             )),
+        }
+    }
+}
+
+impl Default for Launcher {
+    fn default() -> Self {
+        Launcher {
+            domain: None,
+            hosts: None,
+            secret: None,
+            token: None,
+            chain_cert: None,
+            tls_cert: None,
+            tls_key: None,
+            wildcard: false,
+            network_id: None,
+            log_level: None,
+            local_url: None,
         }
     }
 }
@@ -94,7 +113,12 @@ impl Launcher {
         let client = central_client(central_token(self.token.as_deref())?)?;
 
         info!("Welcome to ZeroNS!");
-        let ips = get_listen_ips(authtoken, &self.network_id.clone().unwrap()).await?;
+        let ips = get_listen_ips(
+            &authtoken,
+            &self.network_id.clone().unwrap(),
+            self.local_url.clone(),
+        )
+        .await?;
 
         // more or less the setup for the "main loop"
         if !ips.is_empty() {
@@ -127,7 +151,8 @@ impl Launcher {
                 }
             }
 
-            let member_name = get_member_name(authtoken, domain_name.clone()).await?;
+            let member_name =
+                get_member_name(authtoken, domain_name.clone(), self.local_url.clone()).await?;
 
             let network = client
                 .get_network_by_id(&self.network_id.clone().unwrap())
