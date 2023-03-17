@@ -34,13 +34,13 @@ const OS_RELEASE_FILE: &str = "/etc/os-release";
 #[cfg(target_os = "linux")]
 const SYSTEMD_TEMPLATE: &str = r#"
 [Unit]
-Description=zeronsd for network {network}
+Description=zeronsd for network {launcher.network_id}
 Requires=zerotier-one.service
 After=zerotier-one.service
 
 [Service]
 Type=simple
-ExecStart={binpath} start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}
+ExecStart={binpath} start -t {launcher.token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if launcher.wildcard }}-w {{endif}}{{ if launcher.secret }}-s {launcher.secret} {{endif}}{{ if launcher.hosts }}-f {launcher.hosts} {{ endif }}{{ if launcher.domain }}-d {launcher.domain} {{ endif }}{launcher.network_id}
 TimeoutStopSec=30
 Restart=always
 
@@ -59,9 +59,9 @@ depend() \{
     use network dns logger netmount
 }
 
-description="zeronsd for network {network}"
+description="zeronsd for network {launcher.network_id}"
 command="{binpath}"
-command_args="start -t {token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if wildcard_names }}-w {{endif}}{{ if authtoken }}-s {authtoken} {{endif}}{{ if hosts_file }}-f {hosts_file} {{ endif }}{{ if domain }}-d {domain} {{ endif }}{network}"
+command_args="start -t {launcher.token} {{ if config }}-c {config} {{endif}}{{ if config_type_supplied }}--config-type {config_type} {{endif}}{{ if launcher.wildcard }}-w {{endif}}{{ if launcher.secret }}-s {launcher.secret} {{endif}}{{ if launcher.hosts }}-f {launcher.hosts} {{ endif }}{{ if launcher.domain }}-d {launcher.domain} {{ endif }}{launcher.network_id}"
 command_background="yes"
 pidfile="/run/$RC_SVCNAME.pid"
 "#;
@@ -78,28 +78,28 @@ const SERVICE_TEMPLATE: &str = r#"
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
-    <key>Label</key> <string>com.zerotier.nsd.{network}</string>
+    <key>Label</key> <string>com.zerotier.nsd.{launcher.network_id}</string>
 
     <key>ProgramArguments</key>
     <array>
       <string>{binpath}</string>
       <string>start</string>
       <string>-t</string>
-      <string>{token}</string>
-      {{ if wildcard_names }}
+      <string>{launcher.token}</string>
+      {{ if launcher.wildcard }}
       <string>-w</string>
       {{endif}}
-      {{ if authtoken }}
+      {{ if launcher.secret }}
       <string>-s</string>
-      <string>{authtoken}</string>
+      <string>{launcher.secret}</string>
       {{endif}}
-      {{ if hosts_file }}
+      {{ if launcher.hosts }}
       <string>-f</string>
-      <string>{hosts_file}</string>
+      <string>{launcher.hosts}</string>
       {{ endif }}
-      {{ if domain }}
+      {{ if launcher.domain }}
       <string>-d</string>
-      <string>{domain}</string>
+      <string>{launcher.domain}</string>
       {{ endif }}
       {{ if config }}
       <string>-c</string>
@@ -109,7 +109,7 @@ const SERVICE_TEMPLATE: &str = r#"
       <string>--config-type</string>
       <string>{config_type}</string>
       {{ endif }}
-      <string>{network}</string>
+      <string>{launcher.network_id}</string>
     </array>
 
     <key>UserName</key> <string>root</string>
@@ -118,8 +118,8 @@ const SERVICE_TEMPLATE: &str = r#"
 
     <key>KeepAlive</key> <true/>
 
-    <key>StandardErrorPath</key> <string>/var/log/zerotier/nsd/{network}.err</string>
-    <key>StandardOutPath</key> <string>/var/log/zerotier/nsd/{network}.log</string>
+    <key>StandardErrorPath</key> <string>/var/log/zerotier/nsd/{launcher.network_id}.err</string>
+    <key>StandardOutPath</key> <string>/var/log/zerotier/nsd/{launcher.network_id}.log</string>
 
   </dict>
     </plist>
@@ -285,7 +285,7 @@ impl Properties {
 
             if !hstat.is_file() {
                 return Err(anyhow!(
-                    "authtoken file {} is not a file",
+                    "launcher.secret file {} is not a file",
                     authtoken.display()
                 ));
             }
