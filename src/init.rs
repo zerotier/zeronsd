@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, str::FromStr, time::Duration};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    path::PathBuf,
+    str::FromStr,
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use ipnetwork::IpNetwork;
@@ -15,7 +20,7 @@ use crate::{
     utils::*,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Launcher {
     pub domain: Option<String>,
     pub hosts: Option<PathBuf>,
@@ -52,23 +57,6 @@ impl FromStr for ConfigFormat {
     }
 }
 
-impl Default for Launcher {
-    fn default() -> Self {
-        Launcher {
-            domain: None,
-            hosts: None,
-            secret: None,
-            token: None,
-            chain_cert: None,
-            tls_cert: None,
-            tls_key: None,
-            wildcard: false,
-            network_id: None,
-            log_level: None,
-        }
-    }
-}
-
 impl Launcher {
     pub fn new_from_config(filename: &str, format: ConfigFormat) -> Result<Self, anyhow::Error> {
         let res = std::fs::read_to_string(filename)?;
@@ -77,9 +65,9 @@ impl Launcher {
 
     pub fn parse_format(s: &str, format: ConfigFormat) -> Result<Self, anyhow::Error> {
         Ok(match format {
-            ConfigFormat::JSON => serde_json::from_str(&s)?,
-            ConfigFormat::YAML => serde_yaml::from_str(&s)?,
-            ConfigFormat::TOML => toml::from_str(&s)?,
+            ConfigFormat::JSON => serde_json::from_str(s)?,
+            ConfigFormat::YAML => serde_yaml::from_str(s)?,
+            ConfigFormat::TOML => toml::from_str(s)?,
         })
     }
 
@@ -106,10 +94,10 @@ impl Launcher {
         let client = central_client(central_token(self.token.as_deref())?)?;
 
         info!("Welcome to ZeroNS!");
-        let ips = get_listen_ips(&authtoken, &self.network_id.clone().unwrap()).await?;
+        let ips = get_listen_ips(authtoken, &self.network_id.clone().unwrap()).await?;
 
         // more or less the setup for the "main loop"
-        if ips.len() > 0 {
+        if !ips.is_empty() {
             update_central_dns(
                 domain_name.clone(),
                 ips.iter()
@@ -126,18 +114,16 @@ impl Launcher {
 
             for cidr in ips.clone() {
                 let listen_ip = parse_ip_from_cidr(cidr.clone());
-                listen_ips.push(listen_ip.clone());
+                listen_ips.push(listen_ip);
                 let cidr = IpNetwork::from_str(&cidr.clone())?;
-                if !ipmap.contains_key(&listen_ip) {
-                    ipmap.insert(listen_ip, cidr.network());
-                }
+                ipmap.entry(listen_ip).or_insert_with(|| cidr.network());
 
-                if !authority_map.contains_key(&cidr) {
+                if let Entry::Vacant(e) = authority_map.entry(cidr) {
                     tracing::debug!("{}", cidr.to_ptr_soa_name()?);
                     let ptr_authority =
                         RecordAuthority::new(cidr.to_ptr_soa_name()?, cidr.to_ptr_soa_name()?)
                             .await?;
-                    authority_map.insert(cidr, ptr_authority);
+                    e.insert(ptr_authority);
                 }
             }
 
@@ -154,11 +140,12 @@ impl Launcher {
 
                 if v6assign.rfc4193.unwrap_or(false) {
                     let cidr = network.clone().rfc4193().unwrap();
-                    if !authority_map.contains_key(&cidr) {
+                    if let Entry::Vacant(e) = authority_map.entry(cidr) {
+                        tracing::debug!("{}", cidr.to_ptr_soa_name()?);
                         let ptr_authority =
                             RecordAuthority::new(cidr.to_ptr_soa_name()?, cidr.to_ptr_soa_name()?)
                                 .await?;
-                        authority_map.insert(cidr, ptr_authority);
+                        e.insert(ptr_authority);
                     }
                 }
             }

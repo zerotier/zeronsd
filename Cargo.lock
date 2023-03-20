@@ -74,9 +74,9 @@ checksum = "a4a45a46ab1f2412e53d3a0ade76ffad2025804294569aae387231a0cd6e0899"
 
 [[package]]
 name = "bytes"
-version = "1.1.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
+checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "cc"
@@ -288,9 +288,9 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.21"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c09fd04b7e4073ac7156a9539b57a484a8ea920f79c7c675d05d289ab6110d3"
+checksum = "ec90ff4d0fe1f57d600049061dc6bb68ed03c7d2fbd697274c41805dcb3f8608"
 
 [[package]]
 name = "futures-executor"
@@ -845,9 +845,9 @@ dependencies = [
 
 [[package]]
 name = "percent-encoding"
-version = "2.1.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
+checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
 
 [[package]]
 name = "pest"
@@ -924,7 +924,7 @@ dependencies = [
  "anyhow",
  "getopts",
  "openapiv3",
- "progenitor-client",
+ "progenitor-client 0.1.1",
  "progenitor-impl",
  "progenitor-macro",
  "serde",
@@ -943,6 +943,21 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "progenitor-client"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35d9984d7780038d818076aa8e921cae41a605cf95a31ab5c1581ca95bdcfd9e"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "percent-encoding",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
 ]
 
 [[package]]
@@ -2130,15 +2145,15 @@ dependencies = [
 
 [[package]]
 name = "zerotier-central-api"
-version = "1.1.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0ba5b7104ad0ac89d5c4a7f6f371a8ffaf0bee6da4e34ca6b41799b74793301"
+checksum = "bbcbbc3ebfe848d2305d8f4bec2ae68d81bcdde1d9ff2f14e7957e8608a9a0c7"
 dependencies = [
  "anyhow",
  "chrono",
  "futures",
  "progenitor",
- "progenitor-client",
+ "progenitor-client 0.2.0",
  "reqwest",
  "serde",
  "serde_json",
@@ -2147,15 +2162,15 @@ dependencies = [
 
 [[package]]
 name = "zerotier-one-api"
-version = "1.1.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7988d9fb9b4f8f0679c05f49c785d23e7de7e6d671d48a7d1c07f616ad7cc4a0"
+checksum = "df22f59fd0537dc76b31474d1b2af45f0a8fafa1b7edaa0f2127c2688bfb1795"
 dependencies = [
  "anyhow",
  "chrono",
  "futures",
  "progenitor",
- "progenitor-client",
+ "progenitor-client 0.2.0",
  "reqwest",
  "serde",
  "serde_json",

@@ -125,13 +125,18 @@ fn test_central_token_panic() {
 fn test_supervise_systemd_green() {
     use std::path::PathBuf;
 
+    use crate::init::Launcher;
+
     let table = vec![
         (
             "basic",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -139,12 +144,15 @@ fn test_supervise_systemd_green() {
             "with-filled-in-properties",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                domain: Some(String::from("zerotier")),
-                authtoken: Some(PathBuf::from("/var/lib/zerotier-one/authtoken.secret")),
-                hosts_file: Some(PathBuf::from("/etc/hosts")),
-                wildcard_names: true,
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    domain: Some(String::from("zerotier")),
+                    secret: Some(PathBuf::from("/var/lib/zerotier-one/authtoken.secret")),
+                    hosts: Some(PathBuf::from("/etc/hosts")),
+                    wildcard: true,
+                    ..Default::default()
+                },
                 distro: None,
                 ..Default::default()
             },
@@ -189,13 +197,18 @@ fn test_supervise_systemd_green() {
 fn test_supervise_systemd_red() {
     use std::path::PathBuf;
 
+    use crate::init::Launcher;
+
     let table = vec![
         (
             "bad network",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("123456789101112"),
-                token: PathBuf::from("/proc/cpuinfo"),
+                launcher: Launcher {
+                    network_id: Some(String::from("123456789101112")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -203,8 +216,11 @@ fn test_supervise_systemd_red() {
             "bad token (no file)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("~"),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("~")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -212,8 +228,11 @@ fn test_supervise_systemd_red() {
             "bad token (dir)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("."),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from(".")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -221,9 +240,12 @@ fn test_supervise_systemd_red() {
             "bad hosts (no file)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                hosts_file: Some(PathBuf::from("~")),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    hosts: Some(PathBuf::from("~")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -231,9 +253,12 @@ fn test_supervise_systemd_red() {
             "bad hosts (dir)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                hosts_file: Some(PathBuf::from(".")),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    hosts: Some(PathBuf::from(".")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -241,9 +266,12 @@ fn test_supervise_systemd_red() {
             "bad authtoken (no file)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                authtoken: Some(PathBuf::from("~")),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    secret: Some(PathBuf::from("~")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -251,9 +279,12 @@ fn test_supervise_systemd_red() {
             "bad authtoken (dir)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                authtoken: Some(PathBuf::from(".")),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    secret: Some(PathBuf::from(".")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -261,9 +292,12 @@ fn test_supervise_systemd_red() {
             "bad domain (empty string)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                domain: Some(String::from("")),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    domain: Some(String::from("")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -271,9 +305,12 @@ fn test_supervise_systemd_red() {
             "bad domain (invalid)",
             crate::supervise::Properties {
                 binpath: String::from("zeronsd"),
-                network: String::from("1234567891011121"),
-                token: PathBuf::from("/proc/cpuinfo"),
-                domain: Some(String::from("-")),
+                launcher: Launcher {
+                    network_id: Some(String::from("1234567891011121")),
+                    token: Some(PathBuf::from("/proc/cpuinfo")),
+                    domain: Some(String::from("-")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),

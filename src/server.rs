@@ -20,7 +20,7 @@ pub struct Server(ZTAuthority);
 
 impl Server {
     pub fn new(zt: ZTAuthority) -> Self {
-        return Self(zt);
+        Self(zt)
     }
 
     // listener routine for TCP and UDP.
@@ -42,11 +42,7 @@ impl Server {
             info!("Configuring DoT Listener");
             let tls = TcpListener::bind(SocketAddr::new(ip, 853)).await?;
 
-            match sf.register_tls_listener(
-                tls,
-                tcp_timeout,
-                ((certs, cert_chain), key),
-            ) {
+            match sf.register_tls_listener(tls, tcp_timeout, ((certs, cert_chain), key)) {
                 Ok(_) => {}
                 Err(e) => tracing::error!("Cannot start DoT listener: {}", e),
             }
