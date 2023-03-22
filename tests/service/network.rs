@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tracing::warn;
-use zeronsd::utils::{authtoken_path, get_listen_ips};
+use zeronsd::utils::{authtoken_path, get_listen_ips, ZEROTIER_LOCAL_URL};
 use zerotier_central_api::types::{Member, MemberConfig, Network};
 use zerotier_one_api::types::{NetworkSubtype0, NetworkSubtype1};
 
@@ -95,7 +95,7 @@ impl TestNetwork {
         let id = self.network.id.clone().unwrap();
         let mut count = 0;
 
-        while let Err(e) = get_listen_ips(&authtoken_path(None), &id).await {
+        while let Err(e) = get_listen_ips(&authtoken_path(None), &id, ZEROTIER_LOCAL_URL.into()).await {
             tokio::time::sleep(Duration::new(1, 0)).await;
             count += 1;
             if count >= 5 {
