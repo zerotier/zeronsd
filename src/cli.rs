@@ -80,6 +80,10 @@ pub struct StartArgs {
     /// Log Level to print [off, trace, debug, error, warn, info]
     #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]
     pub log_level: Option<crate::log::LevelFilter>,
+
+    /// Configure the ZeroTier network with the configured dns servers and domain
+    #[clap(long = "no-configure-network")]
+    pub no_configure_network: bool,
 }
 
 impl Into<Launcher> for StartArgs {
@@ -109,6 +113,7 @@ impl Into<Launcher> for StartArgs {
                 log_level: self.log_level,
                 network_id: Some(self.network_id),
                 local_url: self.local_url,
+                no_configure_network: self.no_configure_network,
             }
         }
     }
