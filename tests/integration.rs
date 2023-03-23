@@ -1,4 +1,5 @@
-use zeronsd::utils::init_logger;
+use zeronsd::utils::{ init_logger };
+
 
 mod service;
 
@@ -685,7 +686,7 @@ mod all {
             .unwrap();
 
         let listen_ips =
-            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap()).await?;
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap(), ZEROTIER_LOCAL_URL.into()).await?;
 
         eprintln!("My listen IP is {}", listen_ips.first().unwrap());
         assert_ne!(*listen_ips.first().unwrap(), String::from(""));
@@ -701,7 +702,7 @@ mod all {
         ips.sort();
 
         let mut listen_ips: Vec<String> =
-            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap(), ZEROTIER_LOCAL_URL.into())
                 .await?
                 .iter()
                 .map(|x| parse_ip_from_cidr(x.clone()).to_string())
@@ -716,7 +717,7 @@ mod all {
             .unwrap();
 
         let mut listen_ips: Vec<String> =
-            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap(), ZEROTIER_LOCAL_URL.into())
                 .await?
                 .iter()
                 .map(|x| parse_ip_from_cidr(x.clone()).to_string())
@@ -736,7 +737,7 @@ mod all {
             .unwrap();
 
         let mut listen_ips: Vec<String> =
-            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap())
+            get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap(), ZEROTIER_LOCAL_URL.into())
                 .await?
                 .iter()
                 .map(|x| parse_ip_from_cidr(x.clone()).to_string())

@@ -1,4 +1,4 @@
-use zeronsd::utils::{central_client, local_client};
+use zeronsd::utils::{central_client, local_client, ZEROTIER_LOCAL_URL};
 use zerotier_central_api::types::{Member, MemberConfig};
 
 use super::{
@@ -27,7 +27,7 @@ impl TestContext {
 
     pub async fn default() -> Self {
         let authtoken = get_authtoken(None).expect("Could not read authtoken");
-        let zerotier = local_client(authtoken.clone()).unwrap();
+        let zerotier = local_client(authtoken.clone(), ZEROTIER_LOCAL_URL.into()).unwrap();
         let identity = get_identity(&zerotier)
             .await
             .expect("Could not retrieve identity from zerotier");

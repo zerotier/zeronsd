@@ -1,6 +1,7 @@
 use crate::{
     init::{ConfigFormat, Launcher},
     supervise::Properties,
+    utils::ZEROTIER_LOCAL_URL,
 };
 use std::{path::PathBuf, time::Duration};
 
@@ -72,18 +73,22 @@ pub struct StartArgs {
     #[clap(long = "tls-key", value_name = "PATH")]
     pub tls_key: Option<PathBuf>,
 
+    /// Provide a different URL for contacting the local zerotier-one service. Default:
+    #[clap(long = "local-url", value_name = "LOCAL_URL", default_value = ZEROTIER_LOCAL_URL)]
+    pub local_url: String,
+
     /// Log Level to print [off, trace, debug, error, warn, info]
     #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]
     pub log_level: Option<crate::log::LevelFilter>,
 }
 
-impl From<StartArgs> for Launcher {
-    fn from(sa: StartArgs) -> Self {
-        if let Some(config) = sa.config {
-            let res = Launcher::new_from_config(config.to_str().unwrap(), sa.config_type);
+impl Into<Launcher> for StartArgs {
+    fn into(self) -> Launcher {
+        if let Some(config) = self.config {
+            let res = Launcher::new_from_config(config.to_str().unwrap(), self.config_type);
             match res {
                 Ok(mut res) => {
-                    res.network_id = Some(sa.network_id.clone());
+                    res.network_id = Some(self.network_id.clone());
                     res
                 }
                 Err(e) => {
@@ -93,16 +98,17 @@ impl From<StartArgs> for Launcher {
             }
         } else {
             Launcher {
-                domain: sa.domain,
-                hosts: sa.hosts,
-                secret: sa.secret,
-                token: sa.token,
-                wildcard: sa.wildcard,
-                chain_cert: sa.chain_cert,
-                tls_cert: sa.tls_cert,
-                tls_key: sa.tls_key,
-                log_level: sa.log_level,
-                network_id: Some(sa.network_id),
+                domain: self.domain,
+                hosts: self.hosts,
+                secret: self.secret,
+                token: self.token,
+                wildcard: self.wildcard,
+                chain_cert: self.chain_cert,
+                tls_cert: self.tls_cert,
+                tls_key: self.tls_key,
+                log_level: self.log_level,
+                network_id: Some(self.network_id),
+                local_url: self.local_url,
             }
         }
     }
