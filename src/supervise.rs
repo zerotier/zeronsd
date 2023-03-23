@@ -347,7 +347,10 @@ impl Properties {
     fn service_name(&self) -> String {
         format!(
             "com.zerotier.nsd.{}.plist",
-            self.launcher.network_id.as_ref().expect("network_id missing")
+            self.launcher
+                .network_id
+                .as_ref()
+                .expect("network_id missing")
         )
     }
 

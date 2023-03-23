@@ -24,7 +24,9 @@ use zeronsd::{
     authority::{find_members, RecordAuthority, ZTAuthority},
     server::Server,
     traits::{ToHostname, ToPointerSOA},
-    utils::{authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr, ZEROTIER_LOCAL_URL},
+    utils::{
+        authtoken_path, domain_or_default, get_listen_ips, parse_ip_from_cidr, ZEROTIER_LOCAL_URL,
+    },
 };
 
 use self::{
@@ -163,9 +165,13 @@ impl Service {
         update_interval: Duration,
         wildcard_everything: bool,
     ) -> Vec<SocketAddr> {
-        let listen_cidrs = get_listen_ips(&authtoken_path(None), &tn.network.clone().id.unwrap(), ZEROTIER_LOCAL_URL.into())
-            .await
-            .unwrap();
+        let listen_cidrs = get_listen_ips(
+            &authtoken_path(None),
+            &tn.network.clone().id.unwrap(),
+            ZEROTIER_LOCAL_URL.into(),
+        )
+        .await
+        .unwrap();
 
         let mut listen_ips = Vec::new();
 
