@@ -34,6 +34,7 @@ pub struct Launcher {
     pub local_url: String,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
+    #[serde(default = "bool::default")]
     pub no_configure_network: bool,
 }
 
