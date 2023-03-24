@@ -81,7 +81,7 @@ pub struct StartArgs {
     #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]
     pub log_level: Option<crate::log::LevelFilter>,
 
-    /// Configure the ZeroTier network with the configured dns servers and domain
+    /// Don't configure the ZeroTier network's dns servers and domain.
     #[clap(long = "no-configure-network")]
     pub no_configure_network: bool,
 }
