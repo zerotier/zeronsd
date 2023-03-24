@@ -34,6 +34,8 @@ pub struct Launcher {
     pub local_url: String,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
+    #[serde(default = "bool::default")]
+    pub no_configure_network: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -72,6 +74,7 @@ impl Default for Launcher {
             network_id: None,
             log_level: None,
             local_url: ZEROTIER_LOCAL_URL.to_string(),
+            no_configure_network: false,
         }
     }
 }
@@ -122,15 +125,17 @@ impl Launcher {
 
         // more or less the setup for the "main loop"
         if !ips.is_empty() {
-            update_central_dns(
-                domain_name.clone(),
-                ips.iter()
-                    .map(|i| parse_ip_from_cidr(i.clone()).to_string())
-                    .collect(),
-                client.clone(),
-                self.network_id.clone().unwrap(),
-            )
-            .await?;
+            if !self.no_configure_network {
+                update_central_dns(
+                    domain_name.clone(),
+                    ips.iter()
+                        .map(|i| parse_ip_from_cidr(i.clone()).to_string())
+                        .collect(),
+                    client.clone(),
+                    self.network_id.clone().unwrap(),
+                )
+                .await?;
+            }
 
             let mut listen_ips = Vec::new();
             let mut ipmap = HashMap::new();
