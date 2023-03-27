@@ -1,7 +1,6 @@
 use crate::{
     init::{ConfigFormat, Launcher},
     supervise::Properties,
-    utils::ZEROTIER_LOCAL_URL,
 };
 use std::{path::PathBuf, time::Duration};
 
@@ -54,7 +53,7 @@ pub struct StartArgs {
 
     /// Wildcard all names in Central to point at the respective member's IP address(es)
     #[clap(short, long)]
-    pub wildcard: bool,
+    pub wildcard: Option<bool>,
 
     /// Configuration file containing these arguments (overrides most CLI options)
     #[clap(short = 'c', long = "config", value_name = "PATH")]
@@ -73,9 +72,9 @@ pub struct StartArgs {
     #[clap(long = "tls-key", value_name = "PATH")]
     pub tls_key: Option<PathBuf>,
 
-    /// Provide a different URL for contacting the local zerotier-one service. Default:
-    #[clap(long = "local-url", value_name = "LOCAL_URL", default_value = ZEROTIER_LOCAL_URL)]
-    pub local_url: String,
+    /// Provide a different URL for contacting the local zerotier-one service. Default: http://localhost:9993
+    #[clap(long = "local-url", value_name = "LOCAL_URL")]
+    pub local_url: Option<String>,
 
     /// Log Level to print [off, trace, debug, error, warn, info]
     #[clap(short = 'l', long = "log-level", value_name = "LEVEL")]
@@ -83,7 +82,7 @@ pub struct StartArgs {
 
     /// Don't configure the ZeroTier network's dns servers and domain. Default: False
     #[clap(long = "no-configure-network")]
-    pub no_configure_network: bool,
+    pub no_configure_network: Option<bool>,
 }
 
 impl Into<Launcher> for StartArgs {

@@ -150,7 +150,7 @@ fn test_supervise_systemd_green() {
                     domain: Some(String::from("zerotier")),
                     secret: Some(PathBuf::from("/var/lib/zerotier-one/authtoken.secret")),
                     hosts: Some(PathBuf::from("/etc/hosts")),
-                    wildcard: true,
+                    wildcard: Some(true),
                     ..Default::default()
                 },
                 distro: None,

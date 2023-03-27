@@ -20,7 +20,7 @@ use crate::{
     utils::*,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Launcher {
     pub domain: Option<String>,
     pub hosts: Option<PathBuf>,
@@ -29,13 +29,12 @@ pub struct Launcher {
     pub chain_cert: Option<PathBuf>,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
-    pub wildcard: bool,
+    pub wildcard: Option<bool>,
     pub log_level: Option<crate::log::LevelFilter>,
-    pub local_url: String,
+    pub local_url: Option<String>,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
-    #[serde(default = "bool::default")]
-    pub no_configure_network: bool,
+    pub no_configure_network: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -70,11 +69,11 @@ impl Default for Launcher {
             chain_cert: None,
             tls_cert: None,
             tls_key: None,
-            wildcard: false,
+            wildcard: None,
             network_id: None,
             log_level: None,
-            local_url: ZEROTIER_LOCAL_URL.to_string(),
-            no_configure_network: false,
+            local_url: Some(ZEROTIER_LOCAL_URL.to_string()),
+            no_configure_network: None,
         }
     }
 }
@@ -114,18 +113,19 @@ impl Launcher {
         let domain_name = domain_or_default(self.domain.as_deref())?;
         let authtoken = authtoken_path(self.secret.as_deref());
         let client = central_client(central_token(self.token.as_deref())?)?;
+        let local_url = self.local_url.clone().unwrap_or(ZEROTIER_LOCAL_URL.to_string());
 
         info!("Welcome to ZeroNS!");
         let ips = get_listen_ips(
             &authtoken,
             &self.network_id.clone().unwrap(),
-            self.local_url.clone(),
+            local_url.clone(),
         )
         .await?;
 
         // more or less the setup for the "main loop"
         if !ips.is_empty() {
-            if !self.no_configure_network {
+            if !self.no_configure_network.unwrap_or(false) {
                 update_central_dns(
                     domain_name.clone(),
                     ips.iter()
@@ -157,7 +157,7 @@ impl Launcher {
             }
 
             let member_name =
-                get_member_name(authtoken, domain_name.clone(), self.local_url.clone()).await?;
+                get_member_name(authtoken, domain_name.clone(), local_url).await?;
 
             let network = client
                 .get_network_by_id(&self.network_id.clone().unwrap())
@@ -190,7 +190,7 @@ impl Launcher {
                 hosts_file: self.hosts.clone(),
                 reverse_authority_map: authority_map,
                 forward_authority: authority,
-                wildcard: self.wildcard,
+                wildcard: self.wildcard.unwrap_or(false),
                 update_interval: Duration::new(30, 0),
             };
 
@@ -240,5 +240,57 @@ impl Launcher {
         return Err(anyhow!(
             "No listening IPs for your interface; assign one in ZeroTier Central."
         ));
+    }
+}
+
+impl Launcher {
+    pub fn merge(self, other: Launcher) -> Self {
+        Self {
+            domain: other.domain.or(self.domain),
+            hosts: other.hosts.or(self.hosts),
+            secret: other.secret.or(self.secret),
+            token: other.token.or(self.token),
+            chain_cert: other.chain_cert.or(self.chain_cert),
+            tls_cert: other.tls_cert.or(self.tls_cert),
+            tls_key: other.tls_key.or(self.tls_key),
+            wildcard: other.wildcard.or(self.wildcard),
+            network_id: other.network_id.or(self.network_id),
+            log_level: other.log_level.or(self.log_level),
+            local_url: other.local_url.or(self.local_url),
+            no_configure_network: other.no_configure_network.or(self.no_configure_network),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Launcher;
+
+
+    #[test]
+    fn test_merge_config() {
+        let default: Launcher = Default::default();
+        let custom = Launcher {
+            wildcard: Some(true),
+            local_url: Some("http://localhost:19993".to_string()),
+            secret: Some("secret".into()),
+            ..Default::default()
+        };
+
+        let merged = default.merge(custom.clone());
+        assert_eq!(merged, custom);
+
+
+        let custom2 = Launcher {
+            wildcard: Some(false),
+            secret: None,
+            no_configure_network: Some(true),
+            local_url: Some("http://127.0.0.1:1234".to_string()),
+            ..Default::default()
+        };
+        let merged2 = merged.merge(custom2.clone());
+
+        assert_eq!(merged2.wildcard, Some(false));
+        assert_eq!(merged2.local_url, Some("http://127.0.0.1:1234".to_string()));
     }
 }
