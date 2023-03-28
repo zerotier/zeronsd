@@ -2,6 +2,7 @@ use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
 };
+use anyhow::Context;
 use tracing::info;
 
 use openssl::{
@@ -23,6 +24,15 @@ impl Server {
         Self(zt)
     }
 
+    pub async fn bind(ip: IpAddr) -> Result<(TcpListener, UdpSocket), anyhow::Error> {
+        let sa = SocketAddr::new(ip, 53);
+
+        let tcp = TcpListener::bind(sa).await.with_context(|| "Failed to bind TCP port 53")?;
+        let udp = UdpSocket::bind(sa).await.with_context(|| "Failed to bind UDP port 53")?;
+
+        return Ok((tcp, udp));
+    }
+
     // listener routine for TCP and UDP.
     pub async fn listen(
         self,
@@ -31,11 +41,9 @@ impl Server {
         certs: Option<X509>,
         cert_chain: Option<Stack<X509>>,
         key: Option<PKey<Private>>,
+        tcp: TcpListener,
+        udp: UdpSocket,
     ) -> Result<(), anyhow::Error> {
-        let sa = SocketAddr::new(ip, 53);
-        let tcp = TcpListener::bind(sa).await?;
-        let udp = UdpSocket::bind(sa).await?;
-
         let mut sf = ServerFuture::new(init_catalog(self.0).await?);
 
         if let (Some(certs), Some(key)) = (certs.clone(), key.clone()) {

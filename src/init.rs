@@ -222,11 +222,17 @@ impl Launcher {
                     None
                 };
 
-                tokio::spawn(
-                    server
-                        .clone()
-                        .listen(ip, Duration::new(1, 0), tls_cert, chain, key),
-                );
+                let (tcp_socket, udp_socket) = Server::bind(ip).await?;
+
+                tokio::spawn(server.clone().listen(
+                    ip,
+                    Duration::new(1, 0),
+                    tls_cert,
+                    chain,
+                    key,
+                    tcp_socket,
+                    udp_socket,
+                ));
             }
 
             return Ok(ztauthority);
