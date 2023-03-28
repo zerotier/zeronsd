@@ -87,33 +87,19 @@ pub struct StartArgs {
 
 impl Into<Launcher> for StartArgs {
     fn into(self) -> Launcher {
-        if let Some(config) = self.config {
-            let res = Launcher::new_from_config(config.to_str().unwrap(), self.config_type);
-            match res {
-                Ok(mut res) => {
-                    res.network_id = Some(self.network_id.clone());
-                    res
-                }
-                Err(e) => {
-                    eprintln!("{}", e);
-                    std::process::exit(1);
-                }
-            }
-        } else {
-            Launcher {
-                domain: self.domain,
-                hosts: self.hosts,
-                secret: self.secret,
-                token: self.token,
-                wildcard: self.wildcard,
-                chain_cert: self.chain_cert,
-                tls_cert: self.tls_cert,
-                tls_key: self.tls_key,
-                log_level: self.log_level,
-                network_id: Some(self.network_id),
-                local_url: self.local_url,
-                no_configure_network: self.no_configure_network,
-            }
+        Launcher {
+            domain: self.domain,
+            hosts: self.hosts,
+            secret: self.secret,
+            token: self.token,
+            wildcard: self.wildcard,
+            chain_cert: self.chain_cert,
+            tls_cert: self.tls_cert,
+            tls_key: self.tls_key,
+            log_level: self.log_level,
+            network_id: Some(self.network_id),
+            local_url: self.local_url,
+            no_configure_network: self.no_configure_network,
         }
     }
 }
@@ -147,9 +133,17 @@ pub async fn init() -> Result<(), anyhow::Error> {
 }
 
 async fn start(args: StartArgs) -> Result<(), anyhow::Error> {
-    let launcher: Launcher = args.into();
+    let cli_args: Launcher = args.clone().into();
 
-    launcher.start().await?;
+    let merged_args = args.config
+        .and_then(|path| Launcher::new_from_config(path.to_str()?, args.config_type).ok())
+        .map(|mut config| {
+            config.network_id = Some(args.network_id.clone());
+            config
+        })
+        .map_or(cli_args.clone(), |conf| conf.merge(cli_args));
+
+    merged_args.start().await?;
     Ok(())
 }
 
