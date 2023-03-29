@@ -222,16 +222,16 @@ impl Launcher {
                     None
                 };
 
-                let (tcp_socket, udp_socket) = Server::bind(ip).await?;
+                let (tcp_socket, udp_socket, tls_socket) = Server::bind(ip, chain.is_some()).await?;
 
                 tokio::spawn(server.clone().listen(
-                    ip,
                     Duration::new(1, 0),
                     tls_cert,
                     chain,
                     key,
                     tcp_socket,
                     udp_socket,
+                    tls_socket
                 ));
             }
 

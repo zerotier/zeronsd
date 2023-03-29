@@ -240,7 +240,7 @@ impl Service {
         for ip in listen_ips.clone() {
             let server = Server::new(ztauthority.to_owned());
 
-            let (tcp_socket, udp_socket) = match Server::bind(ip.ip()).await {
+            let (tcp_socket, udp_socket, tls_socket) = match Server::bind(ip.ip(), false).await {
                 Ok(x) => x,
                 Err(e) => {
                     panic!("Could not bind port. {}", e);
@@ -248,13 +248,13 @@ impl Service {
             };
             info!("Serving {}", ip.clone());
             tokio::spawn(server.listen(
-                ip.ip(),
                 Duration::new(1, 0),
                 None,
                 None,
                 None,
                 tcp_socket,
                 udp_socket,
+                tls_socket
             ));
         }
 
