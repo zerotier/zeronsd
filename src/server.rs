@@ -2,6 +2,7 @@ use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
 };
+use anyhow::Context;
 use tracing::info;
 
 use openssl::{
@@ -23,28 +24,42 @@ impl Server {
         Self(zt)
     }
 
+    pub async fn bind(ip: IpAddr, use_dot: bool) -> Result<(TcpListener, UdpSocket, Option<TcpListener>), anyhow::Error> {
+        let sa = SocketAddr::new(ip, 53);
+
+        let tcp = TcpListener::bind(sa).await.with_context(|| "Failed to bind TCP port 53")?;
+        let udp = UdpSocket::bind(sa).await.with_context(|| "Failed to bind UDP port 53")?;
+
+
+        let tls = match use_dot {
+            true => TcpListener::bind(SocketAddr::new(ip, 853)).await.with_context(|| "Failed to bind TCP port 853 (DoT)").ok(),
+            false => None
+        };
+
+        return Ok((tcp, udp, tls));
+    }
+
     // listener routine for TCP and UDP.
     pub async fn listen(
         self,
-        ip: IpAddr,
         tcp_timeout: Duration,
         certs: Option<X509>,
         cert_chain: Option<Stack<X509>>,
         key: Option<PKey<Private>>,
+        tcp: TcpListener,
+        udp: UdpSocket,
+        dot: Option<TcpListener>,
     ) -> Result<(), anyhow::Error> {
-        let sa = SocketAddr::new(ip, 53);
-        let tcp = TcpListener::bind(sa).await?;
-        let udp = UdpSocket::bind(sa).await?;
-
         let mut sf = ServerFuture::new(init_catalog(self.0).await?);
 
-        if let (Some(certs), Some(key)) = (certs.clone(), key.clone()) {
-            info!("Configuring DoT Listener");
-            let tls = TcpListener::bind(SocketAddr::new(ip, 853)).await?;
+        if let Some(dot) = dot {
+            if let (Some(certs), Some(key)) = (certs.clone(), key.clone()) {
+                info!("Configuring DoT Listener");
 
-            match sf.register_tls_listener(tls, tcp_timeout, ((certs, cert_chain), key)) {
-                Ok(_) => {}
-                Err(e) => tracing::error!("Cannot start DoT listener: {}", e),
+                match sf.register_tls_listener(dot, tcp_timeout, ((certs, cert_chain), key)) {
+                    Ok(_) => {}
+                    Err(e) => tracing::error!("Cannot start DoT listener: {}", e),
+                }
             }
         }
 
