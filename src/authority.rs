@@ -75,9 +75,7 @@ pub async fn init_catalog(zt: ZTAuthority) -> Result<Catalog, anyhow::Error> {
         Name::root(),
         trust_dns_server::authority::ZoneType::Primary,
         config,
-    )
-    .await
-    .expect("Could not initialize forwarder");
+    ).expect("Could not initialize forwarder");
 
     catalog.upsert(Name::root().into(), Box::new(Arc::new(forwarder)));
 
