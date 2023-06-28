@@ -139,6 +139,10 @@ mod tests {
                 IpNetwork::from_str("1.2.3.4/32").unwrap(),
                 LowerName::from_str("4.3.2.1.in-addr.arpa").unwrap(),
             ),
+            (
+                IpNetwork::from_str("fd0c:ccb7:52f7:13c4:7c99:9312:1234:5678/88").unwrap(),
+                LowerName::from_str("3.9.9.9.c.7.4.c.3.1.7.f.2.5.7.b.c.c.c.0.d.f.ip6.arpa").unwrap(),
+            )
         ] {
             assert_eq!(item.0.to_ptr_soa_name().unwrap(), item.1);
         }
