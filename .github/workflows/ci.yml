@@ -12,3 +12,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --lib
+
+  test-packages:
+    name: make test-packages
+    strategy:
+      matrix:
+        version: [ubuntu-latest]
+    runs-on: ${{ matrix.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --lib
+      - run: make test-packages
