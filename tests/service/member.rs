@@ -20,6 +20,7 @@ impl MemberUtil for Member {
             physical_address: None,
             name: None,
             last_online: None,
+            last_seen: None,
             id: None,
             hidden: None,
             description: None,
@@ -59,6 +60,7 @@ impl MemberConfigUtil for MemberConfig {
             authorized: Some(true),
             active_bridge: None,
             identity: Some(identity),
+            sso_exempt: None,
         }
     }
 }

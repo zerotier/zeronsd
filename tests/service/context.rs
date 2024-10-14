@@ -11,7 +11,7 @@ use super::{
 pub struct TestContext {
     pub member_config: Option<MemberConfig>,
     pub identity: String,
-    pub zerotier: zerotier_one_api::Client,
+    pub zerotier: zerotier_service_api::Client,
     pub central: zerotier_central_api::Client,
 }
 

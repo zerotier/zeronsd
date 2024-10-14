@@ -1,5 +1,6 @@
 /target
-.token
+/result
+*.token
 test-token.txt
 /test.yaml
 /windows.yaml
@@ -8,3 +9,6 @@ test-token.txt
 /*.key
 /*.csr
 /*.srl
+.env*
+config.yaml
+.direnv

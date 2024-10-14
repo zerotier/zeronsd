@@ -7,9 +7,8 @@ use std::{path::PathBuf, time::Duration};
 
 use clap::{Args, Parser, Subcommand};
 
-/// zerotier central nameserver
 #[derive(Parser)]
-#[clap(version, author = "Erik Hollensbe <github@hollensbe.org>")]
+#[clap(version, author = "ZeroTier, Inc. <https://zerotier.com>")]
 pub struct Cli {
     /// Verbose logging (repeat -v for more verbosity)
     #[clap(short, global = true, parse(from_occurrences))]
@@ -108,7 +107,7 @@ impl Into<Launcher> for StartArgs {
                 tls_key: self.tls_key,
                 log_level: self.log_level,
                 network_id: Some(self.network_id),
-                local_url: self.local_url,
+                local_url: Some(self.local_url),
             }
         }
     }
