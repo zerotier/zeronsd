@@ -161,6 +161,7 @@ mod tests {
             network_id: None,
             name: None,
             last_online: None,
+            last_seen: None,
             id: None,
             hidden: None,
             description: None,

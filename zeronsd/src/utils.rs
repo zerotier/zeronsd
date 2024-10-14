@@ -10,9 +10,8 @@ use anyhow::anyhow;
 use crate::traits::ToHostname;
 
 // collections of test hosts files
-pub const TEST_HOSTS_DIR: &str = "testdata/hosts-files";
-// default domain parameter. FIXME change to home.arpa.
-pub const DOMAIN_NAME: &str = "home.arpa.";
+pub const TEST_HOSTS_DIR: &str = "../testdata/hosts-files";
+pub const DEFAULT_DOMAIN_NAME: &str = "home.arpa.";
 // zeronsd version calculated from Cargo.toml
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 // address of Central
@@ -126,7 +125,7 @@ pub fn domain_or_default(tld: Option<&str>) -> Result<Name, anyhow::Error> {
         }
     };
 
-    Ok(Name::from_str(DOMAIN_NAME)?)
+    Ok(Name::from_str(DEFAULT_DOMAIN_NAME)?)
 }
 
 // parse_member_name ensures member names are DNS compliant
@@ -167,7 +166,7 @@ pub async fn get_member_name(
 fn local_client_from_file(
     authtoken_path: &Path,
     local_url: String,
-) -> Result<zerotier_one_api::Client, anyhow::Error> {
+) -> Result<zerotier_service_api::Client, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
     local_client(authtoken, local_url)
 }
@@ -175,11 +174,11 @@ fn local_client_from_file(
 pub fn local_client(
     authtoken: String,
     local_url: String,
-) -> Result<zerotier_one_api::Client, anyhow::Error> {
+) -> Result<zerotier_service_api::Client, anyhow::Error> {
     let mut headers = HeaderMap::new();
     headers.insert("X-ZT1-Auth", HeaderValue::from_str(&authtoken)?);
 
-    Ok(zerotier_one_api::Client::new_with_client(
+    Ok(zerotier_service_api::Client::new_with_client(
         &local_url,
         reqwest::Client::builder()
             .user_agent(version())
@@ -204,7 +203,7 @@ pub async fn get_listen_ips(
             network_id
         )),
         Ok(listen) => {
-            let assigned = listen.subtype_1.assigned_addresses.to_owned();
+            let assigned = listen.assigned_addresses.to_owned();
             if !assigned.is_empty() {
                 Ok(assigned)
             } else {

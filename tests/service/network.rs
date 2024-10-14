@@ -3,7 +3,6 @@ use std::time::Duration;
 use tracing::warn;
 use zeronsd::utils::{authtoken_path, get_listen_ips, ZEROTIER_LOCAL_URL};
 use zerotier_central_api::types::{Member, MemberConfig, Network};
-use zerotier_one_api::types::{NetworkSubtype0, NetworkSubtype1};
 
 use super::{context::TestContext, member::MemberConfigUtil, utils::network_definition};
 
@@ -57,34 +56,26 @@ impl TestNetwork {
 
     // join zerotier-one to the test network
     pub async fn join(&self) -> Result<(), anyhow::Error> {
-        let network = zerotier_one_api::types::Network {
-            subtype_0: NetworkSubtype0 {
-                allow_dns: Some(true),
-                allow_global: Some(false),
-                allow_default: Some(false),
-                allow_managed: Some(true),
-            },
-            subtype_1: NetworkSubtype1 {
-                status: None,
-                type_: None,
-                routes: Vec::new(),
-                port_error: None,
-                port_device_name: None,
-                netconf_revision: None,
-                name: None,
-                multicast_subscriptions: Vec::new(),
-                mtu: None,
-                mac: None,
-                id: None,
-                dns: None,
-                broadcast_enabled: None,
-                bridge: None,
-                assigned_addresses: Vec::new(),
-                allow_dns: Some(true),
-                allow_global: Some(false),
-                allow_default: Some(false),
-                allow_managed: Some(true),
-            },
+        let network = zerotier_service_api::types::Network {
+            status: None,
+            type_: None,
+            routes: Vec::new(),
+            port_error: None,
+            port_device_name: None,
+            netconf_revision: None,
+            name: None,
+            multicast_subscriptions: Vec::new(),
+            mtu: None,
+            mac: None,
+            id: None,
+            dns: None,
+            broadcast_enabled: None,
+            bridge: None,
+            assigned_addresses: Vec::new(),
+            allow_dns: Some(true),
+            allow_global: Some(false),
+            allow_default: Some(false),
+            allow_managed: Some(true),
         };
 
         self.context

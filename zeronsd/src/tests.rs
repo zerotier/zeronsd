@@ -75,13 +75,12 @@ fn test_parse_ip_from_cidr() {
 
 #[test]
 fn test_domain_or_default() {
-    use crate::utils::{domain_or_default, DOMAIN_NAME};
-    use std::str::FromStr;
+    use crate::utils::{domain_or_default, DEFAULT_DOMAIN_NAME};
     use trust_dns_server::client::rr::Name;
 
     assert_eq!(
         domain_or_default(None).unwrap(),
-        Name::from_str(DOMAIN_NAME).unwrap()
+        Name::from_str(DEFAULT_DOMAIN_NAME).unwrap()
     );
 
     assert_eq!(
@@ -169,7 +168,7 @@ fn test_supervise_systemd_green() {
     }
 
     for (name, mut props) in table {
-        let path = std::path::PathBuf::from(format!("testdata/supervise/systemd/{}.unit", name));
+        let path = std::path::PathBuf::from(format!("../testdata/supervise/systemd/{}.unit", name));
 
         if !write {
             let path = path.canonicalize();
@@ -392,7 +391,7 @@ fn test_parse_hosts_duplicate() {
     let domain = Name::from_str("zombocom").unwrap();
 
     let res = parse_hosts(
-        Some(PathBuf::from("testdata/hosts-files/duplicates")),
+        Some(PathBuf::from("../testdata/hosts-files/duplicates")),
         domain.clone(),
     );
 

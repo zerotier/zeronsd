@@ -1,7 +1,7 @@
 ---
 # must be set; the file containing the token used to communicate with ZeroTier
 # Central.
-token: "/home/erikh/src/github.com/zerotier/zeronsd/.token"
+token: ".central.token"
 # The domain to use for all subdomains. Defaults to `home.arpa.`. Trailing
 # period is not required.
 #
