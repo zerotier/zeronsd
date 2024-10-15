@@ -142,6 +142,8 @@ impl Launcher {
                 let cidr = IpNetwork::from_str(&cidr.clone())?;
                 ipmap.entry(listen_ip).or_insert_with(|| cidr.network());
 
+                let cidr = IpNetwork::new(cidr.network(), cidr.prefix()).unwrap();
+
                 if let Entry::Vacant(e) = authority_map.entry(cidr) {
                     tracing::debug!("{}", cidr.to_ptr_soa_name()?);
                     let ptr_authority =

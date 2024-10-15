@@ -187,6 +187,7 @@ impl Service {
                 ipmap.insert(listen_ip, cidr.network());
             }
 
+            let cidr = IpNetwork::new(cidr.network(), cidr.prefix()).unwrap();
             if !authority_map.contains_key(&cidr) {
                 let ptr_authority = RecordAuthority::new(
                     cidr.to_ptr_soa_name().unwrap(),
