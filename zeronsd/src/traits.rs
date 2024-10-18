@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use trust_dns_resolver::{proto::error::ProtoError, IntoName, Name};
 use trust_dns_server::client::rr::LowerName;
-use zerotier_central_api::types::Member;
+use zerotier_api::central_api::types::Member;
 
 pub trait ToPointerSOA {
     fn to_ptr_soa_name(&self) -> Result<LowerName, ProtoError>;
@@ -106,7 +106,7 @@ mod tests {
     use ipnetwork::IpNetwork;
     use trust_dns_resolver::Name;
     use trust_dns_server::client::rr::LowerName;
-    use zerotier_central_api::types::Member;
+    use zerotier_api::central_api::types::Member;
 
     #[test]
     fn test_to_ptr_soa_name() {
@@ -161,6 +161,7 @@ mod tests {
             network_id: None,
             name: None,
             last_online: None,
+            last_seen: None,
             id: None,
             hidden: None,
             description: None,

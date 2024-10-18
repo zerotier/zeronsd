@@ -1,5 +1,6 @@
 use zeronsd::utils::init_logger;
 
+#[cfg(feature = "integration-tests")]
 mod service;
 
 #[ctor::ctor]
@@ -7,6 +8,7 @@ fn init() {
     init_logger(Some(tracing::Level::ERROR));
 }
 
+#[cfg(feature = "integration-tests")]
 mod sixplane {
     use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
 
@@ -151,6 +153,7 @@ mod sixplane {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 mod rfc4193 {
     use std::{net::IpAddr, path::Path, str::FromStr, time::Duration};
 
@@ -376,6 +379,7 @@ mod rfc4193 {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 mod ipv4 {
     use std::time::Duration;
 
@@ -568,6 +572,7 @@ mod ipv4 {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 mod all {
     use rand::prelude::SliceRandom;
     use tracing::info;
@@ -654,7 +659,7 @@ mod all {
         );
 
         std::fs::write(hosts_path, "127.0.0.3 islay\n::3 islay\n").unwrap();
-        sleep(Duration::new(30, 0)); // wait for bg update
+        sleep(Duration::new(10, 0)); // wait for bg update
 
         assert_eq!(
             service

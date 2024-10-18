@@ -1,4 +1,6 @@
 target
+result
+.direnv
 .git
 test-token.txt
 .token

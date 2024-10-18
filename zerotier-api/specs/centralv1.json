@@ -1,0 +1,1912 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "description": "ZeroTier Central Network Management Portal API.<p>All API requests must have an API token header specified in the <code>Authorization: token xxxxx</code> format.  You can generate your API key by logging into <a href=\"https://my.zerotier.com\">ZeroTier Central</a> and creating a token on the Account page.</p><p>eg. <code>curl -X GET -H \"Authorization: token xxxxx\" https://api.zerotier.com/api/v1/network</code></p><p><h3>Rate Limiting</h3></p><p>The ZeroTier Central API implements rate limiting.  Paid users are limited to 100 requests per second.  Free users are limited to 20 requests per second.</p> <p> You can get the OpenAPI spec here as well: <code>https://docs.zerotier.com/api/central/ref-v1.json</code></p>",
+    "version": "v1",
+    "title": "ZeroTier Central API",
+    "contact": {
+      "name": "ZeroTier Support Discussion Forum",
+      "url": "https://discuss.zerotier.com"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.zerotier.com/api/v1",
+      "description": "Production Server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "network",
+      "description": "Network operations"
+    },
+    {
+      "name": "network-member",
+      "description": "Network member operations"
+    },
+    {
+      "name": "user",
+      "description": "User management operations"
+    },
+    {
+      "name": "organizations",
+      "description": "Organization management. Note: Organizations require a paid account and cannot be created via the API"
+    },
+    {
+      "name": "util",
+      "description": "Utility endpoints"
+    }
+  ],
+  "paths": {
+    "/status": {
+      "get": {
+        "tags": ["util"],
+        "summary": "Obtain the overall status of the account tied to the API token in use.",
+        "operationId": "getStatus",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network": {
+      "get": {
+        "tags": ["network"],
+        "summary": "Returns a list of Networks you have access to.",
+        "operationId": "getNetworkList",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Network"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["network"],
+        "summary": "Create a new network.",
+        "operationId": "newNetwork",
+        "requestBody": {
+          "description": "empty JSON object",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Network creation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/network/{networkID}": {
+      "get": {
+        "tags": ["network"],
+        "summary": "Get network by ID",
+        "description": "Returns a single network",
+        "operationId": "getNetworkByID",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network to return",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "get success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": ["network"],
+        "summary": "update network configuration",
+        "operationId": "updateNetwork",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network to change",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Network object JSON",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Network"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["network"],
+        "summary": "delete network",
+        "operationId": "deleteNetwork",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "network deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/network/{networkID}/member": {
+      "get": {
+        "tags": ["network-member"],
+        "summary": "Returns a list of Members on the network.",
+        "operationId": "getNetworkMemberList",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network to return",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "member list get success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/network/{networkID}/member/{memberID}": {
+      "get": {
+        "tags": ["network-member"],
+        "operationId": "getNetworkMember",
+        "summary": "Return an individual member on a network",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberID",
+            "description": "ID of the member",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "member get success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": ["network-member"],
+        "operationId": "updateNetworkMember",
+        "summary": "Modify a network member",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberID",
+            "description": "ID of the member",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Member object JSON",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Member"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "member changed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["network-member"],
+        "operationId": "deleteNetworkMember",
+        "summary": "Delete a network member",
+        "parameters": [
+          {
+            "name": "networkID",
+            "description": "ID of the network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberID",
+            "description": "ID of the member",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "member deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/user/{userID}": {
+      "get": {
+        "tags": ["user"],
+        "operationId": "getUserByID",
+        "summary": "Get user record",
+        "parameters": [
+          {
+            "name": "userID",
+            "description": "User ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User get success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": ["user"],
+        "operationId": "updateUserByID",
+        "summary": "Update user record (SMS number or Display Name only)",
+        "parameters": [
+          {
+            "name": "userID",
+            "description": "User ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "User object JSON",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User update success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["user"],
+        "operationId": "deleteUserByID",
+        "summary": "Delete user",
+        "description": "Deletes the user and all associated networks.  This is not reversible. Delete at your own risk.",
+        "parameters": [
+          {
+            "name": "userID",
+            "description": "User ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "user deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/user/{userID}/token": {
+      "post": {
+        "tags": ["user"],
+        "operationId": "addAPIToken",
+        "summary": "Add an API token",
+        "parameters": [
+          {
+            "name": "userID",
+            "description": "User ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "APIToken JSON object",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/APIToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API Token added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/user/{userID}/token/{tokenName}": {
+      "delete": {
+        "tags": ["user"],
+        "operationId": "deleteAPIToken",
+        "summary": "Delete API Token",
+        "parameters": [
+          {
+            "name": "userID",
+            "description": "User ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tokenName",
+            "description": "Token Name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API token deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/org": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "getOrganization",
+        "summary": "Get the current user's organization",
+        "responses": {
+          "200": {
+            "description": "Get my organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/org/{orgID}": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "getOrganizationByID",
+        "summary": "Get organization by ID",
+        "parameters": [
+          {
+            "name": "orgID",
+            "description": "Organization ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/org/{orgID}/user": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "getOrganizationMembers",
+        "summary": "Get list of organization members",
+        "parameters": [
+          {
+            "name": "orgID",
+            "description": "Organization ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get organization members success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMember"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/org-invitation": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "getOrganizationInvitationList",
+        "summary": "Get list of organization invitations",
+        "responses": {
+          "200": {
+            "description": "Get list of invitations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationInvitation"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "inviteUserByEmail",
+        "summary": "Invite a user to your organization by email",
+        "requestBody": {
+          "description": "Organization Invitation JSON object",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User invited to organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationInvitation"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/org-invitation/{inviteID}": {
+      "get": {
+        "tags": ["organizations"],
+        "operationId": "getInvitationByID",
+        "summary": "Get organization invitation",
+        "parameters": [
+          {
+            "name": "inviteID",
+            "description": "Invitation ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get organization invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationInvitation"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": ["organizations"],
+        "operationId": "acceptInvitation",
+        "summary": "Accept organization invitation",
+        "parameters": [
+          {
+            "name": "inviteID",
+            "description": "Invitation ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization invitation accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationInvitation"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["organizations"],
+        "operationId": "declineInvitation",
+        "summary": "Decline organization invitation",
+        "parameters": [
+          {
+            "name": "inviteID",
+            "description": "Invitation ID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "organization invitation declined"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDeniedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/randomToken": {
+      "get": {
+        "tags": ["util"],
+        "operationId": "getRandomToken",
+        "summary": "Get a random 32 character token",
+        "description": "Get a random 32 character.  Used by the web UI to generate API keys",
+        "responses": {
+          "200": {
+            "description": "Random token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RandomToken"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "tokenAuth": {
+        "type": "http",
+        "scheme": "token"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request"
+      },
+      "AccessDeniedError": {
+        "description": "Access denied"
+      },
+      "NotFound": {
+        "description": "Item not found"
+      },
+      "UnauthorizedError": {
+        "description": "Authorization required"
+      }
+    },
+    "schemas": {
+      "Network": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "8056c2e21c000001",
+            "readOnly": true,
+            "nullable": true
+          },
+          "clock": {
+            "type": "integer",
+            "format": "int64",
+            "example": 12345,
+            "readOnly": true,
+            "nullable": true
+          },
+          "config": {
+            "$ref": "#/components/schemas/NetworkConfig",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "example": "Some descriptive text about my network.",
+            "nullable": true
+          },
+          "rulesSource": {
+            "type": "string",
+            "example": "accept;",
+            "nullable": true
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/PermissionsMap",
+            "nullable": true
+          },
+          "ownerId": {
+            "type": "string",
+            "example": "00000000-0000-0000-0000-000000000000",
+            "nullable": true
+          },
+          "onlineMemberCount": {
+            "type": "integer",
+            "example": 123,
+            "readOnly": true,
+            "nullable": true,
+            "description": "Note: May be 0 on endpoints returning lists of Networks"
+          },
+          "authorizedMemberCount": {
+            "type": "integer",
+            "example": 200,
+            "readOnly": true,
+            "nullable": true
+          },
+          "totalMemberCount": {
+            "type": "integer",
+            "example": 250,
+            "readOnly": true,
+            "nullable": true
+          },
+          "capabilitiesByName": {
+            "type": "object",
+            "nullable": true
+          },
+          "tagsByName": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "description": "Network object"
+      },
+      "NetworkConfig": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "8056c2e21c000001",
+            "description": "Network ID",
+            "readOnly": true,
+            "nullable": true
+          },
+          "creationTime": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1442292672978,
+            "description": "Time the network was created",
+            "readOnly": true,
+            "nullable": true
+          },
+          "capabilities": {
+            "type": "array",
+            "description": "Array of network capabilities",
+            "items": {
+              "type": "object"
+            },
+            "nullable": true
+          },
+          "dns": {
+            "type": "object",
+            "$ref": "#/components/schemas/DNS",
+            "nullable": true
+          },
+          "enableBroadcast": {
+            "type": "boolean",
+            "example": true,
+            "description": "Enable broadcast packets on the network",
+            "nullable": true
+          },
+          "ipAssignmentPools": {
+            "type": "array",
+            "description": "Range of IP addresses for the auto assign pool",
+            "items": {
+              "$ref": "#/components/schemas/IPRange"
+            },
+            "nullable": true
+          },
+          "lastModified": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1588184318235,
+            "description": "Time the network was last modified",
+            "readOnly": true,
+            "nullable": true
+          },
+          "mtu": {
+            "type": "integer",
+            "example": 2800,
+            "description": "MTU to set on the client virtual network adapter",
+            "nullable": true
+          },
+          "multicastLimit": {
+            "type": "integer",
+            "example": 32,
+            "description": "Maximum number of recipients per multicast or broadcast. Warning - Setting this to 0 will disable IPv4 communication on your network!",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "example": "My ZeroTier Network",
+            "nullable": true
+          },
+          "private": {
+            "type": "boolean",
+            "example": true,
+            "description": "Whether or not the network is private.  If false, members will *NOT* need to be authorized to join.",
+            "nullable": true
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Route"
+            },
+            "nullable": true
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "nullable": true
+          },
+          "ssoConfig": {
+            "$ref": "#/components/schemas/NetworkSSOConfig",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "nullable": true
+          },
+          "v4AssignMode": {
+            "$ref": "#/components/schemas/IPV4AssignMode",
+            "nullable": true
+          },
+          "v6AssignMode": {
+            "$ref": "#/components/schemas/IPV6AssignMode",
+            "nullable": true
+          }
+        }
+      },
+      "NetworkSSOConfig": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true,
+            "readOnly": false,
+            "description": "SSO enabled/disabled on network"
+          },
+          "mode": {
+            "type": "string",
+            "example": "default",
+            "description": "SSO mode.  One of: `default`, `email`, `group`",
+            "readOnly": false
+          },
+          "clientId": {
+            "type": "string",
+            "example": "some-client-id",
+            "description": "SSO client ID.  Client ID must be already configured in the Org",
+            "readOnly": false
+          },
+          "issuer": {
+            "type": "string",
+            "example": "https://example.com/oidc",
+            "description": "URL of the OIDC issuer",
+            "readOnly": true
+          },
+          "provider": {
+            "type": "string",
+            "example": "keycloak",
+            "description": "Provider type",
+            "readOnly": true
+          },
+          "authorizationEndpoint": {
+            "type": "string",
+            "description": "Authorization URL endpoint",
+            "readOnly": true
+          },
+          "allowList": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true,
+            "description": "List of email addresses or group memberships that may SSO auth onto the network",
+            "readOnly": false
+          }
+        }
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "8056c2e21c000001-abcdef0123",
+            "description": "concatenation of network ID and member ID",
+            "readOnly": true,
+            "deprecated": true,
+            "nullable": true
+          },
+          "clock": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1612993759070,
+            "readOnly": true,
+            "nullable": true
+          },
+          "networkId": {
+            "type": "string",
+            "example": "8056c2e21c000001",
+            "readOnly": true,
+            "nullable": true
+          },
+          "nodeId": {
+            "type": "string",
+            "example": "abcdef01234",
+            "description": "ZeroTier ID of the member",
+            "readOnly": true,
+            "nullable": true
+          },
+          "controllerId": {
+            "type": "string",
+            "example": "8056c2e21c",
+            "readOnly": true,
+            "deprecated": true,
+            "nullable": true
+          },
+          "hidden": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether or not the member is hidden in the UI",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "example": "my-cray-supercomputer",
+            "readOnly": false,
+            "description": "User defined name of the member",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "example": "My super awesome cray that I got ZeroTier to run on",
+            "readOnly": false,
+            "description": "User defined description of the member",
+            "nullable": true
+          },
+          "config": {
+            "$ref": "#/components/schemas/MemberConfig",
+            "nullable": true
+          },
+          "lastOnline": {
+            "type": "integer",
+            "format": "int64",
+            "readOnly": true,
+            "description": "Last seen time of the member (milliseconds since epoch).  Note: This data is considered ephemeral and may be reset to 0 at any time without warning.",
+            "example": 1612993673254,
+            "nullable": true,
+            "deprecated": true
+          },
+          "lastSeen": {
+            "type": "integer",
+            "format": "int64",
+            "readOnly": true,
+            "description": "Time the member last checked in with the network controller in milliseconds since epoch. Note: This data is considered ephemeral and may be reset to 0 at any time without warning.",
+            "example": 1612993673254,
+            "nullable": true
+          },
+          "physicalAddress": {
+            "type": "string",
+            "readOnly": true,
+            "description": "IP address the member last spoke to the controller via (milliseconds since epoch).  Note: This data is considered ephemeral and may be reset to 0 at any time without warning.",
+            "example": "8.8.8.8",
+            "nullable": true
+          },
+          "clientVersion": {
+            "type": "string",
+            "readOnly": true,
+            "description": "ZeroTier version the member is running",
+            "example": "1.6.3",
+            "nullable": true
+          },
+          "protocolVersion": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "ZeroTier protocol version",
+            "example": 12,
+            "nullable": true
+          },
+          "supportsRulesEngine": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Whether or not the client version is new enough to support the rules engine (1.4.0+)",
+            "nullable": true
+          }
+        }
+      },
+      "MemberConfig": {
+        "type": "object",
+        "properties": {
+          "activeBridge": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Allow the member to be a bridge on the network",
+            "example": false,
+            "nullable": true
+          },
+          "authorized": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Is the member authorized on the network",
+            "example": true,
+            "nullable": true
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "nullable": true
+          },
+          "creationTime": {
+            "type": "integer",
+            "format": "int64",
+            "readOnly": true,
+            "description": "Time the member was created or first tried to join the network",
+            "example": 1599853509872,
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "ID of the member node.  This is the 10 digit identifier that identifies a ZeroTier node.",
+            "example": "abcdef01234",
+            "nullable": true
+          },
+          "identity": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Public Key of the member's Identity",
+            "example": "abcdef0123:0:abcdef0123abcdef0123abcdef0123abcdef0123abcdef0123abcdef0123abcdef0123",
+            "nullable": true
+          },
+          "ipAssignments": {
+            "type": "array",
+            "readOnly": false,
+            "description": "List of assigned IP addresses",
+            "items": {
+              "type": "string"
+            },
+            "example": ["10.0.0.3"],
+            "nullable": true
+          },
+          "lastAuthorizedTime": {
+            "type": "integer",
+            "format": "int64",
+            "readOnly": true,
+            "description": "Time the member was authorized on the network",
+            "example": 1599853637989,
+            "nullable": true
+          },
+          "lastDeauthorizedTime": {
+            "type": "integer",
+            "format": "int64",
+            "readOnly": true,
+            "description": "Time the member was deauthorized on the network",
+            "example": 0,
+            "nullable": true
+          },
+          "noAutoAssignIps": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Exempt this member from the IP auto assignment pool on a Network",
+            "example": false,
+            "nullable": true
+          },
+          "revision": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "Member record revision count",
+            "example": 123,
+            "nullable": true
+          },
+          "ssoExempt": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Allow the member to be authorized without OIDC/SSO",
+            "example": false,
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "anyOf": [{ "type": "integer" }, { "type": "boolean" }]
+              }
+            },
+            "nullable": true,
+            "readOnly": false,
+            "description": "Array of 2 member tuples of tag [ID, tag value]",
+            "example": [[123, 456]]
+          },
+          "vMajor": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "Major version of the client",
+            "example": 1,
+            "nullable": true
+          },
+          "vMinor": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "Minor version of the client",
+            "example": 6,
+            "nullable": true
+          },
+          "vRev": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "Revision number of the client",
+            "example": 3,
+            "nullable": true
+          },
+          "vProto": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "Protocol version of the client",
+            "example": 12,
+            "nullable": true
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "User ID",
+            "example": "00000000-0000-0000-0000-000000000000"
+          },
+          "orgId": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Organization ID",
+            "example": "00000000-0000-0000-0000-000000000000"
+          },
+          "globalPermissions": {
+            "readOnly": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Permissions"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Display Name",
+            "example": "Joe User"
+          },
+          "email": {
+            "type": "string",
+            "readOnly": true,
+            "description": "User email address",
+            "example": "user@example.com"
+          },
+          "auth": {
+            "readOnly": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuthMethods"
+              }
+            ]
+          },
+          "smsNumber": {
+            "type": "string",
+            "readOnly": false,
+            "description": "SMS number",
+            "example": "+1-800-555-1212",
+            "deprecated": true
+          },
+          "tokens": {
+            "type": "array",
+            "readOnly": true,
+            "items": {
+              "type": "string"
+            },
+            "example": ["my-token-id"],
+            "description": "List of API token names."
+          }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-0000-0000-000000000000",
+            "description": "Organization ID"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "User ID of the organization owner",
+            "example": "00000000-0000-0000-0000-000000000000",
+            "readOnly": true
+          },
+          "ownerEmail": {
+            "type": "string",
+            "description": "Organization owner's email address",
+            "example": "user@example.com",
+            "readOnly": true
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMember"
+            },
+            "description": "List of organization members"
+          },
+          "ssoConfig": {
+            "type": "object",
+            "$ref": "#/components/schemas/OrgSsoConfig",
+            "description": "Organization wide SSO configuration"
+          }
+        }
+      },
+      "OrgSsoConfig": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true,
+            "description": "Enabled flag for SSO"
+          },
+          "issuers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SsoIssuer",
+              "description": "list of configured OIDC issuers"
+            }
+          }
+        }
+      },
+      "SsoIssuer": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "example": "keycloak",
+            "description": "OIDC Provider (one of: default, authelia, auth0, azure, keycloak, okta, onelogin)"
+          },
+          "clientId": {
+            "type": "string",
+            "example": "oidc-client-id",
+            "description": "OIDC Client ID"
+          },
+          "issuer": {
+            "type": "string",
+            "example": "https://example.com/oidc/auth",
+            "description": "OIDC Issuer URL"
+          },
+          "authorization_endpoint": {
+            "type": "string",
+            "example": "https://example.com/oidc/auth/endpoint",
+            "description": "authorization endpoint",
+            "readOnly": true
+          }
+        }
+      },
+      "OrganizationMember": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Organization ID",
+            "example": "00000000-0000-0000-0000-000000000000"
+          },
+          "userId": {
+            "type": "string",
+            "readOnly": false,
+            "description": "User ID",
+            "example": "00000000-0000-0000-0000-000000000000"
+          },
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "nullable": true,
+            "description": "Organization member display name",
+            "example": "Joe User"
+          },
+          "email": {
+            "type": "string",
+            "readOnly": true,
+            "nullable": true,
+            "description": "Organization member email address"
+          }
+        }
+      },
+      "OrganizationInvitation": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "description": "Organization ID",
+            "example": "00000000-0000-0000-0000-000000000000",
+            "readOnly": true
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of invitee",
+            "example": "joe@user.com"
+          },
+          "id": {
+            "type": "string",
+            "description": "Invitation ID",
+            "example": "00000000-0000-0000-0000-000000000000",
+            "readOnly": true
+          },
+          "creation_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Creation time of the invite",
+            "example": 1613067920454,
+            "readOnly": true
+          },
+          "status": {
+            "readOnly": true,
+            "description": "Invitation status",
+            "example": "pending",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InviteStatus"
+              }
+            ]
+          },
+          "update_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Last updated time of the invitation",
+            "example": 1613067920454,
+            "readOnly": true
+          },
+          "ownerEmail": {
+            "type": "string",
+            "description": "Organization owner email address",
+            "example": "user@example.com",
+            "readOnly": true
+          }
+        }
+      },
+      "PermissionsMap": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Permissions"
+        },
+        "example": {
+          "00000000-0000-0000-0000-000000000000": {
+            "a": true,
+            "d": true,
+            "m": true,
+            "r": true
+          }
+        }
+      },
+      "Permissions": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "boolean",
+            "example": true,
+            "description": "Authorize permission"
+          },
+          "d": {
+            "type": "boolean",
+            "example": true,
+            "description": "Delete permission"
+          },
+          "m": {
+            "type": "boolean",
+            "example": true,
+            "description": "Modify network settings permission"
+          },
+          "r": {
+            "type": "boolean",
+            "example": true,
+            "description": "Read network settings permission"
+          }
+        }
+      },
+      "IPRange": {
+        "type": "object",
+        "properties": {
+          "ipRangeStart": {
+            "type": "string",
+            "example": "10.0.0.1"
+          },
+          "ipRangeEnd": {
+            "type": "string",
+            "example": "10.0.0.255"
+          }
+        }
+      },
+      "DNS": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "example": "some.domain",
+            "description": "Search domain to use for DNS records"
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["10.0.0.3"],
+            "description": "IP address of unicast DNS service",
+            "nullable": true
+          }
+        }
+      },
+      "Route": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "example": "10.0.0.0/24"
+          },
+          "via": {
+            "type": "string",
+            "example": null,
+            "nullable": true
+          }
+        }
+      },
+      "IPV4AssignMode": {
+        "type": "object",
+        "properties": {
+          "zt": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "IPV6AssignMode": {
+        "type": "object",
+        "properties": {
+          "6plane": {
+            "type": "boolean",
+            "example": true,
+            "nullable": true
+          },
+          "rfc4193": {
+            "type": "boolean",
+            "example": false,
+            "nullable": true
+          },
+          "zt": {
+            "type": "boolean",
+            "example": false,
+            "nullable": true
+          }
+        }
+      },
+      "AuthMethods": {
+        "type": "object",
+        "properties": {
+          "local": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "email address for built-in authentication",
+            "nullable": true,
+            "readOnly": true
+          },
+          "google": {
+            "type": "string",
+            "example": "156162346876134683",
+            "description": "Google OIDC ID",
+            "nullable": true,
+            "readOnly": true
+          },
+          "oidc": {
+            "type": "string",
+            "example": "00000000-0000-0000-0000-000000000000",
+            "description": "Generic OIDC ID",
+            "nullable": true,
+            "readOnly": true
+          }
+        }
+      },
+      "APIToken": {
+        "type": "object",
+        "properties": {
+          "tokenName": {
+            "type": "string",
+            "example": "my-super-secret-token",
+            "description": "user specified token name",
+            "readOnly": false
+          },
+          "token": {
+            "type": "string",
+            "example": "adsf98ashdkjh3689adsfnj3$ADn",
+            "description": "API Token.  Minimum 32 characters. This token is encrypted in the database and can not be retrieved once set",
+            "readOnly": false,
+            "writeOnly": true
+          }
+        }
+      },
+      "InviteStatus": {
+        "type": "string",
+        "enum": ["pending", "accepted", "canceled"]
+      },
+      "Status": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "central_status"
+          },
+          "type": {
+            "type": "string",
+            "example": "CentralStatus"
+          },
+          "clock": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1613067920454,
+            "readOnly": true,
+            "description": "Current time on server"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.6.5"
+          },
+          "apiVersion": {
+            "type": "string",
+            "example": "4"
+          },
+          "uptime": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1613067920454,
+            "readOnly": true,
+            "description": "Uptime on server"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "readOnlyMode": {
+            "type": "boolean"
+          },
+          "loginMethods": {
+            "type": "object",
+            "properties": {
+              "local": {
+                "type": "boolean"
+              },
+              "google": {
+                "type": "boolean"
+              },
+              "twitter": {
+                "type": "boolean"
+              },
+              "facebook": {
+                "type": "boolean"
+              },
+              "github": {
+                "type": "boolean"
+              },
+              "saml": {
+                "type": "boolean"
+              },
+              "oidc": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "RandomToken": {
+        "type": "object",
+        "properties": {
+          "clock": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1613067920454,
+            "readOnly": true,
+            "description": "Current time on server"
+          },
+          "hex": {
+            "type": "string",
+            "example": "16924f3ff478526cffb1b89b1040b33c8dbd3c09e07f39691f615769121c0d76",
+            "readOnly": true,
+            "description": "hex encoded random bytes of the token"
+          },
+          "token": {
+            "type": "string",
+            "example": "wwrb66uUh18Fqc38rd8jMd5RFJzRsCn4",
+            "readOnly": true,
+            "description": "Random 32 character token"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "tokenAuth": []
+    }
+  ]
+}

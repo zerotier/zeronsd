@@ -1,9 +1,7 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use zeronsd::utils::authtoken_path;
+use zerotier_api::service_api;
 
 pub fn randstring(len: u8) -> String {
     "zeronsd-test-".to_string()
@@ -25,9 +23,9 @@ pub fn randstring(len: u8) -> String {
 // extract a network definiton from testdata. templates in a new name.
 pub fn network_definition(
     name: String,
-) -> Result<HashMap<String, serde_json::Value>, anyhow::Error> {
-    let mut res: HashMap<String, serde_json::Value> = serde_json::from_reader(
-        std::fs::File::open(format!("testdata/networks/{}.json", name))?,
+) -> Result<serde_json::Map<String, serde_json::Value>, anyhow::Error> {
+    let mut res: serde_json::Map<String, serde_json::Value> = serde_json::from_reader(
+        std::fs::File::open(format!("../testdata/networks/{}.json", name))?,
     )?;
 
     if let serde_json::Value::Object(config) = res.clone().get("config").unwrap() {
@@ -44,7 +42,7 @@ pub fn network_definition(
 }
 
 // returns the public identity of this instance of zerotier
-pub async fn get_identity(client: &zerotier_one_api::Client) -> Result<String, anyhow::Error> {
+pub async fn get_identity(client: &service_api::Client) -> Result<String, anyhow::Error> {
     let status = client.get_status().await?;
 
     Ok(status

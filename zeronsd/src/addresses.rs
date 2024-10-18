@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv6Addr};
 
 use hex::FromHexError;
 use ipnetwork::IpNetwork;
-use zerotier_central_api::types::{Member, Network};
+use zerotier_api::central_api::types::{Member, Network};
 
 fn digest_hex(code: String) -> Result<u64, FromHexError> {
     Ok(hex::decode(code)?
