@@ -1,4 +1,4 @@
-use zerotier_central_api::types::{Member, MemberConfig};
+use zerotier_api::central_api::types::{Member, MemberConfig};
 
 // monkeypatches to Member
 pub trait MemberUtil {

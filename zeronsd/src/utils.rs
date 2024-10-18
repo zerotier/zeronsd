@@ -9,6 +9,8 @@ use anyhow::anyhow;
 
 use crate::traits::ToHostname;
 
+use zerotier_api::{central_api, service_api};
+
 // collections of test hosts files
 pub const TEST_HOSTS_DIR: &str = "../testdata/hosts-files";
 pub const DEFAULT_DOMAIN_NAME: &str = "home.arpa.";
@@ -56,14 +58,14 @@ pub fn init_logger(level: Option<tracing::Level>) {
 }
 
 // this provides the production configuration for talking to central through the openapi libraries.
-pub fn central_client(token: String) -> Result<zerotier_central_api::Client, anyhow::Error> {
+pub fn central_client(token: String) -> Result<central_api::Client, anyhow::Error> {
     let mut headers = HeaderMap::new();
     headers.insert(
         "Authorization",
         HeaderValue::from_str(&format!("bearer {}", token))?,
     );
 
-    Ok(zerotier_central_api::Client::new_with_client(
+    Ok(central_api::Client::new_with_client(
         &std::env::var("ZEROTIER_CENTRAL_INSTANCE").unwrap_or(CENTRAL_BASEURL.to_string()),
         reqwest::Client::builder()
             .user_agent(version())
@@ -153,7 +155,7 @@ pub async fn get_member_name(
 ) -> Result<LowerName, anyhow::Error> {
     let client = local_client_from_file(authtoken_path, local_url)?;
 
-    let status = client.get_status().await?;
+    let status = client.get_status().await?.into_inner();
     if let Some(address) = &status.address {
         return Ok(("zt-".to_string() + address).to_fqdn(domain_name)?.into());
     }
@@ -166,7 +168,7 @@ pub async fn get_member_name(
 fn local_client_from_file(
     authtoken_path: &Path,
     local_url: String,
-) -> Result<zerotier_service_api::Client, anyhow::Error> {
+) -> Result<service_api::Client, anyhow::Error> {
     let authtoken = std::fs::read_to_string(authtoken_path)?;
     local_client(authtoken, local_url)
 }
@@ -174,11 +176,11 @@ fn local_client_from_file(
 pub fn local_client(
     authtoken: String,
     local_url: String,
-) -> Result<zerotier_service_api::Client, anyhow::Error> {
+) -> Result<service_api::Client, anyhow::Error> {
     let mut headers = HeaderMap::new();
     headers.insert("X-ZT1-Auth", HeaderValue::from_str(&authtoken)?);
 
-    Ok(zerotier_service_api::Client::new_with_client(
+    Ok(service_api::Client::new_with_client(
         &local_url,
         reqwest::Client::builder()
             .user_agent(version())
@@ -203,7 +205,7 @@ pub async fn get_listen_ips(
             network_id
         )),
         Ok(listen) => {
-            let assigned = listen.assigned_addresses.to_owned();
+            let assigned = listen.into_inner().assigned_addresses.to_owned();
             if !assigned.is_empty() {
                 Ok(assigned)
             } else {
@@ -217,7 +219,7 @@ pub async fn get_listen_ips(
 pub async fn update_central_dns(
     domain_name: Name,
     ips: Vec<String>,
-    client: zerotier_central_api::Client,
+    client: central_api::Client,
     network: String,
 ) -> Result<(), anyhow::Error> {
     let mut zt_network = client.get_network_by_id(&network).await?;
@@ -225,7 +227,7 @@ pub async fn update_central_dns(
     let mut domain_name = domain_name;
     domain_name.set_fqdn(false);
 
-    let dns = Some(zerotier_central_api::types::Dns {
+    let dns = Some(central_api::types::Dns {
         domain: Some(domain_name.to_string()),
         servers: Some(ips),
     });

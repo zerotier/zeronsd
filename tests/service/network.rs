@@ -2,7 +2,14 @@ use std::time::Duration;
 
 use tracing::warn;
 use zeronsd::utils::{authtoken_path, get_listen_ips, ZEROTIER_LOCAL_URL};
-use zerotier_central_api::types::{Member, MemberConfig, Network};
+
+use zerotier_api::{
+    central_api::{
+        self,
+        types::{Member, MemberConfig, Network},
+    },
+    service_api,
+};
 
 use super::{context::TestContext, member::MemberConfigUtil, utils::network_definition};
 
@@ -56,7 +63,7 @@ impl TestNetwork {
 
     // join zerotier-one to the test network
     pub async fn join(&self) -> Result<(), anyhow::Error> {
-        let network = zerotier_service_api::types::Network {
+        let network = service_api::types::Network {
             status: None,
             type_: None,
             routes: Vec::new(),
@@ -113,7 +120,7 @@ impl TestNetwork {
         self.context.identity.clone()
     }
 
-    pub fn central(&self) -> zerotier_central_api::Client {
+    pub fn central(&self) -> central_api::Client {
         self.context.central.clone()
     }
 

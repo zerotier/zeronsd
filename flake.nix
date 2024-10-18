@@ -10,24 +10,28 @@
 
   outputs = { nixpkgs, flake-utils, rust-overlay, ... }:
     let
-      cargo-config = builtins.fromTOML (builtins.readFile ./zeronsd/Cargo.toml);
+      cargo-package = (builtins.fromTOML (builtins.readFile ./zeronsd/Cargo.toml)).package;
       rust-version = "1.81.0";
-    in {
-    } // flake-utils.lib.eachDefaultSystem (system:
+    in flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
+          config.allowUnfree = true;
         };
 
         devInputs = with pkgs; [
           rust-bin.stable.${rust-version}.complete
           pkg-config
           openssl
-        ];
+          toml-cli
+        ] ++ lib.optionals pkgs.stdenv.isDarwin [
+          pkgs.libiconv
+          pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+        ] ;
 
         zeronsd-bin = pkgs.rustPlatform.buildRustPackage rec {
-          inherit (cargo-config.package) name version;
+          inherit (cargo-package) name version;
 
           src = ./.;
           buildAndTestSubdir = "zeronsd";
@@ -35,12 +39,9 @@
           nativeBuildInputs = devInputs;
           buildInputs = devInputs;
 
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
+          cargoLock.lockFile = ./Cargo.lock;
         };
-      in
-      {
+      in rec {
         devShells.default = pkgs.mkShell {
           buildInputs = devInputs;
           nativeBuildInputs = [ pkgs.just ];
@@ -49,30 +50,20 @@
         packages = {
           zeronsd = zeronsd-bin;
           default = zeronsd-bin;
+        } // builtins.listToAttrs (map (s: {
+          name = "container-${s}";
+          value = import ./docker.nix {
+            inherit cargo-package;
 
-          container = pkgs.dockerTools.buildImage {
-            inherit (cargo-config.package) name;
-            tag = "latest";
-
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [ zeronsd-bin pkgs.dockerTools.caCertificates ];
-              pathsToLink = [ "/bin" "/etc" ];
-            };
-
-            created = "now";
-
-            runAsRoot = ''
-              #{pkgs.runtimeShell}
-              mkdir -p /var/lib/zeronsd
-            '';
-
-            config = {
-              Cmd = [ "/bin/zeronsd" ];
-              WorkingDir = "/var/lib/zeronsd";
+            pkgs = import nixpkgs {
+              localSystem = system;
+              crossSystem = s;
+              
+              overlays = [ overlays.default ];
+              config.allowUnfree = true;
             };
           };
-        };
+        }) [ "x86_64-linux" "aarch64-linux" ]);
 
         overlays = {
           default = final: prev: { zeronsd = zeronsd-bin; };

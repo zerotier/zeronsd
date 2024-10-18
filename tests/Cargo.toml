@@ -5,8 +5,7 @@ edition = "2021"
 
 [dev-dependencies]
 zeronsd = { path = "../zeronsd" }
-zerotier-central-api = { path = "../central-api" }
-zerotier-service-api = { path = "../service-api" }
+zerotier-api = { path = "../zerotier-api" }
 
 [features]
 default = []

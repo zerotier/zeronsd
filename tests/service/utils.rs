@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use zeronsd::utils::authtoken_path;
+use zerotier_api::service_api;
 
 pub fn randstring(len: u8) -> String {
     "zeronsd-test-".to_string()
@@ -41,7 +42,7 @@ pub fn network_definition(
 }
 
 // returns the public identity of this instance of zerotier
-pub async fn get_identity(client: &zerotier_service_api::Client) -> Result<String, anyhow::Error> {
+pub async fn get_identity(client: &service_api::Client) -> Result<String, anyhow::Error> {
     let status = client.get_status().await?;
 
     Ok(status

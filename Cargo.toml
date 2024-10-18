@@ -1,4 +1,4 @@
 [workspace]
 
 resolver = "2"
-members = ["zeronsd", "central-api", "service-api", "tests"]
+members = ["zeronsd", "tests", "zerotier-api"]

@@ -15,8 +15,6 @@ readme = "README.md"
 keywords = ["dns", "zerotier"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 regex = "^1.11.0"
 anyhow = "^1.0.89"
@@ -30,8 +28,7 @@ tokio = { version = "1", features = ["full"] }
 serde = "^1.0.210"
 serde_json = "^1.0.128"
 serde_yml = "^0.0.12"
-zerotier-central-api = { path = "../central-api" }
-zerotier-service-api = { path = "../service-api" }
+zerotier-api = { path = "../zerotier-api" }
 toml = "^0.7.8"
 tinytemplate = "^1.2.1"
 rand = "^0.8.5"
