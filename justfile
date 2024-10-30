@@ -1,16 +1,24 @@
 VERSION := shell("toml get zeronsd/Cargo.toml package.version")
 DOCKER_TAG := "zeronsd:" + VERSION
+DOCKER_BIN := env_var_or_default("DOCKER_BIN", "docker")
 
 version:
     @echo {{VERSION}}
 
+docker:
+    @echo {{DOCKER_BIN}}
+
 build:
     nix build
 
-build-image:
-    nix build .#container
-    docker load < result
-    docker tag {{DOCKER_TAG}} zeronsd:latest
+docker-build platform="linux/arm64,linux/amd64":
+    {{DOCKER_BIN}} build \
+        --platform={{platform}} \
+        -t {{DOCKER_TAG}} \
+        .
+
+clean-image:
+    {{DOCKER_BIN}} image rm {{DOCKER_TAG}}
 
 resolve network name:
     nix run nixpkg#dig @$(zerotier-cli -j listnetworks \
@@ -21,9 +29,9 @@ resolve network name:
             | last') \
         {{name}}
 
-run network config="./config.yaml" token="./.central.token": build
+run network config="./config.yaml" token="./.central.token" docker-bin="docker": build
     file {{config}}
-    sudo docker run \
+    sudo {{DOCKER_BIN}} run \
       --net=host \
       --init \
       -v {{config}}:/var/lib/zeronsd/config.yaml \

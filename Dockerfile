@@ -1,4 +1,4 @@
-FROM nixos/nix:latest AS builder
+FROM --platform=$BUILDPLATFORM nixos/nix:latest AS builder
 
 COPY . /tmp/build
 WORKDIR /tmp/build

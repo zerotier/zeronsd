@@ -50,20 +50,7 @@
         packages = {
           zeronsd = zeronsd-bin;
           default = zeronsd-bin;
-        } // builtins.listToAttrs (map (s: {
-          name = "container-${s}";
-          value = import ./docker.nix {
-            inherit cargo-package;
-
-            pkgs = import nixpkgs {
-              localSystem = system;
-              crossSystem = s;
-              
-              overlays = [ overlays.default ];
-              config.allowUnfree = true;
-            };
-          };
-        }) [ "x86_64-linux" "aarch64-linux" ]);
+        };
 
         overlays = {
           default = final: prev: { zeronsd = zeronsd-bin; };
