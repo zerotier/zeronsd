@@ -31,7 +31,7 @@ pub struct Launcher {
     pub tls_key: Option<PathBuf>,
     pub wildcard: bool,
     pub log_level: Option<crate::log::LevelFilter>,
-    pub local_url: String,
+    pub local_url: Option<String>,
     #[serde(skip_deserializing)]
     pub network_id: Option<String>,
 }
@@ -71,7 +71,7 @@ impl Default for Launcher {
             wildcard: false,
             network_id: None,
             log_level: None,
-            local_url: ZEROTIER_LOCAL_URL.to_string(),
+            local_url: Some(ZEROTIER_LOCAL_URL.to_string()),
         }
     }
 }
@@ -85,7 +85,7 @@ impl Launcher {
     pub fn parse_format(s: &str, format: ConfigFormat) -> Result<Self, anyhow::Error> {
         Ok(match format {
             ConfigFormat::JSON => serde_json::from_str(s)?,
-            ConfigFormat::YAML => serde_yaml::from_str(s)?,
+            ConfigFormat::YAML => serde_yml::from_str(s)?,
             ConfigFormat::TOML => toml::from_str(s)?,
         })
     }
@@ -116,7 +116,9 @@ impl Launcher {
         let ips = get_listen_ips(
             &authtoken,
             &self.network_id.clone().unwrap(),
-            self.local_url.clone(),
+            self.local_url
+                .clone()
+                .unwrap_or(ZEROTIER_LOCAL_URL.to_string()),
         )
         .await?;
 
@@ -151,8 +153,14 @@ impl Launcher {
                 }
             }
 
-            let member_name =
-                get_member_name(authtoken, domain_name.clone(), self.local_url.clone()).await?;
+            let member_name = get_member_name(
+                authtoken,
+                domain_name.clone(),
+                self.local_url
+                    .clone()
+                    .unwrap_or(ZEROTIER_LOCAL_URL.to_string()),
+            )
+            .await?;
 
             let network = client
                 .get_network_by_id(&self.network_id.clone().unwrap())

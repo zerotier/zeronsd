@@ -30,6 +30,8 @@ use trust_dns_server::{
     },
 };
 
+use zerotier_api::central_api;
+
 pub async fn find_members(mut zt: ZTAuthority) {
     let mut timer = tokio::time::interval(zt.update_interval);
 
@@ -76,7 +78,6 @@ pub async fn init_catalog(zt: ZTAuthority) -> Result<Catalog, anyhow::Error> {
         trust_dns_server::authority::ZoneType::Primary,
         config,
     )
-    .await
     .expect("Could not initialize forwarder");
 
     catalog.upsert(Name::root().into(), Box::new(Arc::new(forwarder)));
@@ -97,7 +98,7 @@ pub async fn init_catalog(zt: ZTAuthority) -> Result<Catalog, anyhow::Error> {
 pub struct ZTAuthority {
     pub network_id: String,
     pub hosts_file: Option<PathBuf>,
-    pub client: zerotier_central_api::Client,
+    pub client: central_api::Client,
     pub reverse_authority_map: HashMap<IpNetwork, RecordAuthority>,
     pub forward_authority: RecordAuthority,
     pub wildcard: bool,
@@ -125,8 +126,8 @@ impl ZTAuthority {
 
     pub async fn configure_members(
         &self,
-        network: zerotier_central_api::types::Network,
-        members: Vec<zerotier_central_api::types::Member>,
+        network: central_api::types::Network,
+        members: Vec<central_api::types::Member>,
     ) -> Result<(), anyhow::Error> {
         let mut forward_records = vec![self.forward_authority.domain_name.clone()];
         let mut reverse_records = HashMap::new();
@@ -223,13 +224,7 @@ impl ZTAuthority {
 
     pub async fn get_members(
         &self,
-    ) -> Result<
-        (
-            zerotier_central_api::types::Network,
-            Vec<zerotier_central_api::types::Member>,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(central_api::types::Network, Vec<central_api::types::Member>), anyhow::Error> {
         let client = self.client.clone();
         let network_id = self.network_id.clone();
 
@@ -596,7 +591,7 @@ struct ZTRecord {
 
 impl ZTRecord {
     pub fn new(
-        member: &zerotier_central_api::types::Member,
+        member: &central_api::types::Member,
         sixplane: Option<IpNetwork>,
         rfc4193: Option<IpNetwork>,
         domain_name: Name,

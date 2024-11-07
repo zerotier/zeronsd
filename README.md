@@ -1,6 +1,6 @@
-# ZeroNS: a name service centered around the ZeroTier Central API
+# zeronsd: a name service centered around the ZeroTier Central API
 
-ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotier.com) configured _networks_; once provided an IPv4-capable network it:
+zeronsd provides names that are a part of [ZeroTier Central's](https://my.zerotier.com) configured _networks_; once provided an IPv4-capable network it:
 
 - Listens on the local interface joined to that network -- you will want to start one ZeroNS per ZeroTier network.
 - Provides general DNS by forwarding all queries to `/etc/resolv.conf` resolvers that do not match the TLD, similar to `dnsmasq`.
@@ -15,54 +15,15 @@ ZeroNS provides names that are a part of [ZeroTier Central's](https://my.zerotie
 
 ## Installation
 
-Before continuing, be reminded that zeronsd is **beta software**. That said, if you'd like to get started quickly with zeronsd, [click here for a user-friendly guide](docs/quickstart.md)!
+Zeronsd is only distributed as Docker images, hosted in the ZeroTier [Docker Hub organization](#todo).
 
-Packages:
+## Development
 
-- Linux/Windows: [releases](https://github.com/zerotier/zeronsd/releases) contain packages for `*.deb`, `*.rpm` for Linux, and MSI format for Windows. **NOTE**: the Windows MSI will install a firewall exception for port 53 so zeronsd can communicate.
-  - [Arch Linux](https://aur.archlinux.org/packages/zeronsd/) packages provided by [@devvick](https://github.com/devvick)!
-- Mac OS X: `brew tap zerotier/homebrew-tap && brew install zerotier/homebrew-tap/zeronsd`
-- Docker: `docker pull zerotier/zeronsd` (see below for more on docker)
+If you want to hack on or build zeronsd yourself, the easiest way is to use [Nix](https://nixos.org). If you do, you can get an environment ready to develop, test, or build/package the project just by running `nix flake develop`. Likewise, `nix flake build` will create a binary at `result/bin/zeronsd`.
 
-Other methods:
+`just docker-build` will use Docker to build a cross-platform image from your source directory. Note: there are multiple ways to configure Docker for [multi-platform builds](https://docs.docker.com/build/building/multi-platform/). Describing how to do so is beyond the scope of this README. (For those working on a Mac, there's an example `colima` template/config file in `examples/``).
 
-### Get a release from Cargo
-
-Please obtain a working [rust environment](https://rustup.rs/) first.
-
-```
-cargo install zeronsd
-```
-
-### From Git (via Cargo)
-
-```
-cargo install --git https://github.com/zerotier/zeronsd --branch main
-```
-
-### Docker
-
-There is a `Dockerfile` present in the repository you can use to build images in lieu of one of our [official images](https://hub.docker.com/r/zerotier/zeronsd).
-
-There are build arguments which control behavior:
-
-- `IS_LOCAL`: if set, uses the local source tree and does not try to fetch.
-- `VERSION`: this is the branch or tag to fetch.
-- `IS_TAG`: if non-zero, tells cargo to fetch tags instead of branches.
-
-Example:
-
-```bash
-docker build . # builds latest master
-docker build --build-arg VERSION=somebranch # builds branch `somebranch`
-docker build --build-arg IS_TAG=1 --build-arg VERSION=v0.1.0 # builds version 0.1.0 from tag v0.1.0
-```
-
-Once built, the image automatically runs `zeronsd` for you. The default subcommand is `help`.
-
-### Docker (alpine edition)
-
-See [Dockerfile.alpine](Dockerfile.alpine).
+Use `just --list` to see all of the development tasks currently available.
 
 ## Usage
 
@@ -169,3 +130,4 @@ ZeroNS demands a lot out of the [trust-dns](https://github.com/bluejekyll/trust-
 ## Author
 
 Erik Hollensbe <github@hollensbe.org>
+ZeroTier Engineering

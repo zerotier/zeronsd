@@ -1,20 +1,21 @@
-FROM debian:latest as rustenv
+FROM --platform=$BUILDPLATFORM nixos/nix:latest AS builder
 
-ARG IS_LOCAL=0
-ARG VERSION=main
-ARG IS_TAG=0
+COPY . /tmp/build
+WORKDIR /tmp/build
 
-COPY . /code
-WORKDIR /code
-RUN apt-get update -qq && apt-get install curl pkg-config build-essential libssl-dev ca-certificates -y && apt-get autoclean -y && apt-get clean -y
-RUN curl -sSL sh.rustup.rs >/usr/local/bin/rustup-dl && chmod +x /usr/local/bin/rustup-dl && /usr/local/bin/rustup-dl -y --default-toolchain stable
+RUN nix \
+    --extra-experimental-features "nix-command flakes" \
+    --option filter-syscalls false \
+    build
 
-FROM rustenv as buildenv
+RUN mkdir /tmp/nix-store-closure
+RUN cp -R $(nix-store -qR result/) /tmp/nix-store-closure
 
-RUN sh cargo-docker.sh
+FROM scratch
 
-FROM debian:latest
-RUN apt-get update -qq && apt-get install ca-certificates -y && apt-get autoclean -y && apt-get clean -y
-COPY --from=buildenv /root/.cargo/bin/zeronsd /usr/bin/zeronsd
+WORKDIR /
 
-ENTRYPOINT ["/usr/bin/zeronsd"]
+# Copy /nix/store
+COPY --from=builder /tmp/nix-store-closure /nix/store
+COPY --from=builder /tmp/build/result/bin/zeronsd /bin/zeronsd
+CMD ["/bin/zeronsd"]
