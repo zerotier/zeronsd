@@ -15,7 +15,7 @@ zeronsd provides names that are a part of [ZeroTier Central's](https://my.zeroti
 
 ## Installation
 
-Zeronsd is only distributed as Docker images, hosted in the ZeroTier [Docker Hub organization](#todo).
+Zeronsd is only distributed as Docker images, hosted in the ZeroTier [Docker Hub organization](https://hub.docker.com/r/zerotier).
 
 ## Development
 
